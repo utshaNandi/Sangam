@@ -29,42 +29,42 @@ export default function WelcomeScreen() {
   return (
     <div className="min-h-screen bg-[#F4EEE2] flex flex-col items-center justify-center overflow-hidden relative">
       
-      {/* Ambient Spotlight */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/40 rounded-full blur-[100px] pointer-events-none"></div>
+      {/* Ambient Spotlight with breathing animation */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/40 rounded-full blur-[100px] pointer-events-none animate-ambient-glow"></div>
 
       {/* Invisible Overlay at z-20. Catches clicks to close the book */}
       <div 
-        className={`absolute inset-0 z-20 ${selectedRole ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        className={`absolute inset-0 z-20 transition-opacity duration-700 ${selectedRole ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={() => setSelectedRole(null)} 
       />
 
-      {/* Clean Apple-style Back Button */}
-      <div className={`absolute top-10 left-10 z-50 transition-all duration-[800ms] delay-100 ${selectedRole ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
+      {/* Clean Apple-style Back Button with micro-interactions */}
+      <div className={`absolute top-10 left-10 z-50 transition-all duration-[700ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${selectedRole ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6 pointer-events-none'}`}>
         <button 
           onClick={() => setSelectedRole(null)}
-          className="flex items-center gap-2 text-[#3E2723]/70 hover:text-[#3E2723] font-serif tracking-widest text-sm uppercase transition-colors"
+          className="group flex items-center gap-2.5 text-[#3E2723]/70 hover:text-[#3E2723] font-serif tracking-widest text-sm uppercase transition-all duration-300 py-2 px-3 rounded-lg hover:bg-black/5 active:scale-95"
         >
-          <span>←</span> Back to Shelf
+          <span className="inline-block transition-transform duration-300 ease-out group-hover:-translate-x-1.5">←</span> Back to Shelf
         </button>
       </div>
 
       <div className="w-full max-w-6xl h-screen max-h-[1000px] flex flex-col items-center justify-start pt-8 px-6 relative z-30 pointer-events-none">
         
-        {/* Header Section */}
-        <div className={`flex flex-col items-center mt-0 transition-opacity duration-[800ms] ${selectedRole ? 'opacity-10 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
-          <div className="relative w-16 h-10 mb-8 flex justify-center">
-            <div className="absolute left-2 w-7 h-7 rounded-full border-[1.5px] border-[#3E2723]/40 mix-blend-multiply"></div>
-            <div className="absolute right-2 w-7 h-7 rounded-full border-[1.5px] border-[#3E2723]/40 bg-[#DFB980]/40 mix-blend-multiply"></div>
+        {/* Header Section with staggered entrance */}
+        <div className={`flex flex-col items-center mt-0 transition-all duration-[700ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${selectedRole ? 'opacity-10 scale-[0.98] pointer-events-none' : 'opacity-100 scale-100 pointer-events-auto'}`}>
+          <div className="relative w-16 h-10 mb-8 flex justify-center animate-rings-in">
+            <div className="absolute left-2 w-7 h-7 rounded-full border-[1.5px] border-[#3E2723]/40 mix-blend-multiply transition-transform duration-500 hover:scale-110"></div>
+            <div className="absolute right-2 w-7 h-7 rounded-full border-[1.5px] border-[#3E2723]/40 bg-[#DFB980]/40 mix-blend-multiply transition-transform duration-500 hover:scale-110"></div>
           </div>
 
-          <div className="flex items-baseline justify-center">
+          <div className="flex items-baseline justify-center animate-hero-fade-up [animation-delay:150ms]">
             <h1 className="text-7xl md:text-8xl font-bold font-serif text-[#3E2723] tracking-tight drop-shadow-sm">
               Sangam
             </h1>
-            <div className="w-4 h-4 ml-3 bg-[#DCA766] rounded-full"></div>
+            <div className="w-4 h-4 ml-3 bg-[#DCA766] rounded-full animate-dot-pulse"></div>
           </div>
           
-          <p className="mt-6 text-2xl md:text-3xl font-serif text-[#3E2723]/60 tracking-wide">
+          <p className="mt-6 text-2xl md:text-3xl font-serif text-[#3E2723]/60 tracking-wide animate-hero-fade-up [animation-delay:300ms]">
             One Campus. Many Possibilities.
           </p>
         </div>
@@ -72,50 +72,105 @@ export default function WelcomeScreen() {
         {/* Bookshelf Area */}
         <div className="relative w-full max-w-[900px] h-[450px] flex items-center justify-center mt-48 md:mt-56 z-30 pointer-events-none">
 
-          <div className="absolute bottom-20 w-[340px] h-[160px] scale-[1.4] md:scale-[1.85] origin-bottom pointer-events-auto">
+          <div className="absolute bottom-20 w-[340px] h-[160px] scale-[1.4] md:scale-[1.85] origin-bottom pointer-events-auto [perspective:1200px] [transform-style:preserve-3d]">
             
-            {/* NEW: Local Blur Layer. Sits exactly at z-40, blurring the unselected books (z-20/z-30), but NOT the active book (z-50) */}
+            {/* Local Blur Layer */}
             <div 
               className={`absolute -top-[1000px] -bottom-[1000px] -left-[1000px] -right-[1000px] z-40 bg-[#F4EEE2]/60 backdrop-blur-md transition-all duration-[800ms] pointer-events-none ${selectedRole ? 'opacity-100' : 'opacity-0'}`} 
             />
 
-            <div className="absolute bottom-0 -left-6 -right-6 h-3.5 rounded-full bg-[#C08C5D] shadow-md z-10" />
+            {/* Wooden shelf with entrance settling animation */}
+            <div className="absolute bottom-0 -left-6 -right-6 h-3.5 rounded-full bg-[#C08C5D] shadow-md z-10 animate-shelf-in origin-center" />
 
-            <div className="absolute bottom-3.5 left-[15px] flex flex-col items-center gap-0.5 z-20">
+            {/* Recessed slot shadows on the wooden plank when books are pulled out */}
+            <div 
+              className={`absolute bottom-3.5 rounded-sm bg-[#8A562B]/60 blur-[0.5px] transition-opacity duration-300 pointer-events-none z-10 ${
+                selectedRole === 'student' ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ left: '120px', width: '28px', height: '3.5px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5)' }}
+            />
+            <div 
+              className={`absolute bottom-3.5 rounded-sm bg-[#8A562B]/60 blur-[0.5px] transition-opacity duration-300 pointer-events-none z-10 ${
+                selectedRole === 'faculty' ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ left: '153px', width: '26px', height: '3.5px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5)' }}
+            />
+            <div 
+              className={`absolute bottom-3.5 rounded-sm bg-[#8A562B]/60 blur-[0.5px] transition-opacity duration-300 pointer-events-none z-10 ${
+                selectedRole === 'director' ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ left: '240px', width: '26px', height: '3.5px', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.5)' }}
+            />
+
+            {/* Stacked books on the left */}
+            <div className="absolute bottom-3.5 left-[15px] flex flex-col items-center gap-0.5 z-20 animate-book-land [animation-delay:180ms]">
               <InteractiveBook width={65} height={16} color="#538C8C" className="relative !bottom-auto !left-auto" />
               <InteractiveBook width={75} height={22} color="#DFB980" className="relative !bottom-auto !left-auto" />
             </div>
             
-            <InteractiveBook width={20} height={80} color="#D67756" className="bottom-3.5 left-[95px] z-20" />
+            {/* Book left of Student */}
+            <InteractiveBook 
+              width={20} height={80} color="#D67756" 
+              className="bottom-3.5 left-[95px] z-20 animate-book-land [animation-delay:260ms]"
+              style={{
+                transform: selectedRole === 'student' ? 'translateX(-3px) rotate(-1.5deg)' : 'translateX(0) rotate(0deg)',
+                transition: 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+            />
 
             {/* 1. STUDENT */}
             <InteractiveBook 
               width={28} height={110} color="#DFB980" 
-              className="bottom-3.5 left-[120px]"
+              className="bottom-3.5 left-[120px] animate-book-land [animation-delay:340ms]"
               isSelected={selectedRole === 'student'}
               onClick={() => handleRoleSelect('student')}
               label="Student"
               labelIcon={roleIcons.student}
-              labelOffset={{ x: -45, y: -65 }} 
+              labelOffset={{ x: -45, y: -65 }}
+              style={{
+                transform: selectedRole === 'faculty' ? 'translateX(-2.5px)' : undefined,
+                transition: selectedRole === 'faculty' ? 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)' : undefined
+              }}
             />
+
             {/* 2. FACULTY */}
             <InteractiveBook 
               width={26} height={120} color="#538C8C" 
-              className="bottom-3.5 left-[153px]"
+              className="bottom-3.5 left-[153px] animate-book-land [animation-delay:420ms]"
               isSelected={selectedRole === 'faculty'}
               onClick={() => handleRoleSelect('faculty')}
               label="Faculty"
               labelIcon={roleIcons.faculty}
-              labelOffset={{ x: 25, y: -90 }} 
+              labelOffset={{ x: 25, y: -90 }}
+              style={{
+                transform: selectedRole === 'student' ? 'translateX(2.5px)' : undefined,
+                transition: selectedRole === 'student' ? 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)' : undefined
+              }}
             />
 
-            <InteractiveBook width={22} height={90} color="#D67756" className="bottom-3.5 left-[184px] z-20" />
-            <InteractiveBook width={24} height={95} color="#E5DAC1" className="bottom-3.5 left-[211px] z-20" />
+            {/* Book between Faculty and Director */}
+            <InteractiveBook 
+              width={22} height={90} color="#D67756" 
+              className="bottom-3.5 left-[184px] z-20 animate-book-land [animation-delay:500ms]"
+              style={{
+                transform: selectedRole === 'faculty' ? 'translateX(2.5px) rotate(1deg)' : 'translateX(0) rotate(0deg)',
+                transition: 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+            />
+            {/* Book left of Director */}
+            <InteractiveBook 
+              width={24} height={95} color="#E5DAC1" 
+              className="bottom-3.5 left-[211px] z-20 animate-book-land [animation-delay:580ms]"
+              style={{
+                transform: selectedRole === 'director' ? 'translateX(-3px) rotate(-1deg)' : 'translateX(0) rotate(0deg)',
+                transition: 'transform 450ms cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+            />
 
             {/* 3. DIRECTOR */}
             <InteractiveBook 
               width={26} height={100} color="#D67756" 
-              className="bottom-3.5 left-[240px]"
+              className="bottom-3.5 left-[240px] animate-book-land [animation-delay:660ms]"
               innerClassName="rotate-[15deg]"
               isSelected={selectedRole === 'director'}
               onClick={() => handleRoleSelect('director')}
