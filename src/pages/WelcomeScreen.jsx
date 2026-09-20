@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import InteractiveBook from '../components/InteractiveBook';
 
-export default function WelcomeScreen() {
+export default function WelcomeScreen({ onLogin }) {
   const [selectedRole, setSelectedRole] = useState(null);
 
   const handleRoleSelect = (role) => {
@@ -139,6 +139,7 @@ export default function WelcomeScreen() {
               className="bottom-3.5 left-[153px] animate-book-land [animation-delay:420ms]"
               isSelected={selectedRole === 'faculty'}
               onClick={() => handleRoleSelect('faculty')}
+              onLogin={() => onLogin('Faculty')}
               label="Faculty"
               labelIcon={roleIcons.faculty}
               labelOffset={{ x: 25, y: -90 }}

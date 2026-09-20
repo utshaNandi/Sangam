@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 export default function InteractiveBook({ 
-  width, height, color, isSelected, onClick, className = "", innerClassName = "", 
+  width, height, color, isSelected, onClick, onLogin, className = "", innerClassName = "", 
   label, labelIcon, labelOffset = { x: 0, y: -40 }
 }) {
   const isInteractive = !!onClick;
@@ -129,7 +129,11 @@ export default function InteractiveBook({
                 className={`flex flex-col gap-2 flex-1 transition-all duration-500 delay-[390ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  alert(`Processing ${isSignUp ? 'Sign Up' : 'Log In'} for ${label}`);
+                  if (onLogin && !isSignUp) {
+                    onLogin();
+                  } else {
+                    alert(`Processing ${isSignUp ? 'Sign Up' : 'Log In'} for ${label}`);
+                  }
                 }}
               >
                 {/* Smooth animated accordion container for Full Name */}

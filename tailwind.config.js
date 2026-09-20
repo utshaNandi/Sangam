@@ -2,7 +2,7 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}", // Tells Tailwind to scan your components and pages
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
@@ -12,6 +12,10 @@ export default {
           text: '#3E2723',
           woodTop: '#DCA766',
           woodFront: '#966031',
+        },
+        theme: {
+          primary: 'var(--theme-primary)',
+          bg: 'var(--theme-bg)',
         }
       },
       fontFamily: {
