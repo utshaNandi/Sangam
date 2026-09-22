@@ -1,11 +1,27 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import InteractiveBook from '../components/InteractiveBook';
 
-export default function WelcomeScreen({ onLogin }) {
+export default function WelcomeScreen({ onStartTransition }) {
   const [selectedRole, setSelectedRole] = useState(null);
+
+  const studentBookRef = useRef(null);
+  const facultyBookRef = useRef(null);
+  const directorBookRef = useRef(null);
 
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
+  };
+
+  const handleFormSubmit = () => {
+    const role = selectedRole;
+    if (!role) return;
+    const refs = { student: studentBookRef, faculty: facultyBookRef, director: directorBookRef };
+    const ref = refs[role];
+    if (!ref?.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const colors = { student: '#DFB980', faculty: '#538C8C', director: '#D67756' };
+    
+    onStartTransition({ bookColor: colors[role], startRect: rect, bookNode: ref.current, role });
   };
 
   const roleIcons = {
@@ -124,6 +140,8 @@ export default function WelcomeScreen({ onLogin }) {
               className="bottom-3.5 left-[120px] animate-book-land [animation-delay:340ms]"
               isSelected={selectedRole === 'student'}
               onClick={() => handleRoleSelect('student')}
+              onFormSubmit={handleFormSubmit}
+              bookRef={studentBookRef}
               label="Student"
               labelIcon={roleIcons.student}
               labelOffset={{ x: -45, y: -65 }}
@@ -139,7 +157,8 @@ export default function WelcomeScreen({ onLogin }) {
               className="bottom-3.5 left-[153px] animate-book-land [animation-delay:420ms]"
               isSelected={selectedRole === 'faculty'}
               onClick={() => handleRoleSelect('faculty')}
-              onLogin={() => onLogin('Faculty')}
+              onFormSubmit={handleFormSubmit}
+              bookRef={facultyBookRef}
               label="Faculty"
               labelIcon={roleIcons.faculty}
               labelOffset={{ x: 25, y: -90 }}
@@ -175,6 +194,8 @@ export default function WelcomeScreen({ onLogin }) {
               innerClassName="rotate-[15deg]"
               isSelected={selectedRole === 'director'}
               onClick={() => handleRoleSelect('director')}
+              onFormSubmit={handleFormSubmit}
+              bookRef={directorBookRef}
               label="Director"
               labelIcon={roleIcons.director}
               labelOffset={{ x: 50, y: -70 }} 

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 
 export default function InteractiveBook({ 
-  width, height, color, isSelected, onClick, onLogin, className = "", innerClassName = "", 
-  label, labelIcon, labelOffset = { x: 0, y: -40 }
+  width, height, color, isSelected, onClick, className = "", innerClassName = "", 
+  label, labelIcon, labelOffset = { x: 0, y: -40 }, bookRef, onFormSubmit
 }) {
   const isInteractive = !!onClick;
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
 
   const COVER_WIDTH = 220;
   const COVER_HEIGHT = 300;
@@ -14,6 +15,7 @@ export default function InteractiveBook({
 
   return (
     <div 
+      ref={bookRef}
       className={`absolute group ${className} ${isSelected ? 'z-50' : 'z-30'} transition-all duration-[1000ms] ease-[cubic-bezier(0.16,1,0.3,1)]`} 
       style={{ 
         width: isSelected ? `${TOTAL_EXPANDED_WIDTH}px` : `${width}px`, 
@@ -129,10 +131,12 @@ export default function InteractiveBook({
                 className={`flex flex-col gap-2 flex-1 transition-all duration-500 delay-[390ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (onLogin && !isSignUp) {
-                    onLogin();
-                  } else {
-                    alert(`Processing ${isSignUp ? 'Sign Up' : 'Log In'} for ${label}`);
+                  if (onFormSubmit) {
+                    setIsPressed(true);
+                    setTimeout(() => {
+                      setIsPressed(false);
+                      requestAnimationFrame(() => onFormSubmit());
+                    }, 160);
                   }
                 }}
               >
@@ -167,6 +171,11 @@ export default function InteractiveBook({
                 <button 
                   type="submit"
                   className="relative overflow-hidden w-full py-3 bg-white text-[11px] font-bold uppercase tracking-widest rounded-md text-[#3E2723] shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group/btn mt-1"
+                  style={isPressed ? {
+                    transform: 'scale(0.95) translateY(1.5px)',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(0,0,0,0.04)',
+                    transition: 'transform 80ms cubic-bezier(0.2, 0, 0, 1), box-shadow 80ms ease',
+                  } : undefined}
                 >
                   <span className="relative z-10">{isSignUp ? 'Create Account' : 'Continue'}</span>
                   {/* Subtle sheen passing across button on hover */}
