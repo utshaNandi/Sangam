@@ -12,6 +12,7 @@ import {
   ScheduleView, 
   ResourcesView 
 } from './TeacherViews';
+import AcademicSpacesView from './AcademicSpacesView';
 
 export default function TeacherApp({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -20,6 +21,7 @@ export default function TeacherApp({ onLogout }) {
 
   const navItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
+    { id: 'Academic Spaces', label: 'Academic Spaces', icon: <Icons.Hierarchy /> },
     { id: 'My Classes', label: 'My Classes', icon: <Icons.Classes /> },
     { id: 'Students', label: 'Students', icon: <Icons.Students /> },
     { id: 'Assignments', label: 'Assignments', icon: <Icons.Assignments /> },
@@ -39,6 +41,7 @@ export default function TeacherApp({ onLogout }) {
   const renderContent = () => {
     switch(activeTab) {
       case 'Dashboard': return <DashboardHome onNavigate={setActiveTab} />;
+      case 'Academic Spaces': return <AcademicSpacesView />;
       case 'My Classes': return <ClassesView />;
       case 'Students': return <StudentsView />;
       case 'Assignments': return <AssignmentsView />;

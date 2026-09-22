@@ -6,6 +6,33 @@ export const teacherProfile = {
   avatar: "SJ"
 };
 
+export const teacherAllocations = [
+  {
+    institution: "UEMK",
+    department: "CSE AI",
+    year: "2nd Year",
+    section: "Sec B",
+    subject: "DSA",
+    permissions: ["View", "Announce", "Manage"]
+  },
+  {
+    institution: "UEMK",
+    department: "CSE AI",
+    year: "2nd Year",
+    section: "Sec C",
+    subject: "DSA",
+    permissions: ["View", "Announce", "Manage"]
+  },
+  {
+    institution: "UEMK",
+    department: "CSE AI",
+    year: "3rd Year",
+    section: "Sec A",
+    subject: "DSA",
+    permissions: ["View", "Announce"]
+  }
+];
+
 export const classes = [
   { id: 'c1', subject: 'Data Structures', section: 'CSE-A', semester: '3rd', studentsCount: 62, room: '304', time: '10:00 AM' },
   { id: 'c2', subject: 'Artificial Intelligence', section: 'CSE-C', semester: '5th', studentsCount: 58, room: '210', time: '11:30 AM' },
