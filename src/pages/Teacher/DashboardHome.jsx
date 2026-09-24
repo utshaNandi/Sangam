@@ -34,7 +34,7 @@ export default function DashboardHome({ onNavigate }) {
               <h3 className="text-xl font-bold text-slate-900 mb-5 relative z-10 tracking-tight">Today's Classes</h3>
               <div className="space-y-3 relative z-10">
                 {todayClasses.map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-200 hover:shadow-sm transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group cursor-pointer" onClick={() => onNavigate('My Classes')}>
+                  <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-all duration-200 border border-transparent hover:border-slate-100 active:scale-[0.98] group cursor-pointer" onClick={() => onNavigate('My Classes')}>
                     <div className="flex items-center gap-5">
                       <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex flex-col items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-105">
                         <span className="text-[10px] font-bold uppercase tracking-wider">{c.time.split(' ')[1]}</span>
@@ -46,10 +46,10 @@ export default function DashboardHome({ onNavigate }) {
                       </div>
                     </div>
                     <div className="text-right hidden sm:block">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold transition-transform duration-300 group-hover:scale-105">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Upcoming
                       </span>
-                      <p className="text-sm text-slate-500 mt-2 font-medium">Room {c.room}</p>
+                      <p className="text-sm text-slate-500 mt-2 font-medium group-hover:text-slate-600 transition-colors">Room {c.room}</p>
                     </div>
                   </div>
                 ))}
@@ -60,22 +60,22 @@ export default function DashboardHome({ onNavigate }) {
             <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="text-xl font-bold text-slate-900 tracking-tight">Assignments</h3>
-                <button onClick={() => onNavigate('Assignments')} className="text-sm text-theme-primary hover:opacity-80 font-bold transition-opacity">View All →</button>
+                <button onClick={() => onNavigate('Assignments')} className="text-sm text-theme-primary hover:opacity-80 active:scale-95 font-bold transition-all">View All →</button>
               </div>
               <div className="space-y-3">
                 {assignments.map(a => (
-                  <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-theme-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] cursor-pointer group" onClick={() => onNavigate('Assignments')}>
+                  <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-theme-primary/30 hover:bg-theme-bg/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 cursor-pointer group" onClick={() => onNavigate('Assignments')}>
                     <div>
-                      <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors">{a.title}</h4>
+                      <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors duration-300">{a.title}</h4>
                       <p className="text-sm text-slate-500 font-medium mt-1">{a.className} • Due {a.dueDate}</p>
                     </div>
                     <div className="mt-3 sm:mt-0 flex items-center gap-5">
-                      <div className="text-right">
+                      <div className="text-right transition-transform duration-300 group-hover:-translate-x-1">
                         <p className="text-sm font-bold text-slate-900">{a.submitted} / {a.total}</p>
                         <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Submitted</p>
                       </div>
-                      <div className="w-20 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-theme-primary rounded-full transition-all duration-700 ease-out" style={{ width: `${(a.submitted / a.total) * 100}%` }}></div>
+                      <div className="w-20 h-2.5 bg-slate-100 rounded-full overflow-hidden relative shadow-inner">
+                        <div className="absolute top-0 left-0 h-full bg-theme-primary rounded-full" style={{ width: `${(a.submitted / a.total) * 100}%`, transition: 'width 1.5s cubic-bezier(0.16, 1, 0.3, 1)' }}></div>
                       </div>
                     </div>
                   </div>
@@ -144,7 +144,7 @@ function HeroBox() {
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative overflow-hidden bg-white rounded-[24px] border border-slate-200/60 shadow-sm lg:min-h-[420px] flex items-center"
+      className="relative bg-white rounded-[24px] border border-slate-200/60 shadow-sm lg:min-h-[420px] flex items-center"
     >
       {/* Background Container for Grid & Glow (Keeps them masked to the rounded corners) */}
       <div className="absolute inset-0 overflow-hidden rounded-[24px] pointer-events-none z-0">
@@ -182,10 +182,10 @@ function HeroBox() {
            </p>
            
            <div className="flex items-center gap-4 mt-12">
-             <button className="px-8 py-3.5 bg-theme-primary text-white rounded-xl font-semibold shadow-sm hover:opacity-90 hover:-translate-y-0.5 hover:shadow-md transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] text-[15px]">
+             <button className="px-8 py-3.5 bg-theme-primary text-white rounded-xl font-semibold shadow-sm hover:opacity-90 hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-[15px]">
                Start Today's Session
              </button>
-             <button className="px-8 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] text-[15px]">
+             <button className="px-8 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-[15px]">
                View Schedule
              </button>
            </div>
@@ -201,61 +201,126 @@ function HeroBox() {
 }
 
 function TeacherCharacter() {
-  const pupilRef = useRef(null);
+  const containerRef = useRef(null);
+  const leftAnchorRef = useRef(null);
+  const leftPupilWrapperRef = useRef(null);
+  const leftPupilRef = useRef(null);
+  const rightAnchorRef = useRef(null);
+  const rightPupilWrapperRef = useRef(null);
+  const rightPupilRef = useRef(null);
+  const rafRef = useRef(null);
+
+  // Store current and target positions for lerping
+  const leftPos = useRef({ currentX: 0, currentY: 0, targetX: 0, targetY: 0 });
+  const rightPos = useRef({ currentX: 0, currentY: 0, targetX: 0, targetY: 0 });
 
   useEffect(() => {
-    let animationFrameId;
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let isTracking = false;
 
     const handleMouseMove = (e) => {
-      if (!pupilRef.current) return;
-
-      const trackEye = (eyeElem, mouseX, mouseY) => {
-        const rect = eyeElem.getBoundingClientRect();
-        const eyeCenterX = rect.left + rect.width / 2;
-        const eyeCenterY = rect.top + rect.height / 2;
-
-        const dx = mouseX - eyeCenterX;
-        const dy = mouseY - eyeCenterY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Keep it very constrained within the illustrated eye shape
-        const maxMove = 1.5;
-        // Smooth interpolation
-        const pull = 0.008; 
-
-        const moveX = distance > 0 ? (dx / distance) * Math.min(distance * pull, maxMove) : 0;
-        const moveY = distance > 0 ? (dy / distance) * Math.min(distance * pull, maxMove) : 0;
-
-        // The transition in CSS will handle the smooth interpolation when returning to center
-        eyeElem.style.transform = `translate(${moveX}px, ${moveY}px)`;
-      };
-
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = requestAnimationFrame(() => {
-        trackEye(pupilRef.current, e.clientX, e.clientY);
-      });
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      isTracking = true;
     };
 
-    // Smoothly return to center when mouse leaves the window
     const handleMouseLeave = () => {
-      if (pupilRef.current) {
-        pupilRef.current.style.transform = `translate(0px, 0px)`;
+      // Smoothly return to center when mouse leaves the viewport
+      isTracking = false;
+    };
+
+    const updateEyeTarget = (targetObj) => {
+      if (!isTracking || !containerRef.current) {
+        targetObj.targetX = 0;
+        targetObj.targetY = 0;
+        return;
       }
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      
+      // Calculate normalized cursor position relative to the character container
+      // -1 means left/top edge, 1 means right/bottom edge
+      // Mouse outside the container is clamped to [-1, 1]
+      let normalizedX = (mouseX - (rect.left + rect.width / 2)) / (rect.width / 2);
+      let normalizedY = (mouseY - (rect.top + rect.height / 2)) / (rect.height / 2);
+
+      normalizedX = Math.max(-1, Math.min(1, normalizedX));
+      normalizedY = Math.max(-1, Math.min(1, normalizedY));
+
+      // Asymmetric vertical constraints
+      const maxMoveX = 2.5; 
+      const maxMoveUp = 0.5;   // Smaller upward movement
+      const maxMoveDown = 3.0; // Larger downward movement
+
+      targetObj.targetX = normalizedX * maxMoveX;
+      targetObj.targetY = normalizedY < 0 ? normalizedY * maxMoveUp : normalizedY * maxMoveDown;
+    };
+
+    const lerp = (current, target, speed) => current + (target - current) * speed;
+
+    const animate = () => {
+      updateEyeTarget(leftPos.current);
+      updateEyeTarget(rightPos.current);
+
+      const lerpSpeed = 0.12; // Extremely smooth interpolation speed
+      
+      leftPos.current.currentX = lerp(leftPos.current.currentX, leftPos.current.targetX, lerpSpeed);
+      leftPos.current.currentY = lerp(leftPos.current.currentY, leftPos.current.targetY, lerpSpeed);
+      
+      rightPos.current.currentX = lerp(rightPos.current.currentX, rightPos.current.targetX, lerpSpeed);
+      rightPos.current.currentY = lerp(rightPos.current.currentY, rightPos.current.targetY, lerpSpeed);
+
+      if (leftPupilWrapperRef.current) {
+        leftPupilWrapperRef.current.style.transform = `translate(-50%, -50%) translate(${leftPos.current.currentX}px, ${leftPos.current.currentY}px)`;
+      }
+      if (rightPupilWrapperRef.current) {
+        rightPupilWrapperRef.current.style.transform = `translate(-50%, -50%) translate(${rightPos.current.currentX}px, ${rightPos.current.currentY}px)`;
+      }
+
+      rafRef.current = requestAnimationFrame(animate);
     };
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
     document.addEventListener('mouseleave', handleMouseLeave);
+    rafRef.current = requestAnimationFrame(animate);
     
+    // Blinking logic
+    let blinkTimeout1;
+    let blinkTimeout2;
+    const blink = () => {
+      if (leftPupilRef.current) leftPupilRef.current.style.transform = 'scaleY(0.1)';
+      if (rightPupilRef.current) rightPupilRef.current.style.transform = 'scaleY(0.1)';
+      
+      const blinkDuration = 120 + Math.random() * 60; // 120-180ms
+      blinkTimeout1 = setTimeout(() => {
+        if (leftPupilRef.current) leftPupilRef.current.style.transform = 'scaleY(1)';
+        if (rightPupilRef.current) rightPupilRef.current.style.transform = 'scaleY(1)';
+        
+        const nextBlink = 3000 + Math.random() * 4000; // 3-7 seconds
+        blinkTimeout2 = setTimeout(blink, nextBlink);
+      }, blinkDuration);
+    };
+
+    const initialBlinkTimer = setTimeout(blink, 3000 + Math.random() * 4000);
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseleave', handleMouseLeave);
-      cancelAnimationFrame(animationFrameId);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearTimeout(initialBlinkTimer);
+      clearTimeout(blinkTimeout1);
+      clearTimeout(blinkTimeout2);
     };
   }, []);
 
   return (
-    // Positioning the character so it's larger, and the bottom extends past the hero to be naturally cropped by the hero's overflow-hidden
-    <div className="hidden lg:block absolute -bottom-[50px] right-[-80px] w-[690px] h-[460px] pointer-events-none z-20 opacity-95">
+    // Positioning the character so it's larger, and the bottom extends past the hero to be naturally cropped
+    <div 
+      ref={containerRef}
+      className="hidden lg:block absolute -bottom-[50px] right-[-80px] w-[690px] h-[460px] pointer-events-none z-20 opacity-95"
+      style={{ clipPath: 'inset(-100% -100% 50px -100%)' }}
+    >
       <div className="relative w-full h-full">
         {/* The completely static original artwork (now with muted teal shirt) */}
         <img 
@@ -265,17 +330,45 @@ function TeacherCharacter() {
         />
 
         {/* 
-          PUPIL
-          A single tiny pupil placed exactly at the center of the existing illustrated eye curve.
+          LEFT PUPIL
+          Anchored slightly lower than before.
         */}
         <div 
-          className="absolute flex items-center justify-center pointer-events-none" 
-          style={{ top: '24.2%', left: '57.1%', width: '10px', height: '10px' }}
+          ref={leftAnchorRef}
+          className="absolute pointer-events-none" 
+          style={{ top: '23.85%', left: '54.23%', width: '0px', height: '0px' }}
         >
           <div 
-            ref={pupilRef} 
-            className="w-1 h-1 bg-slate-900 rounded-full transition-transform duration-[150ms] ease-out" 
-          />
+            ref={leftPupilWrapperRef} 
+            className="absolute" 
+            style={{ transform: 'translate(-50%, -50%)' }}
+          >
+            <div 
+              ref={leftPupilRef}
+              className="w-[5px] h-[5px] bg-[#0f172a] rounded-full transition-transform duration-150 ease-in-out origin-center"
+            />
+          </div>
+        </div>
+
+        {/* 
+          RIGHT PUPIL
+          Anchored slightly lower than before.
+        */}
+        <div 
+          ref={rightAnchorRef}
+          className="absolute pointer-events-none" 
+          style={{ top: '24.25%', left: '57.03%', width: '0px', height: '0px' }}
+        >
+          <div 
+            ref={rightPupilWrapperRef} 
+            className="absolute" 
+            style={{ transform: 'translate(-50%, -50%)' }}
+          >
+            <div 
+              ref={rightPupilRef}
+              className="w-[5px] h-[5px] bg-[#0f172a] rounded-full transition-transform duration-150 ease-in-out origin-center"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -284,8 +377,8 @@ function TeacherCharacter() {
 
 function StatCard({ title, value, icon }) {
   return (
-    <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-start gap-4 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:-translate-y-1 hover:shadow-lg hover:border-theme-primary/20 cursor-pointer">
-      <div className="w-12 h-12 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
+    <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] flex items-start gap-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] cursor-pointer group">
+      <div className="w-12 h-12 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
         {icon}
       </div>
       <div>
@@ -300,12 +393,12 @@ function QuickAction({ icon, label, onClick }) {
   return (
     <button 
       onClick={onClick}
-      className="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border border-slate-100 hover:border-theme-primary/30 hover:bg-theme-bg/50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] text-slate-500 hover:text-theme-primary group"
+      className="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border border-slate-100 hover:border-theme-primary/30 hover:bg-theme-bg hover:shadow-sm active:scale-95 transition-all duration-300 text-slate-500 hover:text-theme-primary group"
     >
-      <div className="transition-transform duration-300 ease-out group-hover:scale-110">
+      <div className="transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-1">
         {icon}
       </div>
-      <span className="text-sm font-bold transition-colors duration-300">{label}</span>
+      <span className="text-sm font-bold transition-colors">{label}</span>
     </button>
   );
 }

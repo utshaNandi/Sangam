@@ -77,7 +77,7 @@ export default function AcademicSpacesView() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+    <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Academic Spaces</h2>
         <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
@@ -89,7 +89,7 @@ export default function AcademicSpacesView() {
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
       )}
 
-      <div className="bg-white rounded-[24px] border border-slate-100 p-6 md:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-x-auto">
+      <div className="bg-white rounded-[24px] border border-slate-100 p-6 md:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-x-auto transition-all duration-500">
         <div className="min-w-[500px]">
           {Object.entries(tree).map(([inst, depts]) => (
             <InstitutionNode key={inst} name={inst} departments={depts} onSelectGroup={setSelectedGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} setActivePath={setActivePath} />
@@ -233,18 +233,18 @@ function SubjectNode({ name, permissions, path, onSelectGroup }) {
          <div className="ml-1 pl-5 border-l-2 border-slate-100 pt-2">
            <div 
              onClick={() => onSelectGroup({ name: "Official Group", permissions, path: [...path, name] })}
-             className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl p-3 cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:border-theme-primary/30 hover:bg-white transition-all group w-full max-w-sm relative before:absolute before:left-[-21px] before:top-[20px] before:w-[20px] before:h-[2px] before:bg-slate-100"
+             className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl p-3 cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:-translate-y-0.5 active:scale-[0.98] hover:border-theme-primary/30 hover:bg-white transition-all duration-300 group w-full max-w-sm relative before:absolute before:left-[-21px] before:top-[20px] before:w-[20px] before:h-[2px] before:bg-slate-100"
            >
              <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-theme-primary flex items-center justify-center transition-transform group-hover:scale-105 shadow-sm">
+               <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm">
                  <Icons.Announcements />
                </div>
                <div>
                  <p className="text-sm font-bold text-slate-900 group-hover:text-theme-primary transition-colors">Official Group</p>
-                 <p className="text-[11px] text-slate-500 font-medium mt-0.5">Section-wide announcements</p>
+                 <p className="text-[11px] text-slate-500 font-medium mt-0.5 group-hover:text-slate-600 transition-colors">Section-wide announcements</p>
                </div>
              </div>
-             <button className="text-xs font-bold text-theme-primary px-3 py-1.5 bg-theme-bg/50 group-hover:bg-theme-bg rounded-lg transition-colors border border-transparent group-hover:border-theme-primary/10">
+             <button className="text-xs font-bold text-theme-primary px-3 py-1.5 bg-theme-bg/50 group-hover:bg-theme-bg rounded-lg transition-all duration-300 border border-transparent group-hover:border-theme-primary/10">
                Enter
              </button>
            </div>

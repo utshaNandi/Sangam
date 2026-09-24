@@ -97,7 +97,7 @@ export default function TeacherApp({ onLogout }) {
                key={item.id}
                onClick={() => handleNavClick(item.id)}
                title={isSidebarCollapsed ? item.label : undefined}
-               className={`w-full flex items-center py-3 rounded-xl transition-all duration-200 text-sm font-semibold relative group ${
+               className={`w-full flex items-center py-3 rounded-xl transition-all duration-300 text-sm font-semibold relative group active:scale-[0.98] ${
                  isSidebarCollapsed ? 'justify-center px-0' : 'justify-start px-4 gap-3'
                } ${
                  activeTab === item.id 
@@ -105,7 +105,7 @@ export default function TeacherApp({ onLogout }) {
                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                }`}
              >
-               <div className={`${activeTab === item.id ? 'opacity-100 text-theme-primary' : 'opacity-70 group-hover:text-slate-700'}`}>
+               <div className={`transition-transform duration-300 group-hover:scale-110 ${activeTab === item.id ? 'opacity-100 text-theme-primary scale-110' : 'opacity-70 group-hover:text-slate-700'}`}>
                  {item.icon}
                </div>
                <span className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${isSidebarCollapsed ? 'w-0 opacity-0' : 'opacity-100'}`}>
@@ -113,7 +113,7 @@ export default function TeacherApp({ onLogout }) {
                </span>
                {/* Tooltip for collapsed state on desktop hover */}
                {isSidebarCollapsed && (
-                 <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-md whitespace-nowrap pointer-events-none">
+                 <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-md whitespace-nowrap pointer-events-none translate-x-1 group-hover:translate-x-0">
                    {item.label}
                  </div>
                )}
@@ -127,16 +127,16 @@ export default function TeacherApp({ onLogout }) {
                key={item.id}
                onClick={() => handleNavClick(item.id, item.onClick)}
                title={isSidebarCollapsed ? item.label : undefined}
-               className={`w-full flex items-center py-3 rounded-xl transition-all duration-200 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800 relative group ${
+               className={`w-full flex items-center py-3 rounded-xl transition-all duration-300 text-sm font-semibold text-slate-500 hover:bg-slate-50 hover:text-slate-800 relative group active:scale-[0.98] ${
                  isSidebarCollapsed ? 'justify-center px-0' : 'justify-start px-4 gap-3'
                }`}
              >
-               <div className="opacity-70 group-hover:text-slate-700">{item.icon}</div>
+               <div className="opacity-70 group-hover:text-slate-700 transition-transform duration-300 group-hover:scale-110">{item.icon}</div>
                <span className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${isSidebarCollapsed ? 'w-0 opacity-0' : 'opacity-100'}`}>
                  {item.label}
                </span>
                {isSidebarCollapsed && (
-                 <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-md whitespace-nowrap pointer-events-none">
+                 <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-md whitespace-nowrap pointer-events-none translate-x-1 group-hover:translate-x-0">
                    {item.label}
                  </div>
                )}
@@ -153,17 +153,21 @@ export default function TeacherApp({ onLogout }) {
              
              <div className="flex items-center gap-4">
                {/* Mobile Menu Toggle */}
-               <button className="lg:hidden text-slate-500 hover:text-slate-800 p-2 rounded-lg hover:bg-slate-100 transition-colors" onClick={() => setIsMobileMenuOpen(true)}>
-                 <Icons.Menu />
+               <button className="lg:hidden text-slate-500 hover:text-slate-800 p-2 rounded-lg hover:bg-slate-100 transition-all active:scale-95 group" onClick={() => setIsMobileMenuOpen(true)}>
+                 <div className="transition-transform duration-300 group-hover:scale-110">
+                   <Icons.Menu />
+                 </div>
                </button>
                
                {/* Desktop Collapse Toggle */}
                <button 
-                 className="hidden lg:flex text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors" 
+                 className="hidden lg:flex text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-all active:scale-95 group" 
                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                  title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                >
-                 <Icons.Menu />
+                 <div className="transition-transform duration-300 group-hover:scale-110">
+                   <Icons.Menu />
+                 </div>
                </button>
 
                <div>
@@ -173,16 +177,18 @@ export default function TeacherApp({ onLogout }) {
              </div>
              
              <div className="flex items-center gap-4">
-               <button className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors relative">
+               <button className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-all active:scale-95 relative group">
                  <div className="absolute top-2.5 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></div>
-                 <Icons.Announcements />
+                 <div className="transition-transform duration-300 group-hover:scale-110">
+                   <Icons.Announcements />
+                 </div>
                </button>
                <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                  <div className="text-right hidden sm:block">
                    <p className="text-sm font-bold text-slate-900">{teacherProfile.name}</p>
                    <p className="text-xs font-medium text-slate-500">{teacherProfile.role}</p>
                  </div>
-                 <div className="w-10 h-10 rounded-full bg-theme-bg text-theme-primary flex items-center justify-center font-bold text-sm cursor-pointer hover:opacity-80 transition-opacity">
+                 <div className="w-10 h-10 rounded-full bg-theme-bg text-theme-primary flex items-center justify-center font-bold text-sm cursor-pointer hover:opacity-90 transition-all hover:shadow-md active:scale-95">
                    {teacherProfile.avatar}
                  </div>
                </div>
@@ -191,7 +197,7 @@ export default function TeacherApp({ onLogout }) {
          </header>
          
          <div className="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth">
-            <div className="max-w-6xl mx-auto relative z-10 transition-all duration-300">
+            <div key={activeTab} className="max-w-6xl mx-auto relative z-10 transition-all duration-300 animate-hero-fade-up" style={{ animationDuration: '400ms' }}>
               {renderContent()}
             </div>
          </div>
