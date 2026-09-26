@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
+import OfficialGroupView from '../../components/OfficialGroupView';
 
 export default function AcademicSpacesView() {
   const buildTree = (allocations) => {
@@ -254,116 +255,4 @@ function SubjectNode({ name, permissions, path, onSelectGroup }) {
   );
 }
 
-function OfficialGroupView({ group }) {
-  const canAnnounce = group.permissions.includes('Announce') || group.permissions.includes('Manage');
-  const [announcements, setAnnouncements] = useState([
-    {
-      id: 1,
-      title: 'Upcoming DSA Lab',
-      content: 'Lab will be held on Friday in Room 304. Please bring your laptops with the dev environment configured.',
-      author: 'Dr. Sarah Jenkins',
-      time: '2 hours ago'
-    }
-  ]);
-  const [isCreating, setIsCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newContent, setNewContent] = useState('');
 
-  const handlePublish = () => {
-    if (!newTitle.trim() || !newContent.trim()) return;
-    setAnnouncements([{
-      id: Date.now(),
-      title: newTitle,
-      content: newContent,
-      author: 'Dr. Sarah Jenkins',
-      time: 'Just now'
-    }, ...announcements]);
-    setIsCreating(false);
-    setNewTitle('');
-    setNewContent('');
-  };
-  
-  // breadcrumbs handled in parent
-
-  return (
-    <div className="space-y-6 animate-fade-in relative z-10 pb-10">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Official Group</h2>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-        {/* Banner */}
-        <div className="bg-slate-50/80 border-b border-slate-100 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center shadow-sm">
-              <Icons.Announcements />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Section-wide announcements</h3>
-              <div className="flex gap-2 mt-1.5">
-                {group.permissions.map(p => (
-                  <span key={p} className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-500">{p}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-          {canAnnounce && !isCreating && (
-            <button onClick={() => setIsCreating(true)} className="flex items-center gap-2 bg-theme-primary text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm">
-              <Icons.Plus /> Create Announcement
-            </button>
-          )}
-        </div>
-
-        <div className="p-6 sm:p-8 space-y-6">
-          {/* Create Announcement Form */}
-          {isCreating && (
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-8 animate-fade-in">
-              <h4 className="text-sm font-bold text-slate-900 mb-4">New Announcement</h4>
-              <input 
-                type="text" 
-                placeholder="Announcement Title" 
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                className="w-full mb-3 px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary text-sm font-medium transition-all"
-              />
-              <textarea 
-                placeholder="Write your message here..." 
-                rows="4"
-                value={newContent}
-                onChange={e => setNewContent(e.target.value)}
-                className="w-full mb-4 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary text-sm font-medium transition-all resize-none"
-              ></textarea>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setIsCreating(false)} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-200 bg-slate-100 transition-colors text-sm">Cancel</button>
-                <button onClick={handlePublish} className="px-5 py-2.5 rounded-xl bg-theme-primary text-white font-bold hover:opacity-90 shadow-sm transition-all text-sm">Publish</button>
-              </div>
-            </div>
-          )}
-
-          {/* Announcements List */}
-          <div className="space-y-4">
-            {announcements.map(ann => (
-              <div key={ann.id} className="p-5 sm:p-6 rounded-2xl border border-slate-100 hover:border-slate-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.02)] transition-all bg-white group">
-                <h4 className="font-bold text-slate-900 text-lg">{ann.title}</h4>
-                <p className="text-slate-600 mt-2 mb-4 text-sm font-medium leading-relaxed">{ann.content}</p>
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
-                  <span className="text-slate-600 bg-slate-50 px-2 py-1 rounded-md">{ann.author}</span>
-                  <span>•</span>
-                  <span>{ann.time}</span>
-                </div>
-              </div>
-            ))}
-            {announcements.length === 0 && !isCreating && (
-              <div className="text-center py-10">
-                <p className="text-slate-400 font-medium text-sm">No announcements yet.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

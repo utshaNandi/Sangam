@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import WelcomeScreen from './pages/WelcomeScreen';
 import TeacherApp from './pages/Teacher/TeacherApp';
+import DirectorApp from './pages/Director/DirectorApp';
 import BookOpenTransition from './components/BookOpenTransition';
+
+import StudentApp from './pages/Student/StudentApp';
 
 function App() {
   const [appState, setAppState] = useState('login'); // 'login', 'transition', 'app'
@@ -35,7 +38,13 @@ function App() {
         }}
         className={appState === 'transition' ? 'z-[300]' : ''}
       >
-        <TeacherApp onLogout={() => setAppState('login')} />
+        {transitionConfig?.role === 'director' ? (
+          <DirectorApp onLogout={() => setAppState('login')} />
+        ) : transitionConfig?.role === 'student' ? (
+          <StudentApp onLogout={() => setAppState('login')} />
+        ) : (
+          <TeacherApp onLogout={() => setAppState('login')} />
+        )}
         
         {/* Subtle light sweep to make it feel like paper catching light */}
         {appState === 'transition' && (
