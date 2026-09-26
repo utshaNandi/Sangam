@@ -1,0 +1,38 @@
+
+<style>
+  body { margin: 0; padding: 50px; background: #f0f0f0; }
+  .container {
+    position: relative;
+    width: 690px;
+    height: 460px;
+    background: #fff;
+    border: 1px solid red;
+  }
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: bottom;
+  }
+  .anchor {
+    position: absolute;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+  .pupil {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: red;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .left-eye { top: 22.7%; left: 54.1%; }
+  .right-eye { top: 23.4%; left: 57.0%; }
+</style>
+  <div class='container'>
+    <img src='src/components/teacher1.png' />
+    <div class='anchor left-eye'><div class='pupil'></div></div>
+    <div class='anchor right-eye'><div class='pupil'></div></div>
+  </div>

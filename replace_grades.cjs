@@ -1,0 +1,227 @@
+const fs = require('fs');
+
+const newCode = `
+export function GradesView() {
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [selectedSection, setSelectedSection] = useState(null);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  
+  const [marksData, setMarksData] = useState({});
+  const [gradesData, setGradesData] = useState({});
+
+  if (selectedAssignment && selectedSection) {
+    const assignmentStudents = get20Students(selectedBranch, selectedYear, selectedSection);
+    
+    const handleMarkChange = (studentId, val) => {
+       const key = \`\${selectedAssignment.id}-\${studentId}\`;
+       setMarksData(prev => ({ ...prev, [key]: val }));
+    };
+    const handleGradeChange = (studentId, val) => {
+       const key = \`\${selectedAssignment.id}-\${studentId}\`;
+       setGradesData(prev => ({ ...prev, [key]: val }));
+    };
+
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
+         <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+               <button onClick={() => setSelectedAssignment(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                 Back
+               </button>
+               <div>
+                 <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Grade: {selectedAssignment.title}</h2>
+                 <p className="text-sm font-medium text-slate-500 mt-1">{selectedSection}</p>
+               </div>
+            </div>
+         </div>
+
+         <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] space-y-3 overflow-hidden">
+           <div className="flex justify-between items-center mb-4 px-2">
+             <h3 className="text-lg font-bold text-slate-900">Students ({assignmentStudents.length})</h3>
+           </div>
+           
+           <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <div className="col-span-5">Student</div>
+              <div className="col-span-3 text-center">Submission</div>
+              <div className="col-span-2 text-center">Marks</div>
+              <div className="col-span-2 text-center">Grade</div>
+           </div>
+
+           {assignmentStudents.map((st, idx) => {
+              const seedStr = selectedAssignment.id + st.id;
+              let seed = 0;
+              for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
+              const hasSubmitted = seed % 2 !== 0;
+
+              const key = \`\${selectedAssignment.id}-\${st.id}\`;
+              const mark = marksData[key] || '';
+              const grade = gradesData[key] || '';
+              
+              return (
+              <div key={st.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center p-4 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-200 transition-colors">
+                <div className="col-span-5 flex items-center gap-3">
+                  <span className="text-slate-400 font-bold w-6 text-right hidden sm:block">{idx + 1}.</span>
+                  <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-sm flex-shrink-0">
+                     {st.name.charAt(0)}
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 block truncate">{st.name}</span>
+                    <span className="text-xs font-medium text-slate-500">{st.roll}</span>
+                  </div>
+                </div>
+                <div className="col-span-3 flex justify-start sm:justify-center">
+                  {hasSubmitted ? (
+                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                      Submitted
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-lg flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      Not Submitted
+                    </span>
+                  )}
+                </div>
+                <div className="col-span-2 flex justify-start sm:justify-center">
+                   <input 
+                      type="text" 
+                      placeholder="--" 
+                      value={mark}
+                      onChange={(e) => handleMarkChange(st.id, e.target.value)}
+                      disabled={!hasSubmitted}
+                      className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-center font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary transition-all disabled:opacity-50 disabled:bg-slate-100"
+                   />
+                </div>
+                <div className="col-span-2 flex justify-start sm:justify-center">
+                   <select 
+                      value={grade}
+                      onChange={(e) => handleGradeChange(st.id, e.target.value)}
+                      disabled={!hasSubmitted}
+                      className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1.5 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary transition-all disabled:opacity-50 disabled:bg-slate-100"
+                   >
+                     <option value="">--</option>
+                     <option value="A+">A+</option>
+                     <option value="A">A</option>
+                     <option value="B+">B+</option>
+                     <option value="B">B</option>
+                     <option value="C">C</option>
+                     <option value="F">F</option>
+                   </select>
+                </div>
+              </div>
+           )})}
+         </div>
+         <div className="flex justify-end pt-4">
+            <button className="bg-theme-primary text-white px-8 py-3 rounded-xl hover:bg-theme-primary/90 active:scale-95 transition-all duration-200 shadow-lg shadow-theme-primary/25 font-bold">
+                Save Grades
+            </button>
+         </div>
+      </div>
+    );
+  }
+
+  if (selectedSection) {
+    const currentSectionAssignments = getAssignmentsForSection(selectedBranch, selectedYear, selectedSection);
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+         <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedSection(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              Back
+            </button>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedSection} — Assignments to Grade</h2>
+         </div>
+         
+         {currentSectionAssignments.length === 0 ? (
+           <div className="bg-white rounded-[24px] border border-slate-100 p-10 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+             <p className="text-slate-500 font-bold">No assignments available for this section.</p>
+           </div>
+         ) : (
+           <div className="grid gap-4">
+             {currentSectionAssignments.map(a => (
+               <div key={a.id} onClick={() => setSelectedAssignment(a)} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300 cursor-pointer flex justify-between items-center group">
+                 <div>
+                   <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900">{a.title}</h3>
+                   <p className="text-sm font-medium text-slate-500 mt-1">Due: {a.dueDate}</p>
+                 </div>
+                 <div className="flex items-center gap-4">
+                   <span className="text-sm font-bold text-theme-primary px-3 py-1 bg-theme-primary/10 rounded-lg">Grade</span>
+                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-theme-primary transition-colors"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                 </div>
+               </div>
+             ))}
+           </div>
+         )}
+      </div>
+    );
+  }
+
+  if (selectedYear) {
+    const sections = Array.from(tree[selectedBranch][selectedYear]).sort();
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+         <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedYear(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              Back
+            </button>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedBranch} — {selectedYear} Sections</h2>
+         </div>
+         <div className="grid gap-4">
+           {sections.map(sec => (
+             <div key={sec} onClick={() => setSelectedSection(sec)} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300 cursor-pointer flex justify-between items-center group">
+               <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900">{sec}</h3>
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-theme-primary transition-colors"><polyline points="9 18 15 12 9 6"></polyline></svg>
+             </div>
+           ))}
+         </div>
+      </div>
+    );
+  }
+
+  if (selectedBranch) {
+    const years = Object.keys(tree[selectedBranch]).sort();
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+         <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedBranch(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              Back
+            </button>
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedBranch} Years</h2>
+         </div>
+         <div className="grid gap-4">
+           {years.map(yr => (
+             <div key={yr} onClick={() => setSelectedYear(yr)} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300 cursor-pointer flex justify-between items-center group">
+               <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900">{yr}</h3>
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-theme-primary transition-colors"><polyline points="9 18 15 12 9 6"></polyline></svg>
+             </div>
+           ))}
+         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+      <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Grades & Marks</h2>
+      <div className="grid gap-4">
+        {branches.map(br => (
+          <div key={br} onClick={() => setSelectedBranch(br)} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300 flex justify-between items-center cursor-pointer group">
+            <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900">{br}</h3>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-theme-primary transition-colors duration-300"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+`;
+
+let content = fs.readFileSync('src/pages/Teacher/TeacherViews.jsx', 'utf8');
+const gradeRegex = /export function GradesView\(\) \{[\s\S]*?(?=export function)/;
+content = content.replace(gradeRegex, newCode + '\n\n');
+fs.writeFileSync('src/pages/Teacher/TeacherViews.jsx', content);
+console.log('Successfully replaced GradesView');
