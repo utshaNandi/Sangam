@@ -320,7 +320,7 @@ export const getAssignmentsForSection = (branch, year, section) => {
     return sectionAssignments;
 };
 
-export function AssignmentsView() {
+export function AssignmentsView({ group }) {
   const [expandedNodes, setExpandedNodes] = useState({});
   const toggleNode = (nodeId) => setExpandedNodes(prev => {
     const isExpanding = !prev[nodeId];
@@ -576,7 +576,45 @@ export function AssignmentsView() {
     );
   };
 
-  return <TreeHierarchy title="Assignments" tree={tree} branches={branches} renderContent={renderContent} expandedNodes={expandedNodes} toggleNode={toggleNode} />;
+  
+    let br = "Unknown";
+    let yr = "Unknown";
+    let sec = "All Sections";
+    let scopeText = "All Sections";
+
+    if (group && group.path) {
+      // Path structure usually: ["UEMK", "B.Tech", "CSE", "AI", "2nd Year", "Sec C", "DSA"]
+      if (group.path.length >= 4) {
+        br = group.path[2] + " " + group.path[3]; // CSE AI
+      }
+      if (group.path.length >= 5) {
+        yr = group.path[4]; // 2nd Year
+      }
+      if (group.path.length >= 6) {
+        sec = group.path[5]; // Sec C
+      }
+      if (group.path.length >= 7) {
+        sec = group.path[5] + " · " + group.path[6]; // Sec C · DSA
+      }
+      if (group.scope) {
+        scopeText = group.scope;
+      }
+    }
+
+    // Default values if somehow not set
+    if (br === "Unknown") br = "CSE AI";
+    if (yr === "Unknown") yr = "2nd Year";
+
+    return (
+       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+         <div className="flex flex-col">
+            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ASSIGNMENTS</h2>
+            <span className="text-sm font-bold text-slate-500 mt-1">{br} · {yr} · {scopeText}</span>
+         </div>
+         {renderContent(br, yr, sec)}
+       </div>
+    );
+
 }
 
 export function AttendanceView() {

@@ -5,7 +5,6 @@ import DashboardHome from './DashboardHome';
 import { 
   ClassesView, 
   StudentsView, 
-  AssignmentsView, 
   AttendanceView, 
   GradesView, 
   AnnouncementsView, 
@@ -24,7 +23,6 @@ export default function TeacherApp({ onLogout }) {
     { id: 'Academic Spaces', label: 'Academic Spaces', icon: <Icons.Hierarchy /> },
     { id: 'My Classes', label: 'My Classes', icon: <Icons.Classes /> },
     { id: 'Students', label: 'Students', icon: <Icons.Students /> },
-    { id: 'Assignments', label: 'Assignments', icon: <Icons.Assignments /> },
     { id: 'Attendance', label: 'Attendance', icon: <Icons.Attendance /> },
     { id: 'Grades', label: 'Grades / Marks', icon: <Icons.Grades /> },
     { id: 'Announcements', label: 'Announcements', icon: <Icons.Announcements /> },
@@ -43,7 +41,6 @@ export default function TeacherApp({ onLogout }) {
       case 'Academic Spaces': return <AcademicSpacesView />;
       case 'My Classes': return <ClassesView />;
       case 'Students': return <StudentsView />;
-      case 'Assignments': return <AssignmentsView />;
       case 'Attendance': return <AttendanceView />;
       case 'Grades': return <GradesView />;
       case 'Announcements': return <AnnouncementsView />;

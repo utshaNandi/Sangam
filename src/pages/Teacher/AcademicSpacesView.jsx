@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
-import { get20Students, getAssignmentsForSection } from './TeacherViews';
+import { get20Students, getAssignmentsForSection, AssignmentsView } from './TeacherViews';
 
 export default function AcademicSpacesView() {
   const buildTree = (allocations) => {
@@ -93,13 +93,13 @@ export default function AcademicSpacesView() {
     setActivePath(targetPath);
   };
 
-  const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, 'Official Group'] : activePath;
+  const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, selectedGroup.isAssignment ? 'Assignments' : 'Official Group'] : activePath;
 
   if (selectedGroup) {
     return (
       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
-        <OfficialGroupView group={selectedGroup} />
+        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : <OfficialGroupView group={selectedGroup} />}
       </div>
     );
   }
@@ -214,7 +214,14 @@ function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleEx
         <span className="text-[15px] font-bold text-slate-700 group-hover:text-theme-primary transition-colors">{name}</span>
       </div>
       {expanded && (
-        <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4">
+          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4">
+            <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100 mb-4 pt-2">
+               <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: "Common to all sections" }) }}
+               >
+                 ASSIGNMENTS
+               </button>
+            </div>
           {Object.entries(sections).map(([sec, subjects]) => (
             <SectionNode key={sec} name={sec} subjects={subjects} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
           ))}
@@ -236,7 +243,14 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
         <span className="text-sm font-bold text-slate-600 group-hover:text-theme-primary transition-colors">{name}</span>
       </div>
       {expanded && (
-        <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4 pb-2">
+          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4 pb-2">
+            <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100 mb-4 pt-2">
+               <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: name + " only" }) }}
+               >
+                 ASSIGNMENTS
+               </button>
+            </div>
           {Object.entries(subjects).map(([subject, permissions]) => (
             <SubjectNode key={subject} name={subject} permissions={permissions} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
           ))}
@@ -253,28 +267,29 @@ function SubjectNode({ name, permissions, path, onSelectGroup }) {
          <div className="flex items-center gap-2 w-fit">
            <span className="text-sm font-bold text-slate-800">{name}</span>
            <div className="flex gap-1.5 ml-3">
-             {permissions.map(p => (
-               <span key={p} className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">{p}</span>
-             ))}
-           </div>
-         </div>
-         <div className="ml-1 pl-5 border-l-2 border-slate-100 pt-2">
-           <div 
-             onClick={() => onSelectGroup({ name: "Official Group", permissions, path: [...path, name] })}
-             className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl p-3 cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:-translate-y-0.5 active:scale-[0.98] hover:border-theme-primary/30 hover:bg-white transition-all duration-300 group w-full max-w-sm relative before:absolute before:left-[-21px] before:top-[20px] before:w-[20px] before:h-[2px] before:bg-slate-100"
-           >
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm">
-                 <Icons.Announcements />
-               </div>
-               <div>
-                 <p className="text-sm font-bold text-slate-900 group-hover:text-theme-primary transition-colors">Official Group</p>
-                 <p className="text-[11px] text-slate-500 font-medium mt-0.5 group-hover:text-slate-600 transition-colors">Section-wide announcements</p>
-               </div>
-             </div>
-             <button className="text-xs font-bold text-theme-primary px-3 py-1.5 bg-theme-bg/50 group-hover:bg-theme-bg rounded-lg transition-all duration-300 border border-transparent group-hover:border-theme-primary/10">
-               Enter
-             </button>
+             {permissions.filter(p => p !== 'View').map(p => (
+                 <button 
+                   key={p} 
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     if (p === 'Announce') {
+                       onSelectGroup({ name: "Official Group", permissions, path: [...path, name] });
+                     }
+                   }}
+                   className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+                 >
+                   {p}
+                 </button>
+               ))}
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   onSelectGroup({ name: "Assignments", isAssignment: true, path: [...path, name], scope: name + " only" });
+                 }}
+                 className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+               >
+                 ASSIGNMENTS
+               </button>
            </div>
          </div>
       </div>
