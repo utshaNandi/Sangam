@@ -171,13 +171,26 @@ function InstitutionNode({ name, departments, onSelectGroup, expandedPaths, togg
         </div>
         <h3 className="text-xl font-extrabold text-slate-900 tracking-tight group-hover:text-theme-primary transition-colors">{name}</h3>
       </div>
-      <div className="ml-5 pl-6 border-l-2 border-slate-100 space-y-6 mt-3">
-        {Object.entries(departments).map(([dept, years]) => (
-          <DepartmentNode key={dept} name={dept} years={years} path={[name]} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
-        ))}
+      <div className="ml-5 pl-6 border-l-2 border-slate-100 mt-3 pt-1">
+        {Object.entries(departments).map(([dept, years]) => {
+            const fullPath = [name, dept];
+            const isExpanded = expandedPaths.has(fullPath.join('|'));
+            const anyExpanded = Object.keys(departments).some(d => expandedPaths.has([name, d].join('|')));
+            const isHidden = anyExpanded && !isExpanded;
+            
+            return (
+              <div key={dept} className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-in-out ${isHidden ? 'grid-rows-[0fr] opacity-0 m-0 p-0' : 'grid-rows-[1fr] opacity-100 mb-6'}`}>
+                 <div className="overflow-hidden">
+                    <div className={isHidden ? "" : "pb-1"}>
+                      <DepartmentNode name={dept} years={years} path={[name]} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
+                    </div>
+                 </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
 }
 
 function DepartmentNode({ name, years, path, onSelectGroup, expandedPaths, toggleExpand }) {
@@ -191,17 +204,29 @@ function DepartmentNode({ name, years, path, onSelectGroup, expandedPaths, toggl
         </button>
         <h4 className="text-lg font-bold text-slate-800 group-hover:text-theme-primary transition-colors">{name}</h4>
       </div>
-      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
-          <div className="ml-3 pl-6 border-l-2 border-slate-100 space-y-5 pb-2">
-          {Object.entries(years).map(([year, sections]) => (
-            <YearNode key={year} name={year} sections={sections} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
-          ))}
+          <div className="ml-3 pl-6 border-l-2 border-slate-100 pb-2 pt-1">
+          {Object.entries(years).map(([year, sections]) => {
+              const p = [...path, name, year];
+              const isExpanded = expandedPaths.has(p.join('|'));
+              const anyExpanded = Object.keys(years).some(y => expandedPaths.has([...path, name, y].join('|')));
+              const isHidden = anyExpanded && !isExpanded;
+              return (
+                <div key={year} className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-in-out ${isHidden ? 'grid-rows-[0fr] opacity-0 m-0 p-0' : 'grid-rows-[1fr] opacity-100 mb-5'}`}>
+                  <div className="overflow-hidden">
+                    <div className={isHidden ? "" : "pb-1"}>
+                      <YearNode name={year} sections={sections} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            </div>
+            </div>
           </div>
-          </div>
-        </div>
-    </div>
-  );
+      </div>
+    );
 }
 
 function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleExpand }) {
@@ -215,24 +240,36 @@ function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleEx
         </button>
         <span className="text-[15px] font-bold text-slate-700 group-hover:text-theme-primary transition-colors">{name}</span>
       </div>
-      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
-          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4 pb-2">
+          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 pb-2 pt-1">
             <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100 mb-4 pt-2">
-               <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+               <button className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
                   onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: "Common to all sections" }) }}
                >
                  ASSIGNMENTS
                </button>
             </div>
-          {Object.entries(sections).map(([sec, subjects]) => (
-            <SectionNode key={sec} name={sec} subjects={subjects} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
-          ))}
+          {Object.entries(sections).map(([sec, subjects]) => {
+              const p = [...path, name, sec];
+              const isExpanded = expandedPaths.has(p.join('|'));
+              const anyExpanded = Object.keys(sections).some(s => expandedPaths.has([...path, name, s].join('|')));
+              const isHidden = anyExpanded && !isExpanded;
+              return (
+                <div key={sec} className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-in-out ${isHidden ? 'grid-rows-[0fr] opacity-0 m-0 p-0' : 'grid-rows-[1fr] opacity-100 mb-4'}`}>
+                  <div className="overflow-hidden">
+                    <div className={isHidden ? "" : "pb-1"}>
+                      <SectionNode name={sec} subjects={subjects} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            </div>
+            </div>
           </div>
-          </div>
-        </div>
-    </div>
-  );
+      </div>
+    );
 }
 
 function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggleExpand }) {
@@ -247,7 +284,7 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
         <span className="text-sm font-bold text-slate-600 group-hover:text-theme-primary transition-colors">{name}</span>
       </div>
       
-      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'}`}>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="overflow-hidden">
           <div className="ml-2.5 pl-6 border-l-2 border-slate-100 pt-2 pb-2 flex flex-wrap gap-2 sm:gap-3">
              <button 
