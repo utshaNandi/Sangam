@@ -243,13 +243,22 @@ function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleEx
       <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
           <div className="ml-2.5 pl-6 border-l-2 border-slate-100 pb-2 pt-1">
-            <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100 mb-4 pt-2">
-               <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: "Common to all sections" }) }}
-               >
-                 ASSIGNMENTS
-               </button>
-            </div>
+            {(() => {
+                 const anyExpanded = Object.keys(sections).some(s => expandedPaths.has([...path, name, s].join('|')));
+                 return (
+                   <div className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-in-out ${anyExpanded ? 'grid-rows-[0fr] opacity-0 m-0 p-0' : 'grid-rows-[1fr] opacity-100 mb-4 pt-2'}`}>
+                     <div className="overflow-hidden">
+                        <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100">
+                           <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: "Common to all sections" }) }}
+                           >
+                             ASSIGNMENTS
+                           </button>
+                        </div>
+                     </div>
+                   </div>
+                 );
+              })()}
           {Object.entries(sections).map(([sec, subjects]) => {
               const p = [...path, name, sec];
               const isExpanded = expandedPaths.has(p.join('|'));
