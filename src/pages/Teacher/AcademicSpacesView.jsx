@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
-import { get20Students, getAssignmentsForSection, AssignmentsView } from './TeacherViews';
+import { get20Students, getAssignmentsForSection, AssignmentsView, StudentsListView } from './TeacherViews';
 
 export default function AcademicSpacesView() {
   const buildTree = (allocations) => {
@@ -93,13 +93,13 @@ export default function AcademicSpacesView() {
     setActivePath(targetPath);
   };
 
-  const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, selectedGroup.isAssignment ? 'Assignments' : 'Official Group'] : activePath;
+  const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, selectedGroup.isAssignment ? 'Assignments' : selectedGroup.isStudents ? 'Students' : 'Official Group'] : activePath;
 
   if (selectedGroup) {
     return (
       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
-        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : <OfficialGroupView group={selectedGroup} />}
+        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : selectedGroup.isStudents ? <StudentsListView group={selectedGroup} /> : <OfficialGroupView group={selectedGroup} />}
       </div>
     );
   }
@@ -191,13 +191,15 @@ function DepartmentNode({ name, years, path, onSelectGroup, expandedPaths, toggl
         </button>
         <h4 className="text-lg font-bold text-slate-800 group-hover:text-theme-primary transition-colors">{name}</h4>
       </div>
-      {expanded && (
-        <div className="ml-3 pl-6 border-l-2 border-slate-100 space-y-5">
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden">
+          <div className="ml-3 pl-6 border-l-2 border-slate-100 space-y-5 pb-2">
           {Object.entries(years).map(([year, sections]) => (
             <YearNode key={year} name={year} sections={sections} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
           ))}
+          </div>
+          </div>
         </div>
-      )}
     </div>
   );
 }
@@ -213,8 +215,9 @@ function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleEx
         </button>
         <span className="text-[15px] font-bold text-slate-700 group-hover:text-theme-primary transition-colors">{name}</span>
       </div>
-      {expanded && (
-          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4">
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden">
+          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4 pb-2">
             <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100 mb-4 pt-2">
                <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
                   onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: "Common to all sections" }) }}
@@ -225,8 +228,9 @@ function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleEx
           {Object.entries(sections).map(([sec, subjects]) => (
             <SectionNode key={sec} name={sec} subjects={subjects} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
           ))}
+          </div>
+          </div>
         </div>
-      )}
     </div>
   );
 }
@@ -242,56 +246,30 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
         </button>
         <span className="text-sm font-bold text-slate-600 group-hover:text-theme-primary transition-colors">{name}</span>
       </div>
-      {expanded && (
-          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 space-y-4 pb-2">
-            <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100 mb-4 pt-2">
-               <button className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: name + " only" }) }}
-               >
-                 ASSIGNMENTS
-               </button>
-            </div>
-          {Object.entries(subjects).map(([subject, permissions]) => (
-            <SubjectNode key={subject} name={subject} permissions={permissions} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
-          ))}
+      
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className="overflow-hidden">
+          <div className="ml-2.5 pl-6 border-l-2 border-slate-100 pt-2 pb-2 flex flex-wrap gap-2 sm:gap-3">
+             <button 
+               onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Students", isStudents: true, path: fullPath, scope: name + " only" }); }}
+               className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+             >
+               VIEW
+             </button>
+             <button 
+               onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Official Group", permissions: ['Announce'], path: fullPath }); }}
+               className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+             >
+               ANNOUNCE
+             </button>
+             <button 
+               onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: name + " only" }); }}
+               className="text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+             >
+               ASSIGNMENTS
+             </button>
+          </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-function SubjectNode({ name, permissions, path, onSelectGroup }) {
-  return (
-    <div className="flex items-start gap-3 relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100">
-      <div className="flex flex-col flex-1 space-y-2">
-         <div className="flex items-center gap-2 w-fit">
-           <span className="text-sm font-bold text-slate-800">{name}</span>
-           <div className="flex gap-1.5 ml-3">
-             {permissions.filter(p => p !== 'View').map(p => (
-                 <button 
-                   key={p} 
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     if (p === 'Announce') {
-                       onSelectGroup({ name: "Official Group", permissions, path: [...path, name] });
-                     }
-                   }}
-                   className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
-                 >
-                   {p}
-                 </button>
-               ))}
-               <button 
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   onSelectGroup({ name: "Assignments", isAssignment: true, path: [...path, name], scope: name + " only" });
-                 }}
-                 className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
-               >
-                 ASSIGNMENTS
-               </button>
-           </div>
-         </div>
       </div>
     </div>
   );

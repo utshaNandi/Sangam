@@ -1033,3 +1033,81 @@ export function ProfileView() {
   );
 }
 
+export const get85Students = (branch, year, section) => {
+  const firstNames = ["Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Rayaan", "Ayaan", "Krishna", "Ishaan", "Shaurya", "Atharv", "Kabir", "Omer", "Rishi", "Dhruv", "Zara", "Aanya", "Myra", "Diya", "Pari", "Saanvi", "Ananya", "Aadhya", "Kyra", "Anika", "Navya", "Avni", "Kavya", "Tara", "Riya", "Isha", "Nisha", "Ritu", "Neha"];
+  const lastNames = ["Sharma", "Verma", "Gupta", "Malhotra", "Singh", "Patel", "Kumar", "Choudhary", "Jain", "Shah", "Agarwal", "Bansal", "Mehta", "Desai", "Rao", "Nair", "Reddy", "Iyer", "Pillai", "Das", "Bose", "Sen", "Roy"];
+  
+  const seedStr = branch + year + section;
+  let seed = 0;
+  for(let i = 0; i < seedStr.length; i++) seed += seedStr.charCodeAt(i);
+  
+  const sectionStudents = [];
+  for(let i=0; i<85; i++) {
+    const fn = firstNames[(seed + i * 7) % firstNames.length];
+    const ln = lastNames[(seed + i * 3) % lastNames.length];
+    sectionStudents.push({ 
+       id: `${branch}-${year}-${section}-${i}`.replace(/\s/g, ''), 
+       name: fn + ' ' + ln,
+       roll: `${branch.substring(0,2).toUpperCase()}${100 + i}`
+    });
+  }
+  return sectionStudents;
+};
+
+export function StudentsListView({ group }) {
+  let br = "Unknown";
+  let yr = "Unknown";
+  let sec = "All Sections";
+  let scopeText = "All Sections";
+
+  if (group && group.path) {
+    if (group.path.length >= 4) {
+      br = group.path[2] + " " + group.path[3]; // CSE AI
+    }
+    if (group.path.length >= 5) {
+      yr = group.path[4]; // 2nd Year
+    }
+    if (group.path.length >= 6) {
+      sec = group.path[5]; // Sec C
+    }
+    if (group.scope) {
+      scopeText = group.scope;
+    }
+  }
+
+  if (br === "Unknown") br = "CSE AI";
+  if (yr === "Unknown") yr = "2nd Year";
+
+  const sectionStudents = get85Students(br, yr, sec);
+
+  return (
+    <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+      <div className="flex flex-col">
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">STUDENTS</h2>
+        <span className="text-sm font-bold text-slate-500 mt-1">{br} · {yr} · {scopeText}</span>
+      </div>
+      
+      <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+        <div className="flex items-center justify-between mb-4">
+           <h3 className="text-lg font-bold text-slate-900">Enrolled Students</h3>
+           <span className="text-sm font-bold text-theme-primary bg-theme-bg px-3 py-1 rounded-full">{sectionStudents.length} Total</span>
+        </div>
+        <div className="space-y-3 mt-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+          {sectionStudents.map((st, idx) => (
+            <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
+              <span className="text-slate-400 font-bold w-8 text-right text-xs">{idx + 1}.</span>
+              <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-sm">
+                {st.name.charAt(0)}
+              </div>
+              <div className="flex flex-col">
+                 <span className="font-bold text-slate-900 text-sm">{st.name}</span>
+                 <span className="text-[11px] font-medium text-slate-500">Roll No. {st.roll}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
