@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react';
 import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
-import { get20Students, getAssignmentsForSection, AssignmentsView, StudentsListView } from './TeacherViews';
+import { get20Students, getAssignmentsForSection, AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
 
 export default function AcademicSpacesView() {
   const buildTree = (allocations) => {
@@ -93,13 +93,13 @@ export default function AcademicSpacesView() {
     setActivePath(targetPath);
   };
 
-  const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, selectedGroup.isAssignment ? 'Assignments' : selectedGroup.isStudents ? 'Students' : 'Official Group'] : activePath;
+  const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, selectedGroup.isAssignment ? 'Assignments' : selectedGroup.isStudents ? 'Students' : selectedGroup.isAttendance ? 'Attendance' : 'Official Group'] : activePath;
 
   if (selectedGroup) {
     return (
       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
-        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : selectedGroup.isStudents ? <StudentsListView group={selectedGroup} /> : <OfficialGroupView group={selectedGroup} />}
+        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : selectedGroup.isStudents ? <StudentsListView group={selectedGroup} /> : selectedGroup.isAttendance ? <AttendanceView group={selectedGroup} /> : <OfficialGroupView group={selectedGroup} />}
       </div>
     );
   }
@@ -253,7 +253,7 @@ function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleEx
                               onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Assignments", isAssignment: true, path: fullPath, scope: "Common to all sections" }) }}
                            >
                              ASSIGNMENTS
-                           </button>
+               </button>
                         </div>
                      </div>
                    </div>
@@ -313,12 +313,18 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
                className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
              >
                ASSIGNMENTS
-             </button>
+               </button>
+               <button 
+                 onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Attendance", isAttendance: true, path: fullPath, scope: name + " only" }); }}
+                 className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 hover:bg-theme-primary hover:text-white transition-colors cursor-pointer"
+               >
+                 ATTENDANCE
+               </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
 }
 
 function OfficialGroupView({ group }) {

@@ -23,7 +23,6 @@ export default function TeacherApp({ onLogout }) {
     { id: 'Academic Spaces', label: 'Academic Spaces', icon: <Icons.Hierarchy /> },
     { id: 'My Classes', label: 'My Classes', icon: <Icons.Classes /> },
     { id: 'Students', label: 'Students', icon: <Icons.Students /> },
-    { id: 'Attendance', label: 'Attendance', icon: <Icons.Attendance /> },
     { id: 'Grades', label: 'Grades / Marks', icon: <Icons.Grades /> },
     { id: 'Announcements', label: 'Announcements', icon: <Icons.Announcements /> },
     { id: 'Schedule', label: 'Schedule', icon: <Icons.Schedule /> },
