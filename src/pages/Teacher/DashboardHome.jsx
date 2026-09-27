@@ -307,8 +307,10 @@ function TeacherCharacter() {
       
       const rect = containerRef.current.getBoundingClientRect();
       
-      let normalizedX = (mouseX - (rect.left + rect.width / 2)) / (rect.width / 2);
-      let normalizedY = (mouseY - (rect.top + rect.height / 2)) / (rect.height / 2);
+      const faceCenterX = rect.left + (rect.width * 0.5563);
+        let normalizedX = (mouseX - faceCenterX) / (window.innerWidth / 2);
+      const faceCenterY = rect.top + (rect.height * 0.2405);
+        let normalizedY = (mouseY - faceCenterY) / (window.innerHeight / 2);
 
       normalizedX = Math.max(-1, Math.min(1, normalizedX));
       normalizedY = Math.max(-1, Math.min(1, normalizedY));
@@ -336,10 +338,10 @@ function TeacherCharacter() {
       rightPos.current.currentY = lerp(rightPos.current.currentY, rightPos.current.targetY, lerpSpeed);
 
       if (leftPupilWrapperRef.current) {
-        leftPupilWrapperRef.current.style.transform = `translate(-50%, -50%) translate(${leftPos.current.currentX}px, ${leftPos.current.currentY}px)`;
+        leftPupilWrapperRef.current.style.transform = `translate(${leftPos.current.currentX}px, ${leftPos.current.currentY}px)`;
       }
       if (rightPupilWrapperRef.current) {
-        rightPupilWrapperRef.current.style.transform = `translate(-50%, -50%) translate(${rightPos.current.currentX}px, ${rightPos.current.currentY}px)`;
+        rightPupilWrapperRef.current.style.transform = `translate(${rightPos.current.currentX}px, ${rightPos.current.currentY}px)`;
       }
 
       rafRef.current = requestAnimationFrame(animate);
@@ -395,16 +397,11 @@ function TeacherCharacter() {
           className="absolute pointer-events-none" 
           style={{ top: '23.85%', left: '54.23%', width: '0px', height: '0px' }}
         >
-          <div 
-            ref={leftPupilWrapperRef} 
-            className="absolute" 
-            style={{ transform: 'translate(-50%, -50%)' }}
-          >
-            <div 
-              ref={leftPupilRef}
-              className="w-[5px] h-[5px] bg-[#0f172a] rounded-full transition-transform duration-150 ease-in-out origin-center"
-            />
-          </div>
+          <div className="absolute" style={{ transform: 'translate(-50%, -50%)' }}>
+            <div ref={leftPupilWrapperRef}>
+            <div ref={leftPupilRef} className="w-[5px] h-[5px] bg-[#0f172a] rounded-full transition-transform duration-150 ease-in-out origin-center" />
+              </div>
+            </div>
         </div>
 
         <div 
@@ -412,16 +409,11 @@ function TeacherCharacter() {
           className="absolute pointer-events-none" 
           style={{ top: '24.25%', left: '57.03%', width: '0px', height: '0px' }}
         >
-          <div 
-            ref={rightPupilWrapperRef} 
-            className="absolute" 
-            style={{ transform: 'translate(-50%, -50%)' }}
-          >
-            <div 
-              ref={rightPupilRef}
-              className="w-[5px] h-[5px] bg-[#0f172a] rounded-full transition-transform duration-150 ease-in-out origin-center"
-            />
-          </div>
+          <div className="absolute" style={{ transform: 'translate(-50%, -50%)' }}>
+            <div ref={rightPupilWrapperRef}>
+            <div ref={rightPupilRef} className="w-[5px] h-[5px] bg-[#0f172a] rounded-full transition-transform duration-150 ease-in-out origin-center" />
+              </div>
+            </div>
         </div>
       </div>
     </div>
