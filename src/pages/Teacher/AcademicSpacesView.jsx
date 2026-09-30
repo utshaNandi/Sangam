@@ -105,16 +105,19 @@ export default function AcademicSpacesView() {
   }
 
   return (
-    <div className="space-y-5 animate-hero-fade-up relative z-10 pb-20" style={{ animationDuration: '400ms' }}>
-      <div className="flex items-center justify-between">
-         <h2 className="text-[26px] font-extrabold text-slate-900 tracking-tight">My Academic Spaces</h2>
+    <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Academic Spaces</h2>
+        <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
+          Allocated Hierarchy View
+        </span>
       </div>
       
       {currentPathForBreadcrumb.length > 0 && (
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
       )}
 
-      <div className="overflow-x-auto transition-all duration-500 mt-2">
+      <div className="bg-white rounded-[24px] border border-slate-100 p-6 md:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-x-auto transition-all duration-500">
         <div className="min-w-[500px]">
           {Object.entries(tree).map(([inst, depts]) => (
             <InstitutionNode key={inst} name={inst} departments={depts} onSelectGroup={setSelectedGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} setActivePath={setActivePath} />
