@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
 import { get20Students, getAssignmentsForSection, AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
@@ -324,30 +324,41 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
     );
 }
 
+import { announcements as sharedAnnouncements, addAnnouncement } from './mockData';
+
 function OfficialGroupView({ group }) {
   const canAnnounce = group.permissions.includes('Announce') || group.permissions.includes('Manage');
-  const [announcements, setAnnouncements] = useState([
-    {
-      id: 1,
-      title: 'Upcoming DSA Lab',
-      content: 'Lab will be held on Friday in Room 304. Please bring your laptops with the dev environment configured.',
-      author: 'Dr. Sarah Jenkins',
-      time: '2 hours ago'
-    }
-  ]);
+  
+  // Create a string representation of the scope to link teacher -> student
+  const scopePath = group.path.join('/');
+  
+  // Use shared announcements filtered by this group's scope
+  const [announcements, setAnnouncements] = useState(() => 
+    sharedAnnouncements.filter(a => a.scopePath === scopePath)
+  );
+  
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
 
   const handlePublish = () => {
     if (!newTitle.trim() || !newContent.trim()) return;
-    setAnnouncements([{
+    
+    const newAnn = {
       id: Date.now(),
       title: newTitle,
       content: newContent,
       author: 'Dr. Sarah Jenkins',
-      time: 'Just now'
-    }, ...announcements]);
+      time: 'Just now',
+      scopePath: scopePath
+    };
+    
+    // Add to global store
+    addAnnouncement(newAnn);
+    
+    // Update local state to reflect it immediately
+    setAnnouncements([newAnn, ...announcements]);
+    
     setIsCreating(false);
     setNewTitle('');
     setNewContent('');

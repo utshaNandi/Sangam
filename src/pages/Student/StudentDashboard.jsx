@@ -1,8 +1,11 @@
 import React, { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icons } from '../Teacher/Icons';
 import StudentCharacter from '../../components/student/StudentCharacter';
+import { students, assignments, announcements, globalPeriodAttendance, calculateSemesterAttendance } from '../Teacher/mockData';
+import { scheduleData, periodsTime } from './StudentSchedule';
 
-function HeroBox({ onNavigate }) {
+function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, section }) {
   const boxRef = useRef(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
@@ -49,10 +52,10 @@ function HeroBox({ onNavigate }) {
         <div className="max-w-2xl flex-1 pointer-events-auto">
            <h2 className="text-[44px] md:text-[56px] font-bold text-slate-900 tracking-tight mb-6 leading-[1.1]">
              Good morning,<br/>
-             <span className="text-theme-primary">Alex</span>
+             <span className="text-theme-primary">{studentName}</span>
            </h2>
            <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-xl mb-12">
-             You have 2 upcoming assignments and 1 new announcement in Sec C.
+             You have {assignmentCount} upcoming {assignmentCount === 1 ? 'assignment' : 'assignments'} and {announcementCount} new {announcementCount === 1 ? 'announcement' : 'announcements'} in {section}.
            </p>
            
            <div className="flex flex-wrap items-center gap-4">
@@ -108,35 +111,83 @@ function QuickAction({ icon, label, onClick }) {
 }
 
 export default function StudentDashboard({ onNavigate }) {
-  const todayClasses = [
-    { id: 1, time: '09:00 AM', subject: 'Data Structures (Lab)', section: 'Sec C', type: 'Lab', room: 'Lab 2' },
-    { id: 2, time: '11:30 AM', subject: 'Operating Systems', section: 'Sec C', type: 'Lecture', room: 'Room 402' },
-    { id: 3, time: '02:00 PM', subject: 'Computer Networks', section: 'Sec C', type: 'Lecture', room: 'Room 405' }
-  ];
+  const student = students.find(s => s.section === 'CSE-C') || students[0];
+  const firstName = student.name.split(' ')[0];
+  const studentId = student.id;
+  const studentAnnouncementsState = announcements.filter(an => an.scopePath && an.scopePath.includes('Sec C'));
+  const latestAnnouncement = studentAnnouncementsState.length > 0 ? studentAnnouncementsState[0] : null;
+  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(latestAnnouncement !== null);
 
-  const pendingAssignments = [
-    { id: 1, title: 'Process Scheduling Algo', subject: 'Operating Systems', dueDate: 'Tomorrow', status: 'Pending', progress: 0 },
-    { id: 2, title: 'Binary Tree Implementation', subject: 'Data Structures', dueDate: 'Oct 15', status: 'In Progress', progress: 45 }
-  ];
+  // 1. Pending Assignments
+  const studentAssignments = assignments.filter(a => a.className === student.section);
+  const pendingAssignmentsCount = studentAssignments.length;
+
+  const pendingAssignments = studentAssignments.map(a => ({
+    id: a.id,
+    title: a.title,
+    subject: a.className,
+    dueDate: a.dueDate,
+    status: a.status,
+    progress: 0
+  }));
+
+  // 2. Announcements
+  // Find announcements that match the student's scope (assuming CSE-C -> Sec C)
+  const studentAnnouncements = announcements.filter(an => an.scopePath && an.scopePath.includes('Sec C'));
+  const announcementCount = studentAnnouncements.length;
+
+  // 3. Schedule for today
+  const dayIndex = new Date().getDay();
+  // Map dayIndex (0=Sun, 1=Mon) to scheduleData index (0=Mon, 1=Tue)
+  const scheduleIndex = dayIndex === 0 ? 0 : dayIndex - 1;
+  const rawSchedule = scheduleData[scheduleIndex] || [];
+  
+  // Transform raw schedule into todayClasses format
+  const todayClasses = rawSchedule
+    .map((item, idx) => {
+      if (item.subject === 'LUNCH' || item.subject === 'BREAK') return null;
+      const periodInfo = periodsTime[idx];
+      return {
+        id: idx,
+        time: periodInfo ? periodInfo.time : '',
+        subject: item.subject,
+        section: student.section,
+          teacher: item.teacher,
+        type: item.subject === 'LAB' ? 'Lab' : 'Lecture',
+        room: item.subject === 'LAB' ? 'Lab 2' : 'Room 402'
+      };
+    })
+    .filter(Boolean);
+
+  // 4. Attendance Percentage
+  const { percentage: attendancePercentage } = calculateSemesterAttendance(studentId);
+
+  const todayLabsCount = todayClasses.filter(c => c.type === 'Lab').length;
 
   return (
     <div className="space-y-8 animate-fade-in relative">
       
-      <HeroBox onNavigate={onNavigate} />
+      <HeroBox 
+        onNavigate={onNavigate} 
+        studentName={firstName}
+        assignmentCount={pendingAssignmentsCount}
+        announcementCount={announcementCount}
+        section={student.section}
+      />
 
       <div className="relative z-10 space-y-8">
-        {/* Top Cards - Exact Teacher Layout (4 columns) */}
+        {/* Top Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard title="Attendance" value="85%" icon={<Icons.Attendance />} />
-          <StatCard title="CGPA" value="8.4" icon={<Icons.Grades />} />
-          <StatCard title="Pending Tasks" value="3 Due" icon={<Icons.Assignments />} />
-          <StatCard title="Today's Classes" value="3 Scheduled" icon={<Icons.Schedule />} />
+          <StatCard title="Attendance" value={`${attendancePercentage}%`} icon={<Icons.Attendance />} />
+          <StatCard title="Pending Tasks" value={`${pendingAssignmentsCount} Due`} icon={<Icons.Assignments />} />
+          <StatCard title="Today's Classes" value={`${todayClasses.length} Scheduled`} icon={<Icons.Schedule />} />
+          <StatCard title="Labs" value={`${todayLabsCount} Scheduled`} icon={<Icons.Classes />} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Left Column (Wider) */}
-          <div className="lg:col-span-2 space-y-8">
+          {/* Left Column */}
+          <div className="space-y-8">
             
             {/* Today's Classes */}
             <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7 relative overflow-hidden">
@@ -152,7 +203,7 @@ export default function StudentDashboard({ onNavigate }) {
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors text-base">{c.subject}</h4>
-                        <p className="text-sm text-slate-500 font-medium">{c.section} • {c.type}</p>
+                        <p className="text-sm text-slate-500 font-medium">{c.section} — {c.type} — {c.teacher}</p>
                       </div>
                     </div>
                     <div className="text-right hidden sm:block">
@@ -163,6 +214,22 @@ export default function StudentDashboard({ onNavigate }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            </section>
+
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-8">
+            
+            {/* Quick Actions */}
+            <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7">
+              <h3 className="text-xl font-bold text-slate-900 mb-5 tracking-tight">Quick Actions</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <QuickAction icon={<Icons.Assignments />} label="Assignments" onClick={() => onNavigate('Assignments')} />
+                  <QuickAction icon={<Icons.Attendance />} label="Attendance" onClick={() => onNavigate('Attendance')} />
+                  <QuickAction icon={<Icons.Schedule />} label="Schedule" onClick={() => onNavigate('Schedule')} />
+                  <QuickAction icon={<Icons.Announcements />} label="Announcements" onClick={() => onNavigate('Academic Space')} />
               </div>
             </section>
 
@@ -177,7 +244,7 @@ export default function StudentDashboard({ onNavigate }) {
                   <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-theme-primary/30 hover:bg-theme-bg/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 cursor-pointer group" onClick={() => onNavigate('Assignments')}>
                     <div>
                       <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors duration-300">{a.title}</h4>
-                      <p className="text-sm text-slate-500 font-medium mt-1">{a.subject} • Due {a.dueDate}</p>
+                      <p className="text-sm text-slate-500 font-medium mt-1">{a.subject} — Due {a.dueDate}</p>
                     </div>
                     <div className="mt-3 sm:mt-0 flex items-center gap-5">
                       <div className="text-right transition-transform duration-300 group-hover:-translate-x-1">
@@ -192,44 +259,35 @@ export default function StudentDashboard({ onNavigate }) {
                 ))}
               </div>
             </section>
-          </div>
 
-          {/* Right Column */}
-          <div className="space-y-8">
-            
-            {/* Quick Actions */}
-            <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7">
-              <h3 className="text-xl font-bold text-slate-900 mb-5 tracking-tight">Quick Actions</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <QuickAction icon={<Icons.Assignments />} label="Submit" onClick={() => onNavigate('Assignments')} />
-                <QuickAction icon={<Icons.Attendance />} label="Attendance" onClick={() => onNavigate('Attendance')} />
-                <QuickAction icon={<Icons.Resources />} label="Resource" onClick={() => onNavigate('Resources')} />
-                <QuickAction icon={<Icons.Announcements />} label="Broadcasts" onClick={() => onNavigate('Academic Space')} />
-              </div>
-            </section>
-
-            {/* Semester Overview (Equivalent to Teacher's Student Overview) */}
-            <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7">
-              <h3 className="text-xl font-bold text-slate-900 mb-5 tracking-tight">Semester Overview</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">Credits Earned</span>
-                  <span className="font-bold text-slate-900 text-lg">24 / 28</span>
-                </div>
-                <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                  <span className="text-slate-500 font-medium">Overall Attendance</span>
-                  <span className="font-bold text-theme-primary text-lg">85.0%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Missed Classes</span>
-                  <span className="font-bold text-rose-500 text-lg bg-rose-50 px-2 py-0.5 rounded-lg">4</span>
-                </div>
-              </div>
-            </section>
 
           </div>
         </div>
       </div>
+      
+      {/* Dashboard Announcement Popup */}
+      {latestAnnouncement && showAnnouncementPopup && createPortal(
+        <div 
+          onClick={() => onNavigate('Academic Space')}
+          className="fixed bottom-6 right-6 z-[9999] w-[340px] bg-white rounded-2xl shadow-lg border border-slate-200 p-5 cursor-pointer hover:shadow-xl hover:border-theme-primary transition-all animate-fade-in opacity-100 bg-opacity-100 backdrop-blur-none"
+        >
+          <div className="flex justify-between items-start mb-2">
+            <h4 className="font-bold text-slate-900 text-sm tracking-tight">{latestAnnouncement.title}</h4>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowAnnouncementPopup(false); }} 
+              className="text-slate-400 hover:text-slate-700 hover:bg-slate-50 p-1 rounded-md transition-all active:scale-95"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+          <p className="text-xs text-slate-600 mb-3 line-clamp-2 leading-relaxed">{latestAnnouncement.content}</p>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            FROM: {latestAnnouncement.author || 'ADMINISTRATION'}
+          </div>
+        </div>,
+        document.body
+      )}
+      
     </div>
   );
 }

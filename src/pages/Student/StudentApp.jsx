@@ -2,11 +2,21 @@ import React, { useState } from 'react';
 import { Icons } from '../Teacher/Icons';
 import StudentDashboard from './StudentDashboard';
 import AcademicSpace from './AcademicSpace';
+import StudentSchedule from './StudentSchedule';
+import StudentAttendance from './StudentAttendance';
+import StudentAssignments from './StudentAssignments';
+import StudentProfile from './StudentProfile';
+import { students } from '../Teacher/mockData';
 
 export default function StudentApp({ onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
+  
+  const student = students.find(s => s.section === 'CSE-C') || students[0];
+  const [firstName, lastName] = student.name.split(' ');
+  const initials = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ''}`;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const navItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
@@ -14,11 +24,11 @@ export default function StudentApp({ onLogout }) {
     { id: 'Schedule', label: 'Schedule', icon: <Icons.Schedule /> },
     { id: 'Grades', label: 'Grades', icon: <Icons.Grades /> },
     { id: 'Attendance', label: 'Attendance', icon: <Icons.Attendance /> },
-    { id: 'Resources', label: 'Resources', icon: <Icons.Resources /> },
+    { id: 'Assignments', label: 'Assignments', icon: <Icons.Assignments /> },
   ];
 
   const bottomNavItems = [
-    { id: 'Profile', label: 'Profile', icon: <Icons.Profile /> },
+    { id: 'Profile', label: 'Profile', icon: <Icons.Profile />, onClick: () => setIsProfileOpen(true) },
     { id: 'Settings', label: 'Settings', icon: <Icons.Settings /> },
     { id: 'Logout', label: 'Logout', icon: <Icons.Logout />, onClick: onLogout },
   ];
@@ -38,6 +48,12 @@ export default function StudentApp({ onLogout }) {
         return <StudentDashboard onNavigate={setActiveTab} />;
       case 'Academic Space':
         return <AcademicSpace />;
+      case 'Schedule':
+        return <StudentSchedule />;
+      case 'Attendance':
+        return <StudentAttendance />;
+      case 'Assignments':
+        return <StudentAssignments />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
@@ -107,6 +123,33 @@ export default function StudentApp({ onLogout }) {
            ))}
         </nav>
 
+        <div className="px-3 pb-3">
+            <div 
+              className={`w-full bg-slate-50 rounded-2xl p-3 cursor-pointer transition-all duration-300 hover:bg-slate-100 hover:shadow-sm active:scale-[0.98] border border-slate-100 mb-2 ${isSidebarCollapsed ? 'flex justify-center items-center p-3' : 'flex items-center justify-between'}`}
+            >
+               {isSidebarCollapsed ? (
+                  <div className="w-10 h-10 rounded-full bg-[#df8e35] text-white flex items-center justify-center font-bold shadow-sm transition-transform relative">
+                    {initials}
+                  </div>
+               ) : (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#df8e35] text-white flex items-center justify-center font-bold shadow-sm">
+                        {initials}
+                      </div>
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-900 leading-tight">{student.name}</p>
+                        <p className="text-[11px] font-bold text-[#df8e35]">{student.id}</p>
+                      </div>
+                    </div>
+                    <div className="text-slate-300 group-hover:text-theme-primary transition-colors">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                    </div>
+                  </>
+               )}
+            </div>
+          </div>
+
         <div className="p-3 border-t border-slate-100 space-y-1.5">
            {bottomNavItems.map(item => (
              <button
@@ -153,13 +196,7 @@ export default function StudentApp({ onLogout }) {
                
                {/* Location / Breadcrumb Area reflecting locked hierarchy */}
                <div>
-                 <div className="flex items-center text-sm font-medium text-slate-500">
-                   <span className="hover:text-slate-700 transition-colors">B.Tech CSE (AI)</span>
-                   <span className="mx-2 text-slate-300">/</span>
-                   <span className="hover:text-slate-700 transition-colors">2nd Year</span>
-                   <span className="mx-2 text-slate-300">/</span>
-                   <span className="text-theme-primary font-semibold">Sec C</span>
-                 </div>
+                 
                  <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-tight mt-0.5">
                    {activeTab}
                  </h1>
@@ -175,11 +212,11 @@ export default function StudentApp({ onLogout }) {
                </button>
                <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                  <div className="text-right hidden sm:block">
-                   <p className="text-sm font-bold text-slate-900">Alex Walker</p>
+                   <p className="text-sm font-bold text-slate-900">{student.name}</p>
                    <p className="text-xs font-medium text-slate-500">Student</p>
                  </div>
                  <div className="w-10 h-10 rounded-full bg-theme-bg text-theme-primary flex items-center justify-center font-bold text-sm cursor-pointer hover:opacity-90 transition-all hover:shadow-md active:scale-95">
-                   AW
+                   {initials}
                  </div>
                </div>
              </div>
@@ -190,7 +227,8 @@ export default function StudentApp({ onLogout }) {
               {renderContent()}
             </div>
          </div>
-      </main>
+            </main>
+      {isProfileOpen && <StudentProfile student={student} onClose={() => setIsProfileOpen(false)} />}
     </div>
   );
 }

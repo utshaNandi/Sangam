@@ -85,3 +85,45 @@ export const getTreeForRole = (role, email) => {
   });
   return tree;
 };
+export const globalAssignments = {
+  // mapping sectionKey -> assignments array
+};
+
+// Also we need global submissions for testing similarity
+export const globalSubmissions = {
+  // mapping assignmentId -> submissions array
+};
+
+const listeners = [];
+export const subscribeToAssignments = (fn) => {
+  listeners.push(fn);
+  return () => {
+    const idx = listeners.indexOf(fn);
+    if(idx > -1) listeners.splice(idx, 1);
+  };
+};
+export const addGlobalAssignment = (sectionKey, assignment) => {
+  if(!globalAssignments[sectionKey]) globalAssignments[sectionKey] = [];
+  globalAssignments[sectionKey].push(assignment);
+  listeners.forEach(fn => fn());
+};
+
+const submissionListeners = [];
+export const subscribeToSubmissions = (fn) => {
+  submissionListeners.push(fn);
+  return () => {
+    const idx = submissionListeners.indexOf(fn);
+    if(idx > -1) submissionListeners.splice(idx, 1);
+  };
+};
+export const addGlobalSubmission = (assignmentId, submission) => {
+  if(!globalSubmissions[assignmentId]) globalSubmissions[assignmentId] = [];
+  // Ensure we replace if same student ID
+  const existingIdx = globalSubmissions[assignmentId].findIndex(s => s.id === submission.id);
+  if (existingIdx > -1) {
+    globalSubmissions[assignmentId][existingIdx] = submission;
+  } else {
+    globalSubmissions[assignmentId].push(submission);
+  }
+  submissionListeners.forEach(fn => fn());
+};

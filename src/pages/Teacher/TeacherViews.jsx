@@ -1,5 +1,7 @@
+import { globalAssignments, addGlobalAssignment, subscribeToAssignments, globalSubmissions } from '../../data/academicModel';
+import { SimilarityCheckView } from './SimilarityCheckView';
 ﻿import { useState } from 'react';
-import { classes, students, assignments, announcements, teacherProfile } from './mockData';
+import { classes, students, assignments, announcements, teacherProfile, markPeriodAttendance } from './mockData';
 import { Icons } from './Icons';
 
 export const scheduleData = {
@@ -246,6 +248,9 @@ export function TreeHierarchy({ title, tree, branches, renderContent, expandedNo
 }
 
 export function StudentsView() {
+  
+  
+
   const [expandedNodes, setExpandedNodes] = useState({});
   const toggleNode = (nodeId) => setExpandedNodes(prev => {
     const isExpanding = !prev[nodeId];
@@ -321,6 +326,8 @@ export const getAssignmentsForSection = (branch, year, section) => {
 };
 
 export function AssignmentsView({ group }) {
+  
+
   const [expandedNodes, setExpandedNodes] = useState({});
   const toggleNode = (nodeId) => setExpandedNodes(prev => {
     const isExpanding = !prev[nodeId];
@@ -350,16 +357,33 @@ export function AssignmentsView({ group }) {
     return newState;
   });
 
-  const [createdAssignments, setCreatedAssignments] = useState({});
+  const [createdAssignments, setCreatedAssignments] = useState({...globalAssignments});
+  React.useEffect(() => {
+    return subscribeToAssignments(() => {
+      setCreatedAssignments({...globalAssignments});
+    });
+  }, []);
   const [isCreating, setIsCreating] = useState(false);
   const [viewingAssignment, setViewingAssignment] = useState(null);
+  const [comparingPair, setComparingPair] = useState(null);
+  const [realSubmissions, setRealSubmissions] = useState([]);
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      if (viewingAssignment) {
+         setRealSubmissions(globalSubmissions[viewingAssignment.id] || []);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [viewingAssignment]);
+
   
   const [creationContext, setCreationContext] = useState(null);
 
   const [newAssignment, setNewAssignment] = useState({
     title: '',
     dueDate: '',
-    pdf: null
+    pdf: null,
+    checkSimilarity: false
   });
 
   const handleFileChange = (e) => {
@@ -378,13 +402,11 @@ export function AssignmentsView({ group }) {
         dueDate: newAssignment.dueDate,
         className: `${creationContext.yr} • ${creationContext.br} • ${creationContext.sec}`,
         status: 'Active',
-        total: 20
+        total: 20,
+        checkSimilarity: newAssignment.checkSimilarity
       };
       
-      setCreatedAssignments(prev => ({
-        ...prev,
-        [sectionKey]: [...(prev[sectionKey] || []), newAsg]
-      }));
+      addGlobalAssignment(sectionKey, newAsg);
       
       setIsCreating(false);
       setNewAssignment({ title: '', dueDate: '', pdf: null });
@@ -392,10 +414,105 @@ export function AssignmentsView({ group }) {
     }
   };
 
-  if (viewingAssignment) {
+  
+  if (viewingAssignment && comparingPair) {
+    const {stA, stB, score, sharedPassage, fakeContentA, fakeContentB, report} = comparingPair;
+    
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setComparingPair(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              Back to Submissions
+            </button>
+            <div>
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Compare Submissions</h2>
+              <p className="text-sm font-medium text-slate-500 mt-1">{stA.name} & {stB.name}</p>
+            </div>
+          </div>
+        </div>
+        
+        {report && (
+          <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm mt-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Similarity Overview</h3>
+            <div className="flex flex-col md:flex-row gap-8 mb-6">
+               <div className="flex flex-col">
+                  <span className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Overall</span>
+                  <span className={`text-4xl font-extrabold ${report.overallSimilarity > 50 ? 'text-orange-600' : 'text-slate-700'}`}>{report.overallSimilarity}%</span>
+               </div>
+               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Text</span>
+                    <span className="text-lg font-bold text-slate-700">{report.textSimilarity}%</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Semantic</span>
+                    <span className="text-lg font-bold text-slate-700">{report.semanticSimilarity}%</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Visual</span>
+                    <span className="text-lg font-bold text-slate-700">{report.visualSimilarity}%</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Structural</span>
+                    <span className="text-lg font-bold text-slate-700">{report.structuralSimilarity}%</span>
+                  </div>
+               </div>
+               <div className="flex flex-col ml-auto text-right">
+                  <span className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Details</span>
+                  <span className="text-sm font-bold text-slate-700">Matching Sections: {report.matchingSections}</span>
+                  <span className="text-sm font-bold text-slate-700">Pages: {report.matchingPages}</span>
+                  <span className={`text-sm font-bold mt-2 px-3 py-1 rounded-lg inline-block ${report.overallSimilarity > 50 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>{report.recommendation || (report.overallSimilarity > 50 ? 'Review recommended' : 'Low similarity')}</span>
+               </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-6 mt-6">
+           <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm overflow-y-auto max-h-[600px] custom-scrollbar">
+             <h4 className="font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100">{stA.name}'s Submission</h4>
+             <div className="text-sm text-slate-600 space-y-6 leading-relaxed font-medium">
+               {report && report.evidence ? report.evidence.map((ev, i) => (
+                 <div key={i} className="mb-4">
+                   <p className="text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">{ev.sharedPassage}</p>
+                   <p className="bg-orange-50 text-slate-800 p-3 rounded-xl border border-orange-100">{ev.contentA}</p>
+                 </div>
+               )) : (
+                 <>
+                   <p>...<span className="bg-orange-100 text-orange-900 px-1 rounded">{sharedPassage}</span>...</p>
+                   <p>{fakeContentA}</p>
+                 </>
+               )}
+             </div>
+           </div>
+           <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm overflow-y-auto max-h-[600px] custom-scrollbar">
+             <h4 className="font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100">{stB.name}'s Submission</h4>
+             <div className="text-sm text-slate-600 space-y-6 leading-relaxed font-medium">
+               {report && report.evidence ? report.evidence.map((ev, i) => (
+                 <div key={i} className="mb-4">
+                   <p className="text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">{ev.sharedPassage}</p>
+                   <p className="bg-orange-50 text-slate-800 p-3 rounded-xl border border-orange-100">{ev.contentB}</p>
+                 </div>
+               )) : (
+                 <>
+                   <p>...<span className="bg-orange-100 text-orange-900 px-1 rounded">{sharedPassage}</span>...</p>
+                   <p>{fakeContentB}</p>
+                 </>
+               )}
+             </div>
+           </div>
+        </div>
+      </div>
+    );
+  }
+if (viewingAssignment) {
     const assignmentStudents = get20Students(viewingAssignment.br, viewingAssignment.yr, viewingAssignment.sec);
+    
+    
+
     const notSubmittedStudents = assignmentStudents.filter((st) => {
-      // deterministic mock: 50% submitted based on ID
+      if (realSubmissions.find(s => s.id === st.id)) return false;
       const seedStr = viewingAssignment.id + st.id;
       let seed = 0;
       for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
@@ -427,7 +544,7 @@ export function AssignmentsView({ group }) {
               const seedStr = viewingAssignment.id + student.id;
               let seed = 0;
               for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
-              const hasSubmitted = seed % 2 !== 0;
+              const hasSubmitted = (seed % 2 !== 0) || realSubmissions.find(s => s.id === student.id);
 
               return (
                 <div key={student.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-50 bg-slate-50/50">
@@ -476,6 +593,24 @@ export function AssignmentsView({ group }) {
                     <p className="text-xs font-medium text-slate-500">{student.roll}</p>
                   </div>
                 </div>
+      {viewingAssignment.checkSimilarity && (
+         <SimilarityCheckView 
+            assignment={viewingAssignment} 
+            submittedStudents={assignmentStudents.filter(st => {
+               if (realSubmissions.find(s => s.id === st.id)) return true;
+               const seedStr = viewingAssignment.id + st.id;
+               let seed = 0;
+               for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
+               return seed % 2 !== 0;
+            }).map(st => {
+               const real = realSubmissions.find(s => s.id === st.id);
+               if (real) return { ...st, fileUrl: real.fileUrl, originalName: real.originalName, isReal: true, extractedText: real.extractedText, similarityReport: real.similarityReport };
+               return st;
+            })}
+            onCompare={setComparingPair}
+         />
+      )}
+   
                 <div className="text-red-500 font-bold flex items-center gap-1">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </div>
@@ -525,6 +660,18 @@ export function AssignmentsView({ group }) {
                   {newAssignment.pdf && <p className="text-sm font-bold text-slate-700 mt-2 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{newAssignment.pdf.name}</p>}
                 </label>
               </div>
+            </div>
+            
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={newAssignment.checkSimilarity || false} 
+                  onChange={(e) => setNewAssignment({...newAssignment, checkSimilarity: e.target.checked})}
+                  className="w-5 h-5 text-theme-primary border-slate-300 rounded focus:ring-theme-primary" 
+                />
+                <span className="text-sm font-bold text-slate-700">Check Similarity Status</span>
+              </label>
             </div>
             <div className="pt-4 flex justify-end">
               <button type="submit" className="bg-theme-primary text-white px-8 py-3 rounded-xl hover:bg-theme-primary/90 active:scale-95 transition-all duration-200 shadow-lg shadow-theme-primary/25 font-bold">
@@ -655,16 +802,21 @@ export function AttendanceView({ group }) {
       const next = { ...prev };
       students.forEach(st => {
          next[st.id] = status;
+         markPeriodAttendance(st.id, status);
       });
       return next;
     });
   };
 
   const toggleStudentAttendance = (studentId) => {
-    setAttendanceData(prev => ({
-      ...prev,
-      [studentId]: prev[studentId] === 'Present' ? 'Absent' : 'Present'
-    }));
+    setAttendanceData(prev => {
+      const newStatus = prev[studentId] === 'Present' ? 'Absent' : 'Present';
+      markPeriodAttendance(studentId, newStatus);
+      return {
+        ...prev,
+        [studentId]: newStatus
+      };
+    });
   };
 
   const renderContent = (br, yr, sec) => {
@@ -1146,4 +1298,5 @@ export function StudentsListView({ group }) {
     </div>
   );
 }
+
 
