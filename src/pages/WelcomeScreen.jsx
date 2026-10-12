@@ -12,16 +12,20 @@ export default function WelcomeScreen({ onStartTransition }) {
     setSelectedRole(role);
   };
 
-  const handleFormSubmit = () => {
-    const role = selectedRole;
-    if (!role) return;
+  const handleAuthSuccess = (role, user, actualRole) => {
     const refs = { student: studentBookRef, faculty: facultyBookRef, director: directorBookRef };
     const ref = refs[role];
     if (!ref?.current) return;
     const rect = ref.current.getBoundingClientRect();
     const colors = { student: '#DFB980', faculty: '#538C8C', director: '#D67756' };
     
-    onStartTransition({ bookColor: colors[role], startRect: rect, bookNode: ref.current, role });
+    onStartTransition({ 
+      bookColor: colors[role], 
+      startRect: rect, 
+      bookNode: ref.current, 
+      role: actualRole || role,
+      user
+    });
   };
 
   const roleIcons = {
@@ -140,7 +144,8 @@ export default function WelcomeScreen({ onStartTransition }) {
               className="bottom-3.5 left-[120px] animate-book-land [animation-delay:340ms]"
               isSelected={selectedRole === 'student'}
               onClick={() => handleRoleSelect('student')}
-              onFormSubmit={handleFormSubmit}
+              onFormSubmit={(user, actualRole) => handleAuthSuccess('student', user, actualRole)}
+              role="student"
               bookRef={studentBookRef}
               label="Student"
               labelIcon={roleIcons.student}
@@ -157,7 +162,8 @@ export default function WelcomeScreen({ onStartTransition }) {
               className="bottom-3.5 left-[153px] animate-book-land [animation-delay:420ms]"
               isSelected={selectedRole === 'faculty'}
               onClick={() => handleRoleSelect('faculty')}
-              onFormSubmit={handleFormSubmit}
+              onFormSubmit={(user, actualRole) => handleAuthSuccess('faculty', user, actualRole)}
+              role="faculty"
               bookRef={facultyBookRef}
               label="Faculty"
               labelIcon={roleIcons.faculty}
@@ -194,7 +200,8 @@ export default function WelcomeScreen({ onStartTransition }) {
               innerClassName="rotate-[15deg]"
               isSelected={selectedRole === 'director'}
               onClick={() => handleRoleSelect('director')}
-              onFormSubmit={handleFormSubmit}
+              onFormSubmit={(user, actualRole) => handleAuthSuccess('director', user, actualRole)}
+              role="director"
               bookRef={directorBookRef}
               label="Director"
               labelIcon={roleIcons.director}

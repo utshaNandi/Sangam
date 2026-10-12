@@ -1,0 +1,173 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (matches Firebase Auth request.auth.uid)
+// Fields:
+//   - uid: string (required, immutable, must match auth.uid)
+//   - email: string (required, immutable, must match auth.token.email)
+//   - name: string (optional, max 100 chars)
+//   - role: string (required, immutable on update, 'student' | 'faculty' | 'director')
+//   - status: string (required, immutable on update, 'active' | 'pending_approval')
+//   - createdAt: string (required, immutable, ISO-8601 string)
+//   - department: string (optional, max 100 chars)
+//   - section: string (optional, max 50 chars)
+//   - institution: string (optional, max 100 chars)
+//
+// Collection: authorized_staff
+// Document ID: {email} (lowercase normalized email)
+// Fields:
+//   - role: string ('faculty' | 'director')
+//   - authorized: bool
+//
+// Collection: authorized_roles
+// Document ID: {email} (lowercase normalized email)
+// Fields:
+//   - role: string ('faculty' | 'director')
+//   - authorized: bool
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny: Block all unmatched collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasValidEmail() {
+      return isAuthenticated() &&
+        'email' in request.auth.token &&
+        request.auth.token.email is string &&
+        request.auth.token.email.size() > 0;
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Verify staff whitelist in administrator-controlled collections
+    function isPreAuthorizedStaff(email, requestedRole) {
+      let staffPath = /databases/$(database)/documents/authorized_staff/$(email);
+      let rolePath = /databases/$(database)/documents/authorized_roles/$(email);
+      return (exists(staffPath) && (get(staffPath).data.role == requestedRole || get(staffPath).data.authorized == true)) ||
+             (exists(rolePath) && (get(rolePath).data.role == requestedRole || get(rolePath).data.authorized == true));
+    }
+
+    // User document schema validation
+    function isValidUserSchema(data) {
+      let allowed = ['uid', 'name', 'email', 'role', 'status', 'createdAt', 'department', 'section', 'institution'];
+      let required = ['uid', 'email', 'role', 'status', 'createdAt'];
+
+      return hasOnlyAllowedFields(allowed) &&
+             hasRequiredFields(required) &&
+             data.uid == request.auth.uid &&
+             hasValidEmail() &&
+             data.email == request.auth.token.email &&
+             isValidEmail(data.email) &&
+             data.role in ['student', 'faculty', 'director'] &&
+             data.status in ['active', 'pending_approval'] &&
+             data.createdAt is string &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+             (!('department' in data) || (data.department is string && data.department.size() <= 100)) &&
+             (!('section' in data) || (data.section is string && data.section.size() <= 50)) &&
+             (!('institution' in data) || (data.institution is string && data.institution.size() <= 100));
+    }
+
+    // RBAC: Enforce trusted privilege authorization on profile creation
+    function canCreateRole(data) {
+      let emailLower = request.auth.token.email.lower();
+      let role = data.role;
+      let status = data.status;
+
+      // 1. Student open registration: can register with status 'active'
+      let isStudentValid = role == 'student' && status == 'active';
+
+      // 2. Active privileged role: MUST exist in administrator-controlled whitelist
+      let isPrivilegedActiveValid = (role in ['faculty', 'director']) &&
+                                    status == 'active' &&
+                                    isPreAuthorizedStaff(emailLower, role);
+
+      // 3. Unapproved applicant: can register ONLY with status 'pending_approval'
+      let isApplicantValid = (role in ['faculty', 'director']) &&
+                             status == 'pending_approval';
+
+      return isStudentValid || isPrivilegedActiveValid || isApplicantValid;
+    }
+
+    // ===============================================================
+    // Collection: users
+    // ===============================================================
+    match /users/{userId} {
+      // Users can only read their own profile. Global listing is strictly forbidden.
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      // Account profile creation
+      allow create: if isOwner(userId) &&
+                       isValidUserSchema(request.resource.data) &&
+                       canCreateRole(request.resource.data);
+
+      // Account profile update: role, status, uid, email, and createdAt are IMMUTABLE
+      allow update: if isOwner(userId) &&
+                       isValidUserSchema(request.resource.data) &&
+                       areImmutableFieldsUnchanged(['uid', 'email', 'createdAt', 'role', 'status']);
+
+      // Direct client deletion is denied
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // Collection: authorized_staff (Administrator whitelist)
+    // ===============================================================
+    match /authorized_staff/{email} {
+      // Authenticated users can only read their own authorization record
+      allow get: if isAuthenticated() &&
+                    hasValidEmail() &&
+                    request.auth.token.email.lower() == email.lower();
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // ===============================================================
+    // Collection: authorized_roles (Administrator whitelist fallback)
+    // ===============================================================
+    match /authorized_roles/{email} {
+      // Authenticated users can only read their own authorization record
+      allow get: if isAuthenticated() &&
+                    hasValidEmail() &&
+                    request.auth.token.email.lower() == email.lower();
+      allow list: if false;
+      allow write: if false;
+    }
+  }
+}
