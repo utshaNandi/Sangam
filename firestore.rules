@@ -159,23 +159,45 @@ service cloud.firestore {
              (d2 == 'Biotechnology' && d1 == 'BT');
     }
 
+    // Helper to validate whether an allocation document exists and matches all class fields
+    function isAllocDocValid(allocId, teacherUid, institution, department, year, section) {
+      let allocPath = /databases/$(database)/documents/teacher_allocations/$(allocId);
+      return exists(allocPath) &&
+             get(allocPath).data.authorized == true &&
+             get(allocPath).data.teacherUid == teacherUid &&
+             get(allocPath).data.institution == institution &&
+             (('department' in get(allocPath).data && isMatchingDepartment(get(allocPath).data.department, department)) ||
+              (!('department' in get(allocPath).data) && isMatchingDepartment(getFacultyData().department, department))) &&
+             get(allocPath).data.year == year &&
+             get(allocPath).data.section == section;
+    }
+
     // Verify whether faculty member is authorized for the given class (institution, department, year, section)
     function isFacultyAuthorizedForClass(teacherUid, institution, department, year, section) {
-      let allocId = teacherUid + '_' + year + '_' + section;
-      let allocPath = /databases/$(database)/documents/teacher_allocations/$(allocId);
-      let hasAllocDoc = exists(allocPath) &&
-                        get(allocPath).data.authorized == true &&
-                        get(allocPath).data.teacherUid == teacherUid &&
-                        get(allocPath).data.institution == institution &&
-                        isMatchingDepartment(get(allocPath).data.department, department) &&
-                        get(allocPath).data.year == year &&
-                        get(allocPath).data.section == section;
+      let newAllocId = teacherUid + '_' + department + '_' + year + '_' + section;
+      let legacyAllocId = teacherUid + '_' + year + '_' + section;
       let faculty = getFacultyData();
       let hasProfileMatch = ('year' in faculty) && faculty.year == year &&
                             ('section' in faculty) && faculty.section == section &&
                             isMatchingDepartment(faculty.department, department) &&
                             faculty.institution == institution;
-      return hasAllocDoc || hasProfileMatch;
+      return isAllocDocValid(newAllocId, teacherUid, institution, department, year, section) ||
+             isAllocDocValid(legacyAllocId, teacherUid, institution, department, year, section) ||
+             (department == 'Computer Science' && isAllocDocValid(teacherUid + '_CSE AI_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'CSE AI' && isAllocDocValid(teacherUid + '_Computer Science_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'Mechanical Engineering' && isAllocDocValid(teacherUid + '_ME_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'ME' && isAllocDocValid(teacherUid + '_Mechanical Engineering_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'Civil Engineering' && isAllocDocValid(teacherUid + '_CE_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'CE' && isAllocDocValid(teacherUid + '_Civil Engineering_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'Electronics & Communication' && isAllocDocValid(teacherUid + '_ECE_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'ECE' && isAllocDocValid(teacherUid + '_Electronics & Communication_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'Electrical Engineering' && isAllocDocValid(teacherUid + '_EE_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'EE' && isAllocDocValid(teacherUid + '_Electrical Engineering_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'Information Technology' && isAllocDocValid(teacherUid + '_IT_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'IT' && isAllocDocValid(teacherUid + '_Information Technology_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'Biotechnology' && isAllocDocValid(teacherUid + '_BT_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             (department == 'BT' && isAllocDocValid(teacherUid + '_Biotechnology_' + year + '_' + section, teacherUid, institution, department, year, section)) ||
+             hasProfileMatch;
     }
 
     // Helper to match section strings, supporting standard variations (e.g. 'Sec C', 'Section C', 'CSE-C')
@@ -322,9 +344,9 @@ service cloud.firestore {
     // Collection: users
     // ===============================================================
     match /users/{userId} {
-      // Users can only read their own profile; authorized Directors can read student profiles; authorized Faculty can read active students in their department
+      // Users can only read their own profile; authorized Directors can read student and faculty profiles; authorized Faculty can read active students in their department
       allow get: if isOwner(userId) ||
-                    (isAuthorizedDirector() && resource.data.role == 'student' && (!('institution' in getDirectorData()) || !('institution' in resource.data) || resource.data.institution == getDirectorData().institution)) ||
+                    (isAuthorizedDirector() && resource.data.role in ['student', 'faculty'] && (!('institution' in getDirectorData()) || !('institution' in resource.data) || resource.data.institution == getDirectorData().institution)) ||
                     (isAuthorizedFaculty() && resource.data.role == 'student' && resource.data.status == 'active' && resource.data.department == getFacultyData().department && (!('institution' in getFacultyData()) || !('institution' in resource.data) || resource.data.institution == getFacultyData().institution));
 
       // Authorized Directors can list students; Authorized Faculty can list active students within their department
@@ -359,17 +381,18 @@ service cloud.firestore {
     // Collection: teacher_allocations
     // ===============================================================
     match /teacher_allocations/{allocId} {
-      // Directors can read only allocations within their authorized institution
+      // Directors can read only allocations within their authorized institution (handles non-existent doc safely)
       // Faculty can read only their own assigned allocations within their authorized institution
-      allow get: if (isAuthorizedDirector() && (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
-                    (isAuthorizedFaculty() && resource.data.teacherUid == request.auth.uid && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
+      allow get: if (isAuthorizedDirector() && (resource == null || !('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
+                    (isAuthorizedFaculty() && resource != null && resource.data.teacherUid == request.auth.uid && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
 
       allow list: if (isAuthorizedDirector() && (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
                      (isAuthorizedFaculty() && resource.data.teacherUid == request.auth.uid && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
 
       // Only authorized Director can manage teacher allocations within their institution
       allow create: if isAuthorizedDirector() &&
-                       allocId == request.resource.data.teacherUid + '_' + request.resource.data.year + '_' + request.resource.data.section &&
+                       (allocId == request.resource.data.teacherUid + '_' + request.resource.data.department + '_' + request.resource.data.year + '_' + request.resource.data.section ||
+                        allocId == request.resource.data.teacherUid + '_' + request.resource.data.year + '_' + request.resource.data.section) &&
                        request.resource.data.keys().hasOnly(['teacherUid', 'institution', 'department', 'year', 'section', 'authorized', 'createdAt', 'createdBy']) &&
                        request.resource.data.keys().hasAll(['teacherUid', 'institution', 'department', 'year', 'section', 'authorized']) &&
                        request.resource.data.teacherUid is string && request.resource.data.teacherUid.size() > 0 &&
@@ -381,14 +404,19 @@ service cloud.firestore {
                        (!('institution' in getDirectorData()) || request.resource.data.institution == getDirectorData().institution);
 
       allow update: if isAuthorizedDirector() &&
-                       allocId == request.resource.data.teacherUid + '_' + request.resource.data.year + '_' + request.resource.data.section &&
+                       (allocId == request.resource.data.teacherUid + '_' + request.resource.data.department + '_' + request.resource.data.year + '_' + request.resource.data.section ||
+                        allocId == request.resource.data.teacherUid + '_' + request.resource.data.year + '_' + request.resource.data.section) &&
                        request.resource.data.keys().hasOnly(['teacherUid', 'institution', 'department', 'year', 'section', 'authorized', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']) &&
                        request.resource.data.authorized is bool &&
-                       areImmutableFieldsUnchanged(['teacherUid', 'institution', 'department', 'year', 'section']) &&
+                       request.resource.data.teacherUid == resource.data.teacherUid &&
+                       request.resource.data.institution == resource.data.institution &&
+                       request.resource.data.year == resource.data.year &&
+                       request.resource.data.section == resource.data.section &&
+                       (!('department' in resource.data) || request.resource.data.department == resource.data.department) &&
                        (!('institution' in getDirectorData()) || (resource.data.institution == getDirectorData().institution && request.resource.data.institution == getDirectorData().institution));
 
       allow delete: if isAuthorizedDirector() &&
-                       (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution);
+                       (resource == null || !('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution);
     }
 
     // ===============================================================

@@ -286,13 +286,13 @@ export async function diagnoseAttendanceWriteError({ sessionInfo, studentStatuse
 
   try {
     // 1. Check if the faculty member has an active teacher allocation document for this class
-    const allocId = `${teacherUid}_${sessionInfo.year}_${sessionInfo.section}`;
-    const allocRef = doc(dbInstance, 'teacher_allocations', allocId);
+    const canonicalAllocId = `${teacherUid}_${sessionInfo.department}_${sessionInfo.year}_${sessionInfo.section}`;
+    const legacyAllocId = `${teacherUid}_${sessionInfo.year}_${sessionInfo.section}`;
     let hasValidAlloc = false;
 
     try {
-      const allocSnap = await getDoc(allocRef);
-      if (allocSnap.exists() && allocSnap.data()?.authorized === true) {
+      const canonicalSnap = await getDoc(doc(dbInstance, 'teacher_allocations', canonicalAllocId));
+      if (canonicalSnap.exists() && canonicalSnap.data()?.authorized === true) {
         hasValidAlloc = true;
       }
     } catch {
@@ -300,9 +300,20 @@ export async function diagnoseAttendanceWriteError({ sessionInfo, studentStatuse
     }
 
     if (!hasValidAlloc) {
+      try {
+        const legacySnap = await getDoc(doc(dbInstance, 'teacher_allocations', legacyAllocId));
+        if (legacySnap.exists() && legacySnap.data()?.authorized === true) {
+          hasValidAlloc = true;
+        }
+      } catch {
+        hasValidAlloc = false;
+      }
+    }
+
+    if (!hasValidAlloc) {
       diagnostic.failedWrite = 'attendance_sessions & attendance_records';
       diagnostic.ruleTarget = 'isFacultyAuthorizedForClass';
-      diagnostic.reason = `Faculty member lacks an authorized allocation for ${sessionInfo.year} ${sessionInfo.section}. Missing teacher_allocations/${allocId}`;
+      diagnostic.reason = `Faculty member lacks an authorized allocation for ${sessionInfo.department} ${sessionInfo.year} ${sessionInfo.section}. Missing teacher_allocations/${canonicalAllocId}`;
       return diagnostic;
     }
 
@@ -548,7 +559,8 @@ export function calculateAttendanceMetrics(periodData = {}) {
  * Creates a teacher class allocation document in Firestore.
  * Callable ONLY by an authorized Director (enforced by firestore.rules).
  * 
- * Document ID format required by rules: {teacherUid}_{year}_{section}
+ * Document ID canonical format: {teacherUid}_{department}_{year}_{section}
+ * Supports legacy format {teacherUid}_{year}_{section} for backward compatibility.
  * Fields required: teacherUid, institution, department, year, section, authorized
  */
 export async function createTeacherAllocation({
@@ -563,8 +575,36 @@ export async function createTeacherAllocation({
     throw new Error('All allocation fields (teacherUid, institution, department, year, section) are required.');
   }
 
-  const allocId = `${teacherUid}_${year}_${section}`;
+  const allocId = `${teacherUid}_${department}_${year}_${section}`;
   const allocRef = doc(dbInstance, 'teacher_allocations', allocId);
+
+  // Check for genuine duplicate allocation on canonical document ID
+  try {
+    const existingSnap = await getDoc(allocRef);
+    if (existingSnap.exists() && existingSnap.data()?.authorized !== false) {
+      throw new Error(`This faculty member is already allocated to ${department} • ${year} • ${section}.`);
+    }
+  } catch (checkErr) {
+    if (checkErr.message?.includes('already allocated')) {
+      throw checkErr;
+    }
+    console.warn(`[AllocationDiagnostic] Pre-write canonical read check warning: op=getDoc(canonical), code=${checkErr?.code || 'unknown'}`);
+  }
+
+  // Also check legacy doc ID for true duplicate (same faculty, year, section, and department)
+  try {
+    const legacyAllocId = `${teacherUid}_${year}_${section}`;
+    const legacyRef = doc(dbInstance, 'teacher_allocations', legacyAllocId);
+    const legacySnap = await getDoc(legacyRef);
+    if (legacySnap.exists() && legacySnap.data()?.authorized !== false && legacySnap.data()?.department === department) {
+      throw new Error(`This faculty member is already allocated to ${department} • ${year} • ${section}.`);
+    }
+  } catch (legacyCheckErr) {
+    if (legacyCheckErr.message?.includes('already allocated')) {
+      throw legacyCheckErr;
+    }
+    console.warn(`[AllocationDiagnostic] Pre-write legacy read check warning: op=getDoc(legacy), code=${legacyCheckErr?.code || 'unknown'}`);
+  }
 
   const payload = {
     teacherUid,
@@ -579,7 +619,13 @@ export async function createTeacherAllocation({
     payload.createdBy = directorUid;
   }
 
-  await setDoc(allocRef, payload);
+  try {
+    await setDoc(allocRef, payload);
+  } catch (writeErr) {
+    console.error(`[AllocationDiagnostic] Allocation write failed: op=setDoc(teacher_allocations), code=${writeErr?.code || 'unknown'}`);
+    throw writeErr;
+  }
+
   return { id: allocId, ...payload };
 }
 

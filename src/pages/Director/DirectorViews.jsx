@@ -169,15 +169,33 @@ export function PeopleView({ userProfile, initialTab }) {
   const handleAllocateFaculty = async (facultyMember, { department, year, section }) => {
     const directorUid = userProfile?.uid || auth?.currentUser?.uid || '';
     const institution = userProfile?.institution || facultyMember.institution || 'UEMK';
+    const facultyUid = facultyMember.uid || facultyMember.id;
 
-    await createTeacherAllocation({
-      teacherUid: facultyMember.uid || facultyMember.id,
-      institution,
-      department,
-      year,
-      section,
-      directorUid
-    });
+    // Check for duplicate allocation across complete class identity
+    const isDuplicate = allocationsList.some(a => 
+      a.teacherUid === facultyUid &&
+      a.department === department &&
+      a.year === year &&
+      a.section === section &&
+      a.authorized !== false
+    );
+    if (isDuplicate) {
+      throw new Error(`This faculty member is already allocated to ${department} • ${year} • ${section}.`);
+    }
+
+    try {
+      await createTeacherAllocation({
+        teacherUid: facultyUid,
+        institution,
+        department,
+        year,
+        section,
+        directorUid
+      });
+    } catch (allocErr) {
+      console.error(`[DirectorAllocation] Allocation failed: op=createTeacherAllocation, code=${allocErr?.code || 'unknown'}`);
+      throw allocErr;
+    }
 
     setActionSuccess(`Successfully allocated ${department} • ${year} • ${section} to ${facultyMember.name || facultyMember.email}!`);
     setSelectedFacultyForAllocation(null);
@@ -525,6 +543,10 @@ export function PeopleView({ userProfile, initialTab }) {
       {selectedFacultyForAllocation && (
         <FacultyAllocationModal 
           faculty={selectedFacultyForAllocation}
+          existingAllocations={allocationsList.filter(a => 
+            a.teacherUid === (selectedFacultyForAllocation.uid || selectedFacultyForAllocation.id) && 
+            a.authorized !== false
+          )}
           onClose={() => setSelectedFacultyForAllocation(null)}
           onAllocate={handleAllocateFaculty}
         />
@@ -685,7 +707,7 @@ function ApprovalModal({ student, onClose, onApprove }) {
   );
 }
 
-function FacultyAllocationModal({ faculty, onClose, onAllocate }) {
+function FacultyAllocationModal({ faculty, existingAllocations = [], onClose, onAllocate }) {
   const [department, setDepartment] = useState(faculty.department || 'Computer Science');
   const [year, setYear] = useState('2nd Year');
   const [section, setSection] = useState('Sec C');
@@ -698,6 +720,18 @@ function FacultyAllocationModal({ faculty, onClose, onAllocate }) {
     e.preventDefault();
     if (!isFormValid || isSubmitting) return;
 
+    // Check if duplicate allocation already exists for this exact class
+    const isDuplicate = existingAllocations.some(a => 
+      a.department === department &&
+      a.year === year &&
+      a.section === section &&
+      a.authorized !== false
+    );
+    if (isDuplicate) {
+      setModalError(`This faculty member is already allocated to ${department} • ${year} • ${section}.`);
+      return;
+    }
+
     setModalError('');
     setIsSubmitting(true);
     try {
@@ -707,7 +741,7 @@ function FacultyAllocationModal({ faculty, onClose, onAllocate }) {
         section
       });
     } catch (err) {
-      console.error('Faculty allocation modal error:', err);
+      console.error(`[DirectorModal] Allocation modal error: op=handleAllocateFaculty, code=${err?.code || 'unknown'}`);
       setModalError(err.message || 'Failed to allocate class. Please verify administrative permissions.');
       setIsSubmitting(false);
     }

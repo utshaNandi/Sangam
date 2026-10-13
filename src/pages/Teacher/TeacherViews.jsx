@@ -820,8 +820,8 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
   const { br, yr, sec, scopeText } = resolveAcademicScope(group, activeAlloc);
 
   // Display label preserves academic branch (e.g. "Mechanical Engineering", "CSE AI")
-  const displayBranch = br !== "Unknown" ? br : (allocations[0]?.department || userProfile?.department || "Unassigned");
-  const effectiveYear = yr !== "Unknown" ? yr : (allocations[0]?.year || "1st Year");
+  const displayBranch = br !== "Unknown" ? br : (activeAlloc?.department || userProfile?.department || "Unassigned");
+  const effectiveYear = yr !== "Unknown" ? yr : (activeAlloc?.year || "1st Year");
   const rawSection = (group?.path && group.path.length >= 6) 
     ? group.path[5] 
     : (sec.includes('·') ? sec.split('·')[0].trim() : (sec === 'All Sections' ? (activeAlloc?.section || 'Sec A') : sec));

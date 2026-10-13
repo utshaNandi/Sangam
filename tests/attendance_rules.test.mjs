@@ -1232,11 +1232,11 @@ try {
       directorUid: 'director_uid_01'
     }, directorDb);
 
-    const allocDocCreated = createdAlloc && createdAlloc.id === `${ayanUid}_2nd Year_Sec C`;
+    const allocDocCreated = createdAlloc && (createdAlloc.id === `${ayanUid}_2nd Year_Sec C` || createdAlloc.id === `${ayanUid}_Computer Science_2nd Year_Sec C`);
 
     // 2. Faculty can now list their allocations within their institution
     const facultyAllocs = await fetchTeacherAllocations({ institution: 'UEMK', teacherUid: ayanUid }, ayanDb);
-    const canReadAlloc = facultyAllocs.some(a => a.id === `${ayanUid}_2nd Year_Sec C` && a.authorized === true);
+    const canReadAlloc = facultyAllocs.some(a => (a.id === `${ayanUid}_2nd Year_Sec C` || a.id === `${ayanUid}_Computer Science_2nd Year_Sec C`) && a.authorized === true);
 
     // 3. Faculty can now save attendance successfully for an allocated class
     const sessionInfo = {
