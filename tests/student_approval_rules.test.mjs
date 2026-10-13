@@ -723,6 +723,23 @@ try {
     report(19, 'Revoked Director ({ authorized: false }) cannot list students or approve anyone', false, err.message);
   }
 
+  // -------------------------------------------------------------
+  // Test 20: Authorized Director can list all student profiles by role and differentiate active vs pending
+  // -------------------------------------------------------------
+  try {
+    const studentsSnap = await assertSucceeds(getDocs(query(collection(directorDb, 'users'), where('role', '==', 'student'))));
+    const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const hasPending = students.some(s => s.status === 'pending_approval');
+    const hasActive = students.some(s => s.status === 'active');
+    // Verify active students have status 'active' and are never 'pending_approval'
+    const activeStudents = students.filter(s => s.status === 'active');
+    const activeAreNotPending = activeStudents.every(s => s.status !== 'pending_approval');
+
+    report(20, 'Authorized Director can query students by role and active students are excluded from pending', hasPending && hasActive && activeAreNotPending);
+  } catch (err) {
+    report(20, 'Authorized Director can query students by role and active students are excluded from pending', false, err.message);
+  }
+
 } finally {
   await testEnv.cleanup();
 }

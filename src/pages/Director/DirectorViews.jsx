@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Icons } from '../Teacher/Icons';
 import { db } from '../../firebase/config';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { partitionStudentRecords } from './studentPartition';
 
 const DEPARTMENTS = [
   'Computer Science',
@@ -25,41 +26,65 @@ export function PeopleView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudentForApproval, setSelectedStudentForApproval] = useState(null);
 
-  const fetchStudents = async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchStudents = async (showLoading = false) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
     try {
-      // 1. Fetch pending students from Firestore
-      const pendingQ = query(
+      // Query students from Cloud Firestore as single source of truth
+      const studentsQ = query(
         collection(db, 'users'),
-        where('role', '==', 'student'),
-        where('status', '==', 'pending_approval')
+        where('role', '==', 'student')
       );
-      const pendingSnap = await getDocs(pendingQ);
-      const pendingList = pendingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      pendingList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-      setPendingStudents(pendingList);
+      const snap = await getDocs(studentsQ);
+      const rawList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 2. Fetch active students from Firestore
-      const activeQ = query(
-        collection(db, 'users'),
-        where('role', '==', 'student'),
-        where('status', '==', 'active')
-      );
-      const activeSnap = await getDocs(activeQ);
-      const activeList = activeSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      activeList.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      const { pendingList, activeList } = partitionStudentRecords(rawList);
+      setError(null);
+      setPendingStudents(pendingList);
       setActiveStudents(activeList);
     } catch (err) {
       console.error('Error fetching students in Director PeopleView:', err);
       setError('Could not load student records. Please verify Director authorization in Firestore.');
+      setPendingStudents([]);
+      setActiveStudents([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    let isMounted = true;
+    const loadInitialStudents = async () => {
+      try {
+        const studentsQ = query(
+          collection(db, 'users'),
+          where('role', '==', 'student')
+        );
+        const snap = await getDocs(studentsQ);
+        if (!isMounted) return;
+        const rawList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const { pendingList, activeList } = partitionStudentRecords(rawList);
+        setError(null);
+        setPendingStudents(pendingList);
+        setActiveStudents(activeList);
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('Error fetching students in Director PeopleView:', err);
+        setError('Could not load student records. Please verify Director authorization in Firestore.');
+        setPendingStudents([]);
+        setActiveStudents([]);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadInitialStudents();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleApprove = async (studentId, assignments) => {
@@ -73,18 +98,22 @@ export function PeopleView() {
 
     setActionSuccess('Student approved successfully and assigned to academic section!');
     setSelectedStudentForApproval(null);
-    await fetchStudents();
+    await fetchStudents(true);
     setTimeout(() => setActionSuccess(null), 4500);
   };
 
-  // Filter lists based on search input
+  // Filter lists based on search input with strict status verification
   const filteredPending = pendingStudents.filter(s => {
+    const status = (s.status || '').trim().toLowerCase();
+    if (status !== 'pending_approval') return false;
     const queryStr = searchQuery.toLowerCase();
     return (s.name || '').toLowerCase().includes(queryStr) ||
            (s.email || '').toLowerCase().includes(queryStr);
   });
 
   const filteredActive = activeStudents.filter(s => {
+    const status = (s.status || '').trim().toLowerCase();
+    if (status !== 'active') return false;
     const queryStr = searchQuery.toLowerCase();
     return (s.name || '').toLowerCase().includes(queryStr) ||
            (s.email || '').toLowerCase().includes(queryStr) ||
@@ -159,7 +188,7 @@ export function PeopleView() {
         <div className="bg-rose-50 border border-rose-200 text-rose-800 text-sm font-medium px-4 py-3 rounded-2xl flex items-center justify-between animate-fade-in shadow-sm">
           <span>{error}</span>
           <button 
-            onClick={fetchStudents}
+            onClick={() => fetchStudents(true)}
             className="text-xs font-bold underline hover:no-underline text-rose-900 ml-4"
           >
             Retry
@@ -182,7 +211,7 @@ export function PeopleView() {
             />
           </div>
           <button 
-            onClick={fetchStudents}
+            onClick={() => fetchStudents(true)}
             className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all active:scale-95"
             title="Refresh list"
           >
@@ -195,6 +224,17 @@ export function PeopleView() {
           <div className="py-16 text-center text-slate-500 space-y-3">
             <div className="w-6 h-6 border-2 border-[#D67756] border-t-transparent rounded-full animate-spin mx-auto"></div>
             <p className="text-sm font-medium">Loading records from Cloud Firestore...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 px-4 border border-dashed border-rose-200 rounded-2xl bg-rose-50/50">
+            <h4 className="text-base font-bold text-rose-800">Unable to Load Student Records</h4>
+            <p className="text-xs text-rose-600 mt-1 max-w-sm mx-auto">{error}</p>
+            <button 
+              onClick={() => fetchStudents(true)}
+              className="mt-4 px-4 py-2 bg-[#D67756] hover:bg-[#c26444] text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95"
+            >
+              Retry
+            </button>
           </div>
         ) : activeTab === 'Pending Approvals' ? (
           /* PENDING APPROVALS TAB */
