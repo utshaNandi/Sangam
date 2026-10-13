@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from '../firebase/config';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   updateProfile,
   signOut
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  startRegistrationCoordination,
+  bindRegistrationUid,
+  stopRegistrationCoordination
+} from '../firebase/authCoordinator';
 
 function getFriendlyErrorMessage(code) {
   switch (code) {
@@ -38,7 +43,7 @@ function getFriendlyErrorMessage(code) {
 function runWithTimeout(promise, ms = 4000, operationName = 'Firestore operation') {
   return Promise.race([
     promise,
-    new Promise((_, reject) => 
+    new Promise((_, reject) =>
       setTimeout(() => reject(new Error(`${operationName} timed out after ${ms}ms`)), ms)
     )
   ]);
@@ -79,8 +84,8 @@ async function checkRoleAuthorization(role, email) {
   return false;
 }
 
-export default function InteractiveBook({ 
-  width, height, color, isSelected, onClick, className = "", innerClassName = "", 
+export default function InteractiveBook({
+  width, height, color, isSelected, onClick, className = "", innerClassName = "",
   label, labelIcon, labelOffset = { x: 0, y: -40 }, bookRef, onFormSubmit,
   role = 'student'
 }) {
@@ -92,11 +97,13 @@ export default function InteractiveBook({
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
 
   // Reset form errors, loading state, and inputs when selection changes
   useEffect(() => {
     if (!isSelected) {
       setError('');
+      setInfoMessage('');
       setIsLoading(false);
       setIsSignUp(false);
       setEmail('');
@@ -108,25 +115,28 @@ export default function InteractiveBook({
   const COVER_WIDTH = 220;
   const COVER_HEIGHT = 300;
   const EXPANDED_SPINE_WIDTH = 32;
-  const TOTAL_EXPANDED_WIDTH = EXPANDED_SPINE_WIDTH + COVER_WIDTH; 
+  const TOTAL_EXPANDED_WIDTH = EXPANDED_SPINE_WIDTH + COVER_WIDTH;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isLoading) return; // Prevent duplicate submissions
 
     setError('');
+    setInfoMessage('');
     setIsLoading(true);
 
     const targetRole = role || label?.toLowerCase() || 'student';
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
     try {
       if (isSignUp) {
+        startRegistrationCoordination();
         // Sign Up Flow for all roles
         if (targetRole === 'student') {
           // 1. Student Sign Up (Open public registration)
           const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
           const user = userCredential.user;
+          bindRegistrationUid(user.uid);
 
           if (fullName.trim()) {
             try {
@@ -137,38 +147,44 @@ export default function InteractiveBook({
           }
 
           // Write profile to Firestore with bounded timeout
+          let profileSaved = false;
           try {
             await runWithTimeout(
               setDoc(doc(db, 'users', user.uid), {
                 uid: user.uid,
                 name: fullName.trim() || 'Student',
-                email: user.email,
+                email: user.email || trimmedEmail,
                 role: 'student',
-                status: 'active',
+                status: 'pending_approval',
                 createdAt: new Date().toISOString(),
-                department: 'Computer Science',
-                section: 'CSE-C',
+                department: '',
+                year: '',
+                section: '',
                 institution: 'UEMK',
               }),
               3500,
               'Student Firestore profile write'
             );
+            profileSaved = true;
           } catch (firestoreErr) {
             // Partial success: Firebase Auth account was created successfully, but Firestore write failed
-            console.warn('Firestore profile save deferred or failed:', firestoreErr.message);
+            console.error('Firestore profile save failed:', firestoreErr);
           }
 
-          setIsPressed(true);
-          setTimeout(() => {
-            setIsPressed(false);
-            if (onFormSubmit) {
-              onFormSubmit(user, 'student');
-            }
-          }, 160);
+          // Do not grant student-dashboard access to pending account; sign out immediately
+          await signOut(auth);
+          if (profileSaved) {
+            setInfoMessage('Registration submitted! Your student account is pending Director approval and academic assignment.');
+          } else {
+            setError('Registration profile creation failed. Please check your connection and try again.');
+          }
+          setIsLoading(false);
+          return;
         } else {
           // 2. Faculty / Director Sign Up: Authenticate first to enable secure Firestore whitelist lookup
           const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
           const user = userCredential.user;
+          bindRegistrationUid(user.uid);
 
           if (fullName.trim()) {
             try {
@@ -268,10 +284,11 @@ export default function InteractiveBook({
                   name: user.displayName || user.email?.split('@')[0] || 'User',
                   email: user.email,
                   role: 'student',
-                  status: 'active',
+                  status: 'pending_approval',
                   createdAt: new Date().toISOString(),
-                  department: 'Computer Science',
-                  section: 'CSE-C',
+                  department: '',
+                  year: '',
+                  section: '',
                   institution: 'UEMK',
                 }),
                 3500,
@@ -280,6 +297,10 @@ export default function InteractiveBook({
             } catch (writeErr) {
               console.warn('Could not save default student profile:', writeErr.message);
             }
+            await signOut(auth);
+            setError('Your Student account is pending Director approval and academic assignment.');
+            setIsLoading(false);
+            return;
           } else {
             // Check known pre-authorized institutional staff emails
             const isKnownStaff = await checkRoleAuthorization(targetRole, trimmedEmail);
@@ -322,10 +343,12 @@ export default function InteractiveBook({
           return;
         }
 
-        // Authorization verification for privileged roles
-        if (targetRole !== 'student' && accountStatus === 'pending_approval') {
+        // Authorization verification for pending accounts (both students and staff)
+        if (accountStatus === 'pending_approval') {
           await signOut(auth);
-          setError(`Your ${label} account is pending administrative authorization and approval.`);
+          setError(targetRole === 'student'
+            ? 'Your Student registration is pending Director approval and academic assignment.'
+            : `Your ${label} account is pending administrative authorization and approval.`);
           setIsLoading(false);
           return;
         }
@@ -342,34 +365,35 @@ export default function InteractiveBook({
       console.error('Firebase Auth Error:', err);
       setError(getFriendlyErrorMessage(err.code || err.message));
     } finally {
+      stopRegistrationCoordination();
       setIsLoading(false);
     }
   };
 
   return (
-    <div 
+    <div
       ref={bookRef}
-      className={`absolute group ${className} ${isSelected ? 'z-50' : 'z-30'} transition-all duration-[1000ms] ease-[cubic-bezier(0.16,1,0.3,1)]`} 
-      style={{ 
-        width: isSelected ? `${TOTAL_EXPANDED_WIDTH}px` : `${width}px`, 
+      className={`absolute group ${className} ${isSelected ? 'z-50' : 'z-30'} transition-all duration-[1000ms] ease-[cubic-bezier(0.16,1,0.3,1)]`}
+      style={{
+        width: isSelected ? `${TOTAL_EXPANDED_WIDTH}px` : `${width}px`,
         height: isSelected ? `${COVER_HEIGHT}px` : `${height}px`,
         left: isSelected ? '44px' : undefined,
         bottom: isSelected ? '15px' : undefined,
-        perspective: '1500px', 
+        perspective: '1500px',
       }}
     >
       {/* Floating Label and Dashed Line */}
       {label && (
         <div className={`transition-opacity duration-500 ${isSelected ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <svg className="absolute z-40 pointer-events-none overflow-visible" style={{ top: 0, left: '50%' }}>
-            <path 
+            <path
               d={`M ${labelOffset.x} ${labelOffset.y + 16} C ${labelOffset.x} ${labelOffset.y * 0.4}, 0 ${labelOffset.y * 0.7}, 0 -5`}
               fill="none" stroke="#3E2723" strokeWidth="1.5" strokeDasharray="3 4"
               className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSelected ? 'opacity-70 stroke-[#3E2723]' : 'opacity-20 group-hover:opacity-70 group-hover:stroke-[#3E2723]'}`}
             />
           </svg>
 
-          <div 
+          <div
             className={`absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 px-3.5 py-1.5 backdrop-blur-md border border-white/60 rounded-full text-[9px] font-bold tracking-[0.2em] uppercase text-[#3E2723] whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none z-50 animate-float-bob ${isSelected ? 'opacity-100 shadow-md bg-white/95 scale-110' : 'opacity-60 shadow-sm bg-white/50 group-hover:opacity-100 group-hover:bg-white/80 group-hover:scale-105 group-hover:shadow-md'}`}
             style={{ top: `${labelOffset.y}px`, left: `calc(50% + ${labelOffset.x}px)` }}
           >
@@ -381,7 +405,7 @@ export default function InteractiveBook({
 
       {/* 3D BOOK ASSEMBLY */}
       <div className="w-full h-full relative" style={{ transformStyle: 'preserve-3d' }}>
-        
+
         {/* COMPONENT 1: THE SHELF BOOK (Morphs into the Spine when opened) */}
         <div
           onClick={!isSelected ? onClick : undefined}
@@ -394,18 +418,18 @@ export default function InteractiveBook({
             boxShadow: isSelected ? '-20px 20px 40px rgba(0,0,0,0.3)' : undefined,
             zIndex: 10,
             transformOrigin: 'bottom center',
-            transform: isSelected ? 'rotate(0deg)' : undefined 
+            transform: isSelected ? 'rotate(0deg)' : undefined
           }}
         >
-            {/* The Original Shelf Shadow - Fades out when opened */}
-            <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-black/10 transition-opacity duration-[1000ms] ${isSelected ? 'opacity-0' : 'opacity-100'}`} />
+          {/* The Original Shelf Shadow - Fades out when opened */}
+          <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-black/10 transition-opacity duration-[1000ms] ${isSelected ? 'opacity-0' : 'opacity-100'}`} />
 
-            {/* Book Binding Creases - Fade in when opened */}
-            <div className={`absolute right-0 top-0 bottom-0 w-2 bg-black/15 transition-opacity duration-[1000ms] ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-            <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-white/20 transition-opacity duration-[1000ms] ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+          {/* Book Binding Creases - Fade in when opened */}
+          <div className={`absolute right-0 top-0 bottom-0 w-2 bg-black/15 transition-opacity duration-[1000ms] ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+          <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-white/20 transition-opacity duration-[1000ms] ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
 
-            {/* Subtle Spine Sheen Highlight on Hover */}
-            <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+          {/* Subtle Spine Sheen Highlight on Hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
         </div>
 
         {/* COMPONENT 2: THE FRONT COVER */}
@@ -424,115 +448,120 @@ export default function InteractiveBook({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-            
-            {/* Inner Form Interface */}
-            <div className={`absolute inset-0 p-5 flex flex-col transition-opacity duration-700 ${isSelected ? 'opacity-100 delay-200' : 'opacity-0'}`}>
-              
-              {/* Form Header with staggered reveal */}
-              <div className={`flex items-center justify-center gap-2.5 mb-3 mt-1 transition-all duration-500 delay-[250ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center text-white shadow-inner transition-transform duration-500 hover:scale-105">
-                  {labelIcon}
-                </div>
-                <h2 className="text-white font-serif text-[15px] tracking-[0.2em] uppercase font-bold drop-shadow-sm">
-                  {label}
-                </h2>
+
+          {/* Inner Form Interface */}
+          <div className={`absolute inset-0 p-5 flex flex-col transition-opacity duration-700 ${isSelected ? 'opacity-100 delay-200' : 'opacity-0'}`}>
+
+            {/* Form Header with staggered reveal */}
+            <div className={`flex items-center justify-center gap-2.5 mb-3 mt-1 transition-all duration-500 delay-[250ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+              <div className="w-8 h-8 rounded-full bg-white/25 flex items-center justify-center text-white shadow-inner transition-transform duration-500 hover:scale-105">
+                {labelIcon}
               </div>
-
-              {/* Apple-style Segmented Control with smooth slide */}
-              <div className={`relative flex bg-black/15 p-1 rounded-full mb-4 shadow-inner transition-all duration-500 delay-[320ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
-                <div 
-                  className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow-sm transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSignUp ? 'translate-x-full' : 'translate-x-0'}`}
-                />
-                <button 
-                  type="button"
-                  onClick={() => { setIsSignUp(false); setError(''); }}
-                  className={`relative flex-1 py-1.5 text-[10px] font-bold tracking-widest uppercase rounded-full transition-colors duration-300 z-10 active:scale-95 ${!isSignUp ? 'text-[#3E2723]' : 'text-white/80 hover:text-white'}`}
-                >
-                  Log In
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => { setIsSignUp(true); setError(''); }}
-                  className={`relative flex-1 py-1.5 text-[10px] font-bold tracking-widest uppercase rounded-full transition-colors duration-300 z-10 active:scale-95 ${isSignUp ? 'text-[#3E2723]' : 'text-white/80 hover:text-white'}`}
-                >
-                  Sign Up
-                </button>
-              </div>
-
-              {/* Form Inputs with staggered reveal & smooth accordion expansion */}
-              <form 
-                className={`flex flex-col gap-2 flex-1 transition-all duration-500 delay-[390ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}
-                onSubmit={handleSubmit}
-              >
-                {/* Smooth animated accordion container for Full Name */}
-                <div 
-                  className={`overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-                    isSignUp ? 'max-h-12 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2 pointer-events-none'
-                  }`}
-                >
-                  <input 
-                    type="text" 
-                    placeholder="Full Name" 
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required={isSignUp}
-                    disabled={!isSignUp}
-                    className="w-full bg-white/20 backdrop-blur-md text-white placeholder:text-white/70 text-[11px] px-3.5 py-2 rounded-md outline-none focus:bg-white/30 border border-white/10 focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all duration-200 shadow-inner" 
-                  />
-                </div>
-
-                <input 
-                  type="email" 
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required 
-                  autoComplete="email"
-                  className="w-full bg-white/20 backdrop-blur-md text-white placeholder:text-white/70 text-[11px] px-3.5 py-2 rounded-md outline-none focus:bg-white/30 border border-white/10 focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all duration-200 shadow-inner" 
-                />
-                <input 
-                  type="password" 
-                  placeholder="Password" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete={isSignUp ? "new-password" : "current-password"}
-                  className="w-full bg-white/20 backdrop-blur-md text-white placeholder:text-white/70 text-[11px] px-3.5 py-2 rounded-md outline-none focus:bg-white/30 border border-white/10 focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all duration-200 shadow-inner" 
-                />
-
-                {error && (
-                  <div className="bg-red-900/60 border border-red-300/40 text-red-100 text-[10px] px-2.5 py-1.5 rounded-md font-medium text-center leading-tight shadow-sm backdrop-blur-sm animate-fade-in">
-                    {error}
-                  </div>
-                )}
-                
-                <button 
-                  type="submit"
-                  disabled={isLoading}
-                  className="relative overflow-hidden w-full py-3 bg-white text-[11px] font-bold uppercase tracking-widest rounded-md text-[#3E2723] shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group/btn mt-1 disabled:opacity-75 disabled:cursor-not-allowed"
-                  style={isPressed ? {
-                    transform: 'scale(0.95) translateY(1.5px)',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(0,0,0,0.04)',
-                    transition: 'transform 80ms cubic-bezier(0.2, 0, 0, 1), box-shadow 80ms ease',
-                  } : undefined}
-                >
-                  {isLoading ? (
-                    <span className="relative z-10 flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-3.5 w-3.5 text-[#3E2723]" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                      </svg>
-                      {isSignUp ? 'Creating Account...' : 'Signing In...'}
-                    </span>
-                  ) : (
-                    <span className="relative z-10">{isSignUp ? 'Create Account' : 'Continue'}</span>
-                  )}
-                  {/* Subtle sheen passing across button on hover */}
-                  <div className="absolute inset-0 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none" />
-                </button>
-              </form>
-
+              <h2 className="text-white font-serif text-[15px] tracking-[0.2em] uppercase font-bold drop-shadow-sm">
+                {label}
+              </h2>
             </div>
+
+            {/* Apple-style Segmented Control with smooth slide */}
+            <div className={`relative flex bg-black/15 p-1 rounded-full mb-4 shadow-inner transition-all duration-500 delay-[320ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
+              <div
+                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-full shadow-sm transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSignUp ? 'translate-x-full' : 'translate-x-0'}`}
+              />
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(false); setError(''); }}
+                className={`relative flex-1 py-1.5 text-[10px] font-bold tracking-widest uppercase rounded-full transition-colors duration-300 z-10 active:scale-95 ${!isSignUp ? 'text-[#3E2723]' : 'text-white/80 hover:text-white'}`}
+              >
+                Log In
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(true); setError(''); }}
+                className={`relative flex-1 py-1.5 text-[10px] font-bold tracking-widest uppercase rounded-full transition-colors duration-300 z-10 active:scale-95 ${isSignUp ? 'text-[#3E2723]' : 'text-white/80 hover:text-white'}`}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            {/* Form Inputs with staggered reveal & smooth accordion expansion */}
+            <form
+              className={`flex flex-col gap-2 flex-1 transition-all duration-500 delay-[390ms] ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}
+              onSubmit={handleSubmit}
+            >
+              {/* Smooth animated accordion container for Full Name */}
+              <div
+                className={`overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${isSignUp ? 'max-h-12 opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-2 pointer-events-none'
+                  }`}
+              >
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required={isSignUp}
+                  disabled={!isSignUp}
+                  className="w-full bg-white/20 backdrop-blur-md text-white placeholder:text-white/70 text-[11px] px-3.5 py-2 rounded-md outline-none focus:bg-white/30 border border-white/10 focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all duration-200 shadow-inner"
+                />
+              </div>
+
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="w-full bg-white/20 backdrop-blur-md text-white placeholder:text-white/70 text-[11px] px-3.5 py-2 rounded-md outline-none focus:bg-white/30 border border-white/10 focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all duration-200 shadow-inner"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={isSignUp ? "new-password" : "current-password"}
+                className="w-full bg-white/20 backdrop-blur-md text-white placeholder:text-white/70 text-[11px] px-3.5 py-2 rounded-md outline-none focus:bg-white/30 border border-white/10 focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all duration-200 shadow-inner"
+              />
+
+              {infoMessage && (
+                <div className="bg-amber-950/70 border border-amber-300/40 text-amber-100 text-[10px] px-2.5 py-1.5 rounded-md font-medium text-center leading-tight shadow-sm backdrop-blur-sm animate-fade-in">
+                  {infoMessage}
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-900/60 border border-red-300/40 text-red-100 text-[10px] px-2.5 py-1.5 rounded-md font-medium text-center leading-tight shadow-sm backdrop-blur-sm animate-fade-in">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="relative overflow-hidden w-full py-3 bg-white text-[11px] font-bold uppercase tracking-widest rounded-md text-[#3E2723] shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group/btn mt-1 disabled:opacity-75 disabled:cursor-not-allowed"
+                style={isPressed ? {
+                  transform: 'scale(0.95) translateY(1.5px)',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.1), inset 0 1px 2px rgba(0,0,0,0.04)',
+                  transition: 'transform 80ms cubic-bezier(0.2, 0, 0, 1), box-shadow 80ms ease',
+                } : undefined}
+              >
+                {isLoading ? (
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-3.5 w-3.5 text-[#3E2723]" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    {isSignUp ? 'Creating Account...' : 'Signing In...'}
+                  </span>
+                ) : (
+                  <span className="relative z-10">{isSignUp ? 'Create Account' : 'Continue'}</span>
+                )}
+                {/* Subtle sheen passing across button on hover */}
+                <div className="absolute inset-0 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-black/5 to-transparent pointer-events-none" />
+              </button>
+            </form>
+
+          </div>
         </div>
       </div>
     </div>

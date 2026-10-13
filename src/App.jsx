@@ -7,6 +7,7 @@ import BookOpenTransition from './components/BookOpenTransition';
 import { auth, db } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { isRegistrationCoordinated } from './firebase/authCoordinator';
 
 function runWithTimeout(promise, ms = 3500, operationName = 'Firestore operation') {
   return Promise.race([
@@ -23,6 +24,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [pendingApprovalNotice, setPendingApprovalNotice] = useState(null);
 
   // Persist authentication state using onAuthStateChanged
   useEffect(() => {
@@ -40,43 +42,93 @@ function App() {
             return null;
           });
 
-          let userRole = 'student';
           if (userDocSnap && userDocSnap.exists && userDocSnap.exists()) {
             const data = userDocSnap.data();
+
+            // Strict status check: block unapproved accounts
             if (data.status === 'pending_approval') {
-              await signOut(auth);
+              try {
+                await signOut(auth);
+              } catch (soErr) {
+                console.warn('Sign-out on pending approval failed:', soErr.message);
+              }
               setCurrentUser(null);
               setUserProfile(null);
               setTransitionConfig(null);
               setAppState('login');
+              setPendingApprovalNotice(
+                data.role === 'student'
+                  ? 'Your student account is pending Director approval and academic assignment. Please check back after approval.'
+                  : `Your ${data.role || 'staff'} account is pending administrative authorization.`
+              );
               setAuthLoading(false);
               return;
             }
+
+            // Only active status accounts are permitted into the application
+            if (data.status !== 'active') {
+              try {
+                await signOut(auth);
+              } catch (soErr) {
+                console.warn('Sign-out on inactive status failed:', soErr.message);
+              }
+              setCurrentUser(null);
+              setUserProfile(null);
+              setTransitionConfig(null);
+              setAppState('login');
+              setPendingApprovalNotice('Your account is currently inactive. Please contact the administrator.');
+              setAuthLoading(false);
+              return;
+            }
+
+            const validRoles = ['student', 'faculty', 'director'];
+            const userRole = validRoles.includes(data.role) ? data.role : 'student';
+
             setUserProfile(data);
-            userRole = data.role || 'student';
-          } else {
-            // Strict role safety: never grant privileged roles without a verified profile document
-            userRole = 'student';
-            const fallbackProfile = {
-              uid: firebaseUser.uid,
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-              email: firebaseUser.email,
+            setTransitionConfig(prev => ({
+              ...(prev || {}),
               role: userRole,
-            };
-            setUserProfile(fallbackProfile);
+              user: firebaseUser
+            }));
+          } else {
+            // Check if registration is actively writing the profile document for this user
+            if (isRegistrationCoordinated(firebaseUser.uid)) {
+              setAppState('login');
+              setAuthLoading(false);
+              return;
+            }
+
+            // Strict role safety: never grant dashboard access without a verified active profile
+            try {
+              await signOut(auth);
+            } catch (soErr) {
+              console.warn('Sign-out on missing profile failed:', soErr.message);
+            }
+            setCurrentUser(null);
+            setUserProfile(null);
+            setTransitionConfig(null);
+            setAppState('login');
+            setPendingApprovalNotice('No active profile was found for this account. Please register or contact the Director.');
+            setAuthLoading(false);
+            return;
           }
-          setTransitionConfig(prev => ({
-            ...(prev || {}),
-            role: userRole,
-            user: firebaseUser
-          }));
         } catch (err) {
           console.error('Error fetching Firestore user profile:', err);
-          setTransitionConfig(prev => ({
-            ...(prev || {}),
-            role: 'student',
-            user: firebaseUser
-          }));
+          if (isRegistrationCoordinated(firebaseUser.uid)) {
+            setAppState('login');
+            setAuthLoading(false);
+            return;
+          }
+          try {
+            await signOut(auth);
+          } catch (soErr) {
+            console.warn('Sign-out error on catch:', soErr.message);
+          }
+          setCurrentUser(null);
+          setUserProfile(null);
+          setTransitionConfig(null);
+          setAppState('login');
+          setPendingApprovalNotice('Unable to verify account profile. Please check your connection and try logging in again.');
         }
 
         // On initial app mount, restore existing session if authenticated
@@ -123,10 +175,33 @@ function App() {
 
   return (
     <>
+      {/* Pending Approval / Notice Banner */}
+      {pendingApprovalNotice && appState === 'login' && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[400] max-w-lg w-[calc(100%-2rem)] animate-hero-fade-up">
+          <div className="bg-[#FFF8E7] border border-[#DCA766] text-[#3E2723] rounded-2xl p-4 shadow-xl flex items-start gap-3 backdrop-blur-md">
+            <div className="w-7 h-7 rounded-full bg-[#DCA766]/30 flex items-center justify-center text-sm font-bold text-[#8D6E63] shrink-0 mt-0.5">
+              ⏳
+            </div>
+            <div className="flex-1">
+              <h4 className="font-serif font-bold text-sm text-[#3E2723]">Account Verification</h4>
+              <p className="text-xs text-[#5D4037] mt-0.5 leading-relaxed">{pendingApprovalNotice}</p>
+            </div>
+            <button 
+              onClick={() => setPendingApprovalNotice(null)}
+              className="text-[#8D6E63] hover:text-[#3E2723] text-xl font-bold p-1 leading-none transition-colors"
+              aria-label="Dismiss notice"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Login Screen - Unmount when in app to reset state */}
       {appState !== 'app' && (
         <WelcomeScreen 
           onStartTransition={(config) => {
+            setPendingApprovalNotice(null);
             setTransitionConfig(config);
             setAppState('transition');
             setTimeout(() => {

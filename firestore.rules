@@ -75,24 +75,31 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
     }
 
+    // Verify individual whitelist entry schema and role validity
+    function isValidWhitelistEntry(data, requestedRole) {
+      let hasMatchingRole = 'role' in data && data.role is string && data.role == requestedRole;
+      let isFacultyFallback = requestedRole == 'faculty' && !('role' in data) && ('authorized' in data) && data.authorized == true;
+      let isNotRevoked = !('authorized' in data) || (data.authorized is bool && data.authorized == true);
+      return (hasMatchingRole || isFacultyFallback) && isNotRevoked;
+    }
+
     // Verify staff whitelist in administrator-controlled collections
     function isPreAuthorizedStaff(email, requestedRole) {
       let staffPath = /databases/$(database)/documents/authorized_staff/$(email);
       let rolePath = /databases/$(database)/documents/authorized_roles/$(email);
-      return (exists(staffPath) && (get(staffPath).data.role == requestedRole || get(staffPath).data.authorized == true)) ||
-             (exists(rolePath) && (get(rolePath).data.role == requestedRole || get(rolePath).data.authorized == true));
+      return (exists(staffPath) && isValidWhitelistEntry(get(staffPath).data, requestedRole)) ||
+             (exists(rolePath) && isValidWhitelistEntry(get(rolePath).data, requestedRole));
     }
 
     // User document schema validation
     function isValidUserSchema(data) {
-      let allowed = ['uid', 'name', 'email', 'role', 'status', 'createdAt', 'department', 'section', 'institution'];
+      let allowed = ['uid', 'name', 'email', 'role', 'status', 'createdAt', 'department', 'section', 'institution', 'year'];
       let required = ['uid', 'email', 'role', 'status', 'createdAt'];
 
       return hasOnlyAllowedFields(allowed) &&
              hasRequiredFields(required) &&
-             data.uid == request.auth.uid &&
-             hasValidEmail() &&
-             data.email == request.auth.token.email &&
+             data.uid is string &&
+             data.email is string &&
              isValidEmail(data.email) &&
              data.role in ['student', 'faculty', 'director'] &&
              data.status in ['active', 'pending_approval'] &&
@@ -100,7 +107,18 @@ service cloud.firestore {
              (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
              (!('department' in data) || (data.department is string && data.department.size() <= 100)) &&
              (!('section' in data) || (data.section is string && data.section.size() <= 50)) &&
+             (!('year' in data) || (data.year is string && data.year.size() <= 50)) &&
              (!('institution' in data) || (data.institution is string && data.institution.size() <= 100));
+    }
+
+    // Check whether caller is an active, authorized Director verified by administrator whitelist
+    function isAuthorizedDirector() {
+      return isAuthenticated() &&
+        hasValidEmail() &&
+        isPreAuthorizedStaff(request.auth.token.email.lower(), 'director') &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'director' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
     }
 
     // RBAC: Enforce trusted privilege authorization on profile creation
@@ -109,8 +127,8 @@ service cloud.firestore {
       let role = data.role;
       let status = data.status;
 
-      // 1. Student open registration: can register with status 'active'
-      let isStudentValid = role == 'student' && status == 'active';
+      // 1. Student open registration: can register ONLY with status 'pending_approval'
+      let isStudentValid = role == 'student' && status == 'pending_approval';
 
       // 2. Active privileged role: MUST exist in administrator-controlled whitelist
       let isPrivilegedActiveValid = (role in ['faculty', 'director']) &&
@@ -124,23 +142,79 @@ service cloud.firestore {
       return isStudentValid || isPrivilegedActiveValid || isApplicantValid;
     }
 
+    // Validate atomic student approval by Director
+    function isValidStudentApproval(targetData, currentData) {
+      let isNotSelf = request.auth.uid != resource.data.uid;
+      let isStudent = currentData.role == 'student' && targetData.role == 'student';
+      let wasPending = currentData.status == 'pending_approval';
+      let becomesActive = targetData.status == 'active';
+
+      // Strict document diff: ONLY status, department, year, and section may be modified
+      let onlyPermittedFieldsChanged = request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'department', 'year', 'section']);
+
+      // Identity fields must remain strictly unchanged
+      let identityUnchanged = targetData.uid == currentData.uid &&
+                              targetData.email == currentData.email &&
+                              targetData.createdAt == currentData.createdAt;
+
+      // Required non-empty academic assignments
+      let hasValidDepartment = ('department' in targetData) && targetData.department is string && targetData.department.size() > 0 && targetData.department.size() <= 100;
+      let hasValidYear = ('year' in targetData) && targetData.year is string && targetData.year.size() > 0 && targetData.year.size() <= 50;
+      let hasValidSection = ('section' in targetData) && targetData.section is string && targetData.section.size() > 0 && targetData.section.size() <= 50;
+
+      return isNotSelf && isStudent && wasPending && becomesActive && onlyPermittedFieldsChanged && identityUnchanged && hasValidDepartment && hasValidYear && hasValidSection;
+    }
+
+    // Validate academic assignment updates on already active students by Director
+    function isValidStudentAcademicUpdate(targetData, currentData) {
+      let isNotSelf = request.auth.uid != resource.data.uid;
+      let isStudent = currentData.role == 'student' && targetData.role == 'student';
+      let remainsActive = currentData.status == 'active' && targetData.status == 'active';
+
+      // Strict document diff: ONLY department, year, and section may be modified (status and identity cannot change)
+      let onlyPermittedFieldsChanged = request.resource.data.diff(resource.data).affectedKeys().hasOnly(['department', 'year', 'section']);
+
+      // Identity fields must remain strictly unchanged
+      let identityUnchanged = targetData.uid == currentData.uid &&
+                              targetData.email == currentData.email &&
+                              targetData.createdAt == currentData.createdAt;
+
+      // Required non-empty academic assignments
+      let hasValidDepartment = ('department' in targetData) && targetData.department is string && targetData.department.size() > 0 && targetData.department.size() <= 100;
+      let hasValidYear = ('year' in targetData) && targetData.year is string && targetData.year.size() > 0 && targetData.year.size() <= 50;
+      let hasValidSection = ('section' in targetData) && targetData.section is string && targetData.section.size() > 0 && targetData.section.size() <= 50;
+
+      return isNotSelf && isStudent && remainsActive && onlyPermittedFieldsChanged && identityUnchanged && hasValidDepartment && hasValidYear && hasValidSection;
+    }
+
     // ===============================================================
     // Collection: users
     // ===============================================================
     match /users/{userId} {
-      // Users can only read their own profile. Global listing is strictly forbidden.
-      allow get: if isOwner(userId);
-      allow list: if false;
+      // Users can only read their own profile; authorized Directors can read student profiles
+      allow get: if isOwner(userId) || (isAuthorizedDirector() && resource.data.role == 'student');
+      // Authorized Directors can list students for administrative review
+      allow list: if isAuthorizedDirector();
 
       // Account profile creation
       allow create: if isOwner(userId) &&
                        isValidUserSchema(request.resource.data) &&
+                       request.resource.data.uid == request.auth.uid &&
+                       hasValidEmail() &&
+                       request.resource.data.email == request.auth.token.email &&
                        canCreateRole(request.resource.data);
 
-      // Account profile update: role, status, uid, email, and createdAt are IMMUTABLE
-      allow update: if isOwner(userId) &&
-                       isValidUserSchema(request.resource.data) &&
-                       areImmutableFieldsUnchanged(['uid', 'email', 'createdAt', 'role', 'status']);
+      // Account profile update:
+      // - Owners cannot alter role, status, department, year, section, or institution
+      // - Directors can only approve or manage students with valid academic assignments
+      allow update: if (isOwner(userId) &&
+                        isValidUserSchema(request.resource.data) &&
+                        request.resource.data.uid == request.auth.uid &&
+                        request.resource.data.email == request.auth.token.email &&
+                        areImmutableFieldsUnchanged(['uid', 'email', 'createdAt', 'role', 'status', 'department', 'year', 'section', 'institution'])) ||
+                       (isAuthorizedDirector() &&
+                        isValidUserSchema(request.resource.data) &&
+                        (isValidStudentApproval(request.resource.data, resource.data) || isValidStudentAcademicUpdate(request.resource.data, resource.data)));
 
       // Direct client deletion is denied
       allow delete: if false;
