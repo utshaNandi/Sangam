@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icons } from '../Teacher/Icons';
 import StudentCharacter from '../../components/student/StudentCharacter';
-import { students, assignments, announcements, globalPeriodAttendance, calculateSemesterAttendance } from '../Teacher/mockData';
+import { assignments, announcements, calculateSemesterAttendance } from '../Teacher/mockData';
 import { scheduleData, periodsTime } from './StudentSchedule';
 
 function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, section }) {
@@ -20,7 +20,7 @@ function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, 
   };
 
   return (
-    <section 
+    <section
       ref={boxRef}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
@@ -28,7 +28,7 @@ function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, 
       className="relative bg-white rounded-[24px] border border-slate-200/60 shadow-sm lg:min-h-[420px] flex items-center overflow-visible"
     >
       <div className="absolute inset-0 overflow-hidden rounded-[24px] pointer-events-none z-0">
-        <div 
+        <div
           className="absolute z-0 pointer-events-none transition-opacity duration-700 ease-out"
           style={{
             opacity: isHovered ? 1 : 0,
@@ -36,36 +36,36 @@ function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, 
             inset: 0,
           }}
         />
-        
-        <div 
-          className="absolute inset-0 z-0 pointer-events-none" 
+
+        <div
+          className="absolute inset-0 z-0 pointer-events-none"
           style={{
             backgroundImage: 'linear-gradient(to right, color-mix(in srgb, var(--theme-primary) 8%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--theme-primary) 8%, transparent) 1px, transparent 1px)',
             backgroundSize: '96px 96px',
-          }} 
+          }}
           aria-hidden="true"
         ></div>
       </div>
-      
+
       <div className="relative z-10 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-16 w-full max-w-7xl mx-auto px-10 py-16 md:px-16 md:py-20 pointer-events-none">
-        
+
         <div className="max-w-2xl flex-1 pointer-events-auto">
            <h2 className="text-[44px] md:text-[56px] font-bold text-slate-900 tracking-tight mb-6 leading-[1.1]">
              Good morning,<br/>
              <span className="text-theme-primary">{studentName}</span>
            </h2>
            <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-xl mb-12">
-             You have {assignmentCount} upcoming {assignmentCount === 1 ? 'assignment' : 'assignments'} and {announcementCount} new {announcementCount === 1 ? 'announcement' : 'announcements'} in {section}.
+             You have {assignmentCount} upcoming {assignmentCount === 1 ? 'assignment' : 'assignments'} and {announcementCount} new {announcementCount === 1 ? 'announcement' : 'announcements'}{section ? ` in ${section}` : ' (Academic Placement Pending)'}.
            </p>
-           
+
            <div className="flex flex-wrap items-center gap-4">
-             <button 
+             <button
                onClick={() => onNavigate('Academic Space')}
                className="px-8 py-3.5 bg-theme-primary text-white rounded-xl font-semibold shadow-sm hover:opacity-90 hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-[15px]"
              >
-               Go to Sec C
+               {section ? `Go to ${section}` : 'Go to Academic Space'}
              </button>
-             <button 
+             <button
                onClick={() => onNavigate('Schedule')}
                className="px-8 py-3.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 text-[15px]"
              >
@@ -73,7 +73,7 @@ function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, 
              </button>
            </div>
         </div>
-        
+
         <div className="hidden lg:block w-[320px]"></div>
       </div>
 
@@ -98,7 +98,7 @@ function StatCard({ title, value, icon }) {
 
 function QuickAction({ icon, label, onClick }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className="flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border border-slate-100 hover:border-theme-primary/30 hover:bg-theme-bg hover:shadow-sm active:scale-95 transition-all duration-300 text-slate-500 hover:text-theme-primary group"
     >
@@ -110,16 +110,28 @@ function QuickAction({ icon, label, onClick }) {
   );
 }
 
-export default function StudentDashboard({ onNavigate }) {
-  const student = students.find(s => s.section === 'CSE-C') || students[0];
-  const firstName = student.name.split(' ')[0];
-  const studentId = student.id;
-  const studentAnnouncementsState = announcements.filter(an => an.scopePath && an.scopePath.includes('Sec C'));
-  const latestAnnouncement = studentAnnouncementsState.length > 0 ? studentAnnouncementsState[0] : null;
+export default function StudentDashboard({ onNavigate, userProfile }) {
+  const studentName = (userProfile?.name && userProfile.name.trim())
+    || (userProfile?.email ? userProfile.email.split('@')[0] : '')
+    || 'Student';
+  const firstName = studentName.trim().split(/\s+/)[0] || 'Student';
+  const section = userProfile?.section?.trim() || '';
+  const studentId = userProfile?.uid || '';
+
+  // 1. Announcements: match by section if assigned, otherwise preserve demo announcements without falsely claiming section match
+  const matchedAnnouncements = section
+    ? announcements.filter(an => an.scopePath && (an.scopePath.includes(section) || section.includes(an.scopePath.split('/').pop() || '')))
+    : announcements;
+  const studentAnnouncements = matchedAnnouncements.length > 0 ? matchedAnnouncements : announcements;
+  const announcementCount = studentAnnouncements.length;
+  const latestAnnouncement = studentAnnouncements.length > 0 ? studentAnnouncements[0] : null;
   const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(latestAnnouncement !== null);
 
-  // 1. Pending Assignments
-  const studentAssignments = assignments.filter(a => a.className === student.section);
+  // 2. Pending Assignments: match by section if assigned, otherwise preserve demo assignments
+  const matchedAssignments = section
+    ? assignments.filter(a => a.className === section || a.className.includes(section) || section.includes(a.className))
+    : assignments;
+  const studentAssignments = matchedAssignments.length > 0 ? matchedAssignments : assignments;
   const pendingAssignmentsCount = studentAssignments.length;
 
   const pendingAssignments = studentAssignments.map(a => ({
@@ -131,17 +143,12 @@ export default function StudentDashboard({ onNavigate }) {
     progress: 0
   }));
 
-  // 2. Announcements
-  // Find announcements that match the student's scope (assuming CSE-C -> Sec C)
-  const studentAnnouncements = announcements.filter(an => an.scopePath && an.scopePath.includes('Sec C'));
-  const announcementCount = studentAnnouncements.length;
-
   // 3. Schedule for today
   const dayIndex = new Date().getDay();
   // Map dayIndex (0=Sun, 1=Mon) to scheduleData index (0=Mon, 1=Tue)
   const scheduleIndex = dayIndex === 0 ? 0 : dayIndex - 1;
   const rawSchedule = scheduleData[scheduleIndex] || [];
-  
+
   // Transform raw schedule into todayClasses format
   const todayClasses = rawSchedule
     .map((item, idx) => {
@@ -151,8 +158,8 @@ export default function StudentDashboard({ onNavigate }) {
         id: idx,
         time: periodInfo ? periodInfo.time : '',
         subject: item.subject,
-        section: student.section,
-          teacher: item.teacher,
+        section: section || 'Class',
+        teacher: item.teacher,
         type: item.subject === 'LAB' ? 'Lab' : 'Lecture',
         room: item.subject === 'LAB' ? 'Lab 2' : 'Room 402'
       };
@@ -166,13 +173,13 @@ export default function StudentDashboard({ onNavigate }) {
 
   return (
     <div className="space-y-8 animate-fade-in relative">
-      
-      <HeroBox 
-        onNavigate={onNavigate} 
+
+      <HeroBox
+        onNavigate={onNavigate}
         studentName={firstName}
         assignmentCount={pendingAssignmentsCount}
         announcementCount={announcementCount}
-        section={student.section}
+        section={section}
       />
 
       <div className="relative z-10 space-y-8">
@@ -185,10 +192,10 @@ export default function StudentDashboard({ onNavigate }) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
+
           {/* Left Column */}
           <div className="space-y-8">
-            
+
             {/* Today's Classes */}
             <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-theme-bg rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/3"></div>
@@ -221,7 +228,7 @@ export default function StudentDashboard({ onNavigate }) {
 
           {/* Right Column */}
           <div className="space-y-8">
-            
+
             {/* Quick Actions */}
             <section className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-7">
               <h3 className="text-xl font-bold text-slate-900 mb-5 tracking-tight">Quick Actions</h3>
@@ -264,17 +271,17 @@ export default function StudentDashboard({ onNavigate }) {
           </div>
         </div>
       </div>
-      
+
       {/* Dashboard Announcement Popup */}
       {latestAnnouncement && showAnnouncementPopup && createPortal(
-        <div 
+        <div
           onClick={() => onNavigate('Academic Space')}
           className="fixed bottom-6 right-6 z-[9999] w-[340px] bg-white rounded-2xl shadow-lg border border-slate-200 p-5 cursor-pointer hover:shadow-xl hover:border-theme-primary transition-all animate-fade-in opacity-100 bg-opacity-100 backdrop-blur-none"
         >
           <div className="flex justify-between items-start mb-2">
             <h4 className="font-bold text-slate-900 text-sm tracking-tight">{latestAnnouncement.title}</h4>
-            <button 
-              onClick={(e) => { e.stopPropagation(); setShowAnnouncementPopup(false); }} 
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowAnnouncementPopup(false); }}
               className="text-slate-400 hover:text-slate-700 hover:bg-slate-50 p-1 rounded-md transition-all active:scale-95"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -287,7 +294,7 @@ export default function StudentDashboard({ onNavigate }) {
         </div>,
         document.body
       )}
-      
+
     </div>
   );
 }

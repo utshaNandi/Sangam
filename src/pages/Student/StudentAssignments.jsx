@@ -1,18 +1,30 @@
 import React, { useState } from 'react';
 import { Icons } from '../Teacher/Icons';
-import { assignments, students, submitAssignment, studentSubmissions } from '../Teacher/mockData';
+import { assignments, submitAssignment, studentSubmissions } from '../Teacher/mockData';
 import { globalAssignments, addGlobalSubmission } from '../../data/academicModel';
 
-export default function StudentAssignments() {
+export default function StudentAssignments({ userProfile }) {
   const [expandedId, setExpandedId] = useState(null);
   const [uploadFiles, setUploadFiles] = useState({});
 
-  const student = students.find(s => s.section === 'CSE-C') || students[0];
+  const studentName = (userProfile?.name && userProfile.name.trim())
+    || (userProfile?.email ? userProfile.email.split('@')[0] : '')
+    || 'Student';
+  const studentId = userProfile?.uid || 'student';
+  const studentRef = userProfile?.uid ? userProfile.uid.slice(0, 8).toUpperCase() : 'STUDENT';
+  const section = userProfile?.section || '';
+
+  // Preserve existing mock assignments functionality; match if section aligns, else keep demo assignments
   const sectionGlobal = [
     ...(globalAssignments['CSE AI-2nd Year-Sec C'] || []),
     ...(globalAssignments['CSE-C'] || [])
   ];
-  const allAssignments = [...assignments.filter(a => a.className === student.section), ...sectionGlobal];
+  const matchedAssignments = section
+    ? assignments.filter(a => a.className === section || a.className.includes(section) || section.includes(a.className))
+    : [];
+  const baseAssignments = matchedAssignments.length > 0 ? matchedAssignments : assignments;
+  const allAssignments = [...baseAssignments, ...sectionGlobal];
+
   const seenIds = new Set();
   const studentAssignments = allAssignments.filter(a => {
     if (seenIds.has(a.id)) return false;
@@ -21,12 +33,12 @@ export default function StudentAssignments() {
   });
 
   const pendingAssignments = studentAssignments.map(a => {
-    const isSubmitted = !!(studentSubmissions[a.id] && studentSubmissions[a.id][student.id]);
+    const isSubmitted = !!(studentSubmissions[a.id] && studentSubmissions[a.id][studentId]);
     const pdfUrl = a.pdf ? URL.createObjectURL(a.pdf) : null;
     return {
       id: a.id,
       title: a.title,
-      subject: a.className || student.section,
+      subject: a.className || section || 'Coursework',
       dueDate: a.dueDate,
       status: isSubmitted ? 'Not Pending' : 'Pending',
       progress: isSubmitted ? 100 : 0,
@@ -50,12 +62,12 @@ export default function StudentAssignments() {
     e.stopPropagation();
     const file = uploadFiles[assignmentId];
     if (file) {
-      submitAssignment(assignmentId, student.id, file);
+      submitAssignment(assignmentId, studentId, file);
       try {
         addGlobalSubmission(assignmentId, {
-          id: student.id,
-          name: student.name,
-          roll: student.roll,
+          id: studentId,
+          name: studentName,
+          roll: studentRef,
           originalName: file.name,
           fileUrl: URL.createObjectURL(file),
           isReal: true
@@ -105,12 +117,12 @@ export default function StudentAssignments() {
                 </div>
                 <h4 className="text-xl font-bold text-slate-900">Teacher: {teacherName}</h4>
               </div>
-              
+
               <div className="ml-5 border-l-2 border-slate-200 pl-8 space-y-8 relative">
                 {Object.entries(subjects).map(([subjectName, assignments]) => (
                   <div key={subjectName} className="relative">
                     <div className="absolute -left-[34px] top-3 w-6 h-0.5 bg-slate-200"></div>
-                    
+
                     <div className="flex items-center gap-2 mb-4">
                       <h5 className="font-bold text-slate-700 text-lg">Subject: {subjectName}</h5>
                     </div>
@@ -121,8 +133,8 @@ export default function StudentAssignments() {
                         return (
                           <div key={a.id} className="relative">
                              <div className="absolute -left-[34px] top-12 w-6 h-0.5 bg-slate-100"></div>
-                             
-                             <div 
+
+                             <div
                                onClick={() => setExpandedId(isExpanded ? null : a.id)}
                                className={`flex flex-col p-4 rounded-2xl border transition-all duration-300 cursor-pointer group ${isExpanded ? 'border-theme-primary/30 bg-slate-50' : 'border-slate-100 hover:border-theme-primary/30 hover:bg-theme-bg/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-1'}`}
                              >
@@ -192,12 +204,12 @@ export default function StudentAssignments() {
                                       ) : (
                                         <div className="space-y-4">
                                           <div className="border-2 border-dashed border-slate-200 rounded-lg p-4 text-center hover:border-theme-primary/50 transition-colors bg-slate-50/50">
-                                            <input 
-                                              type="file" 
-                                              accept=".pdf" 
-                                              onChange={(e) => handleFileSelect(a.id, e)} 
-                                              className="hidden" 
-                                              id={`upload-${a.id}`} 
+                                            <input
+                                              type="file"
+                                              accept=".pdf"
+                                              onChange={(e) => handleFileSelect(a.id, e)}
+                                              className="hidden"
+                                              id={`upload-${a.id}`}
                                             />
                                             <label htmlFor={`upload-${a.id}`} className="cursor-pointer flex flex-col items-center gap-2">
                                               <div className="w-8 h-8 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center">
@@ -208,7 +220,7 @@ export default function StudentAssignments() {
                                               </span>
                                             </label>
                                           </div>
-                                          <button 
+                                          <button
                                             onClick={(e) => handleSubmit(a.id, e)}
                                             disabled={!uploadFiles[a.id]}
                                             className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all ${uploadFiles[a.id] ? 'bg-theme-primary text-white shadow-md hover:shadow-lg' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}

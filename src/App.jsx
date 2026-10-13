@@ -227,7 +227,7 @@ function App() {
         {activeRole === 'director' ? (
           <DirectorApp onLogout={handleLogout} />
         ) : activeRole === 'student' ? (
-          <StudentApp onLogout={handleLogout} />
+          <StudentApp userProfile={userProfile} onLogout={handleLogout} />
         ) : (
           <TeacherApp onLogout={handleLogout} />
         )}

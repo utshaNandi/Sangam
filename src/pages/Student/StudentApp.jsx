@@ -6,17 +6,21 @@ import StudentSchedule from './StudentSchedule';
 import StudentAttendance from './StudentAttendance';
 import StudentAssignments from './StudentAssignments';
 import StudentProfile from './StudentProfile';
-import { students } from '../Teacher/mockData';
 
-export default function StudentApp({ onLogout }) {
+export default function StudentApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
-  
-  const student = students.find(s => s.section === 'CSE-C') || students[0];
-  const [firstName, lastName] = student.name.split(' ');
-  const initials = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ''}`;
+
+  const studentName = (userProfile?.name && userProfile.name.trim())
+    || (userProfile?.email ? userProfile.email.split('@')[0] : '')
+    || 'Student';
+  const nameParts = studentName.trim().split(/\s+/);
+  const firstName = nameParts[0] || 'Student';
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+  const initials = `${firstName.charAt(0)}${lastName ? lastName.charAt(0) : ''}`.toUpperCase() || 'S';
+  const studentIdentifier = userProfile?.uid ? `ID: ${userProfile.uid.slice(0, 8).toUpperCase()}` : 'STUDENT';
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const navItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
@@ -45,15 +49,15 @@ export default function StudentApp({ onLogout }) {
   const renderContent = () => {
     switch (activeTab) {
       case 'Dashboard':
-        return <StudentDashboard onNavigate={setActiveTab} />;
+        return <StudentDashboard userProfile={userProfile} onNavigate={setActiveTab} />;
       case 'Academic Space':
-        return <AcademicSpace />;
+        return <AcademicSpace userProfile={userProfile} />;
       case 'Schedule':
-        return <StudentSchedule />;
+        return <StudentSchedule userProfile={userProfile} />;
       case 'Attendance':
-        return <StudentAttendance />;
+        return <StudentAttendance userProfile={userProfile} />;
       case 'Assignments':
-        return <StudentAssignments />;
+        return <StudentAssignments userProfile={userProfile} />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400">
@@ -65,7 +69,7 @@ export default function StudentApp({ onLogout }) {
   };
 
   return (
-    <div 
+    <div
       className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden selection:bg-theme-bg selection:text-theme-primary"
       style={{
         '--theme-primary': '#DFB980',
@@ -74,7 +78,7 @@ export default function StudentApp({ onLogout }) {
     >
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -82,7 +86,7 @@ export default function StudentApp({ onLogout }) {
 
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200/60 flex flex-col transform transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:translate-x-0 lg:static ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl w-64' : '-translate-x-full'} ${isSidebarCollapsed ? 'lg:w-[84px]' : 'lg:w-64'}`}>
-        
+
         {/* Logo / Header */}
         <div className={`p-6 flex items-center h-[88px] ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
            <h2 className={`text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3 transition-all duration-300 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
@@ -103,8 +107,8 @@ export default function StudentApp({ onLogout }) {
                className={`w-full flex items-center py-3 rounded-xl transition-all duration-300 text-sm font-semibold relative group active:scale-[0.98] ${
                  isSidebarCollapsed ? 'justify-center px-0' : 'justify-start px-4 gap-3'
                } ${
-                 activeTab === item.id 
-                   ? 'bg-theme-bg text-theme-primary' 
+                 activeTab === item.id
+                   ? 'bg-theme-bg text-theme-primary'
                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                }`}
              >
@@ -124,7 +128,7 @@ export default function StudentApp({ onLogout }) {
         </nav>
 
         <div className="px-3 pb-3">
-            <div 
+            <div
               className={`w-full bg-slate-50 rounded-2xl p-3 cursor-pointer transition-all duration-300 hover:bg-slate-100 hover:shadow-sm active:scale-[0.98] border border-slate-100 mb-2 ${isSidebarCollapsed ? 'flex justify-center items-center p-3' : 'flex items-center justify-between'}`}
             >
                {isSidebarCollapsed ? (
@@ -138,8 +142,8 @@ export default function StudentApp({ onLogout }) {
                         {initials}
                       </div>
                       <div>
-                        <p className="text-sm font-extrabold text-slate-900 leading-tight">{student.name}</p>
-                        <p className="text-[11px] font-bold text-[#df8e35]">{student.id}</p>
+                        <p className="text-sm font-extrabold text-slate-900 leading-tight">{studentName}</p>
+                        <p className="text-[11px] font-bold text-[#df8e35]">{studentIdentifier}</p>
                       </div>
                     </div>
                     <div className="text-slate-300 group-hover:text-theme-primary transition-colors">
@@ -176,7 +180,7 @@ export default function StudentApp({ onLogout }) {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50 relative">
-         
+
          <header className="px-6 lg:px-10 py-4 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex justify-between items-center z-10 sticky top-0">
              <div className="flex items-center gap-4">
                <button className="lg:hidden text-slate-500 hover:text-slate-800 p-2 rounded-lg hover:bg-slate-100 transition-all active:scale-95 group" onClick={() => setIsMobileMenuOpen(true)}>
@@ -184,8 +188,8 @@ export default function StudentApp({ onLogout }) {
                    <Icons.Menu />
                  </div>
                </button>
-               <button 
-                 className="hidden lg:flex text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-all active:scale-95 group" 
+               <button
+                 className="hidden lg:flex text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-all active:scale-95 group"
                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                  title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
                >
@@ -193,16 +197,16 @@ export default function StudentApp({ onLogout }) {
                    <Icons.Menu />
                  </div>
                </button>
-               
+
                {/* Location / Breadcrumb Area reflecting locked hierarchy */}
                <div>
-                 
+
                  <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-tight mt-0.5">
                    {activeTab}
                  </h1>
                </div>
              </div>
-             
+
              <div className="flex items-center gap-4">
                <button className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-all active:scale-95 relative group">
                  <div className="absolute top-2.5 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></div>
@@ -212,8 +216,8 @@ export default function StudentApp({ onLogout }) {
                </button>
                <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
                  <div className="text-right hidden sm:block">
-                   <p className="text-sm font-bold text-slate-900">{student.name}</p>
-                   <p className="text-xs font-medium text-slate-500">Student</p>
+                   <p className="text-sm font-bold text-slate-900">{studentName}</p>
+                   <p className="text-xs font-medium text-slate-500">{userProfile?.department || 'Student'}</p>
                  </div>
                  <div className="w-10 h-10 rounded-full bg-theme-bg text-theme-primary flex items-center justify-center font-bold text-sm cursor-pointer hover:opacity-90 transition-all hover:shadow-md active:scale-95">
                    {initials}
@@ -221,14 +225,14 @@ export default function StudentApp({ onLogout }) {
                </div>
              </div>
          </header>
-         
+
          <div className="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth">
             <div key={activeTab} className="max-w-6xl mx-auto relative z-10 transition-all duration-300 animate-hero-fade-up" style={{ animationDuration: '400ms' }}>
               {renderContent()}
             </div>
          </div>
             </main>
-      {isProfileOpen && <StudentProfile student={student} onClose={() => setIsProfileOpen(false)} />}
+      {isProfileOpen && <StudentProfile userProfile={userProfile} onClose={() => setIsProfileOpen(false)} />}
     </div>
   );
 }

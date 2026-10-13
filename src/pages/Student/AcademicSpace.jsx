@@ -2,10 +2,23 @@ import React from 'react';
 import { Icons } from '../Teacher/Icons';
 import { announcements as sharedAnnouncements } from '../Teacher/mockData';
 
-export default function AcademicSpace() {
-  // Student's mock scope
-  const studentScope = 'UEMK/CSE AI/2nd Year/Sec C';
-  const myAnnouncements = sharedAnnouncements.filter(a => a.scopePath === studentScope);
+export default function AcademicSpace({ userProfile }) {
+  const department = userProfile?.department;
+  const year = userProfile?.year;
+  const section = userProfile?.section;
+
+  // Derive placement display from actual profile fields
+  const placementTitle = section || 'Academic Placement Pending';
+  const placementParts = [department, year].filter(Boolean);
+  const placementSubtitle = placementParts.length > 0
+    ? placementParts.join(' • ')
+    : (section ? 'Academic Placement' : 'Academic Placement Pending');
+
+  // Announcements: match by section if assigned, otherwise preserve demo announcements
+  const matchedAnnouncements = section
+    ? sharedAnnouncements.filter(a => a.scopePath && (a.scopePath.includes(section) || section.includes(a.scopePath.split('/').pop() || '')))
+    : [];
+  const myAnnouncements = matchedAnnouncements.length > 0 ? matchedAnnouncements : sharedAnnouncements;
 
   return (
     <div className="space-y-4 animate-fade-in relative z-10 pb-10">
@@ -22,11 +35,11 @@ export default function AcademicSpace() {
               </span>
             </div>
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-1">
-                Sec C
-              </h2>
+            {placementTitle}
+          </h2>
           <p className="text-lg text-slate-600 max-w-2xl">
-              B.Tech CSE (AI) • 2nd Year
-            </p>
+            {placementSubtitle}
+          </p>
         </div>
       </div>
 

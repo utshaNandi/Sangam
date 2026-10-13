@@ -93,7 +93,7 @@ export const scheduleData = {
     ]
   };
 
-export default function StudentSchedule() {
+export default function StudentSchedule({ userProfile }) {
   const getInitialDay = () => {
     const day = new Date().getDay();
     if (day === 0) return 0;
@@ -115,6 +115,8 @@ export default function StudentSchedule() {
   const currentSchedule = scheduleData[selectedDayIndex];
   const currentDayName = days[selectedDayIndex];
 
+  const placementSubtitle = [userProfile?.department, userProfile?.year, userProfile?.section].filter(Boolean).join(' • ') || 'Academic Placement Pending';
+
   return (
     <div className="bg-white rounded-[32px] border border-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.03)] p-8 lg:p-10 max-w-6xl mx-auto animate-fade-in">
       
@@ -126,7 +128,7 @@ export default function StudentSchedule() {
           <span className="text-theme-primary">{currentDayName}</span>
         </h2>
         <p className="text-sm font-medium text-slate-500 mt-2">
-          B.Tech CSE (AI) • 2nd Year • Sec C
+          {placementSubtitle}
         </p>
       </div>
 
