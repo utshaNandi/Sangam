@@ -13,7 +13,7 @@ import {
 } from './TeacherViews';
 import AcademicSpacesView from './AcademicSpacesView';
 
-export default function TeacherApp({ onLogout }) {
+export default function TeacherApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -35,10 +35,10 @@ export default function TeacherApp({ onLogout }) {
   const renderContent = () => {
     switch(activeTab) {
       case 'Dashboard': return <DashboardHome onNavigate={setActiveTab} />;
-      case 'Academic Spaces': return <AcademicSpacesView />;
+      case 'Academic Spaces': return <AcademicSpacesView userProfile={userProfile} />;
       case 'My Classes': return <ClassesView />;
       case 'Students': return <StudentsView />;
-      case 'Attendance': return <AttendanceView />;
+      case 'Attendance': return <AttendanceView userProfile={userProfile} />;
       case 'Grades': return <GradesView />;
       case 'Announcements': return <AnnouncementsView />;
       case 'Schedule': return <ScheduleView />;

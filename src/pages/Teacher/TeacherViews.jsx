@@ -1,8 +1,18 @@
 import { globalAssignments, addGlobalAssignment, subscribeToAssignments, globalSubmissions } from '../../data/academicModel';
 import { SimilarityCheckView } from './SimilarityCheckView';
-﻿import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { classes, students, assignments, announcements, teacherProfile, markPeriodAttendance } from './mockData';
 import { Icons } from './Icons';
+import { auth } from '../../firebase/config';
+import { 
+  fetchStudentsForSection, 
+  savePeriodAttendance, 
+  saveSingleStudentAttendance, 
+  fetchSessionAttendanceRecords, 
+  generateSessionId, 
+  getCurrentPeriod, 
+  getTodayDateString 
+} from '../../services/attendanceService';
 
 export const scheduleData = {
     Monday: [
@@ -764,129 +774,458 @@ if (viewingAssignment) {
 
 }
 
-export function AttendanceView({ group }) {
-  const [expandedNodes, setExpandedNodes] = useState({});
-  const toggleNode = (nodeId) => setExpandedNodes(prev => {
-    const isExpanding = !prev[nodeId];
-    const newState = { ...prev };
-    if (isExpanding) {
-      const level = (nodeId.match(/-/g) || []).length;
-      const parts = nodeId.split('-');
-      const parentPrefix = parts.slice(0, -1).join('-');
-      Object.keys(newState).forEach(key => {
-        if (key !== nodeId && (key.match(/-/g) || []).length === level) {
-          const keyParts = key.split('-');
-          const keyParentPrefix = keyParts.slice(0, -1).join('-');
-          if (level === 0 || keyParentPrefix === parentPrefix) {
-             newState[key] = false;
-             Object.keys(newState).forEach(k => {
-               if (k.startsWith(key + '-')) newState[k] = false;
-             });
-          }
-        }
-      });
-    } else {
-      Object.keys(newState).forEach(k => {
-         if (k.startsWith(nodeId + '-')) newState[k] = false;
-      });
-    }
-    newState[nodeId] = isExpanding;
-    return newState;
-  });
+export function AttendanceView({ group, userProfile }) {
+  // Resolve academic scope parameters
+  let br = "Unknown";
+  let yr = "Unknown";
+  let sec = "All Sections";
+  let scopeText = "All Sections";
 
+  if (group && group.path && Array.isArray(group.path) && group.path.length > 0) {
+    if (group.path.length >= 6 && (group.path[1] === 'B.Tech' || group.path[1] === 'M.Tech' || group.path[1] === 'BCA' || group.path[1] === 'BBA')) {
+      // 6+ level hierarchy: [institution, programme, branch, specialization, year, section, subject?]
+      br = group.path[2] + " " + group.path[3]; // CSE AI
+      yr = group.path[4]; // 2nd Year
+      sec = group.path[5]; // Sec C / Section A
+      if (group.path.length >= 7) {
+        sec = group.path[5] + " · " + group.path[6];
+      }
+    } else if (group.path.length >= 4) {
+      // 4 level hierarchy: [institution, department, year, section, subject?]
+      br = group.path[1]; // CSE AI
+      yr = group.path[2]; // 2nd Year
+      sec = group.path[3]; // Sec C
+      if (group.path.length >= 5) {
+        sec = group.path[3] + " · " + group.path[4];
+      }
+    } else if (group.path.length >= 2) {
+      br = group.path[1];
+      if (group.path.length >= 3) {
+        yr = group.path[2];
+      }
+    }
+    if (group.scope) {
+      scopeText = group.scope;
+    }
+  }
+
+  // Display label preserves academic branch ("CSE AI") for UI presentation
+  const displayBranch = br !== "Unknown" ? br : "CSE AI";
+  const effectiveYear = yr !== "Unknown" ? yr : "2nd Year";
+  const rawSection = (group?.path && group.path.length >= 6) ? group.path[5] : (sec.includes('·') ? sec.split('·')[0].trim() : sec);
+  const institution = userProfile?.institution || group?.path?.[0] || 'UEMK';
+
+  // Canonical mapping from academic hierarchy display branch to Firestore department names
+  const CANONICAL_DEPARTMENT_MAP = {
+    'CSE AI': 'Computer Science',
+    'CSE': 'Computer Science',
+    'Computer Science': 'Computer Science',
+    'ECE': 'Electronics & Communication',
+    'Electronics & Communication': 'Electronics & Communication',
+    'EE': 'Electrical Engineering',
+    'Electrical Engineering': 'Electrical Engineering',
+    'ME': 'Mechanical Engineering',
+    'Mechanical Engineering': 'Mechanical Engineering',
+    'CE': 'Civil Engineering',
+    'Civil Engineering': 'Civil Engineering',
+    'BT': 'Biotechnology',
+    'Biotechnology': 'Biotechnology',
+    'Management': 'Management'
+  };
+
+  // Canonical department for Firestore querying, session documents, and rules authorization
+  const canonicalDepartment = CANONICAL_DEPARTMENT_MAP[displayBranch] || userProfile?.department || displayBranch;
+  const date = getTodayDateString();
+  const period = getCurrentPeriod();
+  const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
+
+  const [studentsList, setStudentsList] = useState([]);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(true);
   const [attendanceData, setAttendanceData] = useState({});
-  
-  const handleMarkAll = (br, yr, sec, status) => {
-    const students = get20Students(br, yr, sec);
-    setAttendanceData(prev => {
-      const next = { ...prev };
-      students.forEach(st => {
-         next[st.id] = status;
-         markPeriodAttendance(st.id, status);
-      });
-      return next;
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
+  const [errorMessage, setErrorMessage] = useState('');
+  const [hasSavedToday, setHasSavedToday] = useState(false);
+
+  const sessionInfo = {
+    institution,
+    department: canonicalDepartment,
+    year: effectiveYear,
+    section: rawSection,
+    date,
+    period
+  };
+  const sessionId = generateSessionId(sessionInfo);
+
+  // Load active approved students and existing session records
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadAttendanceData() {
+      setIsLoadingStudents(true);
+      setErrorMessage('');
+      try {
+        const fetchedStudents = await fetchStudentsForSection({
+          institution,
+          department: canonicalDepartment,
+          year: effectiveYear,
+          section: rawSection
+        });
+
+        if (isCancelled) return;
+        setStudentsList(fetchedStudents);
+
+        // Fetch existing attendance records if marked earlier today (isolated to avoid masking student loading)
+        let existingRecords = {};
+        try {
+          existingRecords = await fetchSessionAttendanceRecords(sessionId, institution, canonicalDepartment);
+        } catch (recErr) {
+          console.warn('[Attendance:SessionRecordsQueryError]', {
+            code: recErr?.code || 'unknown',
+            message: recErr?.message || String(recErr),
+            sessionId,
+            institution,
+            queryDepartment: canonicalDepartment,
+            authUid: auth?.currentUser?.uid || null
+          });
+        }
+
+        if (isCancelled) return;
+
+        if (existingRecords && Object.keys(existingRecords).length > 0) {
+          // Preserve previously saved statuses from Firestore
+          const mergedData = {};
+          fetchedStudents.forEach(st => {
+            mergedData[st.id] = existingRecords[st.id] || 'Present';
+          });
+          setAttendanceData(mergedData);
+          setHasSavedToday(true);
+        } else {
+          // Default all loaded students to Present
+          const initData = {};
+          fetchedStudents.forEach(st => {
+            initData[st.id] = 'Present';
+          });
+          setAttendanceData(initData);
+          setHasSavedToday(false);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          console.error('[Attendance:StudentRosterQueryError]', {
+            code: err?.code || 'unknown',
+            message: err?.message || String(err),
+            queryDepartment: canonicalDepartment,
+            effectiveYear,
+            rawSection,
+            authUid: auth?.currentUser?.uid || null,
+            authEmail: auth?.currentUser?.email || null,
+            profileDepartment: userProfile?.department || null,
+            profileInstitution: userProfile?.institution || null,
+            profileRole: userProfile?.role || null,
+            profileStatus: userProfile?.status || null
+          });
+          const isPermDenied = err?.code === 'permission-denied' || String(err?.message || '').toLowerCase().includes('permission');
+          const cleanMsg = isPermDenied
+            ? 'Permission denied: You are not authorized to view student records for this department.'
+            : 'Could not load students. Please verify connection and permissions.';
+          setErrorMessage(cleanMsg);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingStudents(false);
+        }
+      }
+    }
+
+    loadAttendanceData();
+    return () => { isCancelled = true; };
+  }, [sessionId, canonicalDepartment, effectiveYear, rawSection, userProfile?.uid, userProfile?.institution, userProfile?.department]);
+
+  const handleMarkAll = (status) => {
+    if (studentsList.length === 0) return;
+
+    const nextLocal = {};
+    studentsList.forEach(st => {
+      nextLocal[st.id] = status;
+      markPeriodAttendance(st.id, status);
     });
+
+    setAttendanceData(nextLocal);
+    setSaveStatus(null);
   };
 
   const toggleStudentAttendance = (studentId) => {
-    setAttendanceData(prev => {
-      const newStatus = prev[studentId] === 'Present' ? 'Absent' : 'Present';
-      markPeriodAttendance(studentId, newStatus);
-      return {
-        ...prev,
-        [studentId]: newStatus
-      };
-    });
+    const prevStatus = attendanceData[studentId] || 'Present';
+    const newStatus = prevStatus === 'Present' ? 'Absent' : 'Present';
+    setAttendanceData(prev => ({
+      ...prev,
+      [studentId]: newStatus
+    }));
+    markPeriodAttendance(studentId, newStatus);
+    setSaveStatus(null);
   };
 
-  const renderContent = (br, yr, sec) => {
-    const sectionStudents = get20Students(br, yr, sec);
+  const handleSaveAttendance = async () => {
+    if (studentsList.length === 0) return;
+    if (!teacherUid) {
+      setErrorMessage('Cannot save attendance: Authenticated faculty account required.');
+      return;
+    }
+
+    setSaveStatus('saving');
+    setErrorMessage('');
+
+    const payloadMap = {};
+    studentsList.forEach(st => {
+      const status = attendanceData[st.id] || 'Present';
+      payloadMap[st.id] = {
+        status,
+        name: st.name,
+        roll: st.roll
+      };
+      markPeriodAttendance(st.id, status);
+    });
+
+    try {
+      await savePeriodAttendance({
+        sessionInfo,
+        studentStatuses: payloadMap,
+        teacherUid
+      });
+      setSaveStatus('saved');
+      setHasSavedToday(true);
+      setTimeout(() => setSaveStatus(null), 4000);
+    } catch (err) {
+      console.error('Failed to save period attendance:', err);
+      if (err?.diagnostic) {
+        console.warn('[Attendance Write Diagnostic]:', err.diagnostic);
+      }
+      setSaveStatus('error');
+      const isPermDenied = err?.code === 'permission-denied' || String(err?.message || '').toLowerCase().includes('permission');
+      
+      let msg = 'Failed to save attendance: ';
+      if (err?.diagnostic?.failedWrite && err.diagnostic.failedWrite !== 'unknown') {
+        if (err.diagnostic.failedWrite === 'attendance_records') {
+          msg += `Permission denied on student records (${err.diagnostic.ruleTarget}). Student profile data in database (e.g. section naming CSE-C vs Sec C, or missing academic year) does not match class allocation rules.`;
+        } else if (err.diagnostic.failedWrite.includes('attendance_sessions')) {
+          msg += `Permission denied on class session (${err.diagnostic.ruleTarget}). Faculty allocation is missing or unauthorized for this class.`;
+        } else {
+          msg += err.diagnostic.reason || 'Permission denied.';
+        }
+      } else {
+        msg += isPermDenied ? 'Permission denied. Ensure your faculty account is authorized for this class.' : (err?.message || 'Please verify connection and permissions.');
+      }
+      setErrorMessage(msg);
+    }
+  };
+
+  const presentCount = studentsList.filter(st => (attendanceData[st.id] || 'Present') === 'Present').length;
+  const absentCount = studentsList.length - presentCount;
+
+  const renderContent = () => {
+    if (isLoadingStudents) {
+      return (
+        <div className="bg-white rounded-[24px] border border-slate-100 p-10 text-center shadow-sm">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <svg className="animate-spin h-5 w-5 text-[#538C8C]" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="text-slate-500 font-bold text-sm">Loading attendance roster for {displayBranch}...</p>
+          </div>
+          <p className="text-xs text-slate-400">Fetching student records and past session data from Firestore.</p>
+        </div>
+      );
+    }
+
+    if (errorMessage && studentsList.length === 0) {
+      return (
+        <div className="space-y-4">
+          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5">
+            <span className="text-sm">⚠️</span>
+            <div className="flex-1">
+              <p className="font-bold mb-0.5">Attendance Access Error</p>
+              <p className="leading-relaxed">{errorMessage}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (studentsList.length === 0) {
+      return (
+        <div className="bg-white rounded-[24px] border border-slate-100 p-10 text-center shadow-sm">
+          <p className="text-slate-500 font-bold mb-1">No active approved students found</p>
+          <p className="text-xs text-slate-400">Ensure students in {displayBranch} • {effectiveYear} • {rawSection} have been registered and approved by the Director.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4">
-        <div className="flex justify-end gap-3 mb-2">
-          <button onClick={() => handleMarkAll(br, yr, sec, 'Present')} className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors border border-green-100/50">Mark All Present</button>
-          <button onClick={() => handleMarkAll(br, yr, sec, 'Absent')} className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors border border-red-100/50">Mark All Absent</button>
+        {/* Error message banner */}
+        {errorMessage && (
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center justify-between gap-2">
+            <span>{errorMessage}</span>
+            <button onClick={() => setErrorMessage('')} className="text-rose-500 hover:text-rose-800 font-bold text-sm leading-none">✕</button>
+          </div>
+        )}
+
+        {/* Action Header & Feedback Badges */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {saveStatus === 'saving' && (
+              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg animate-pulse flex items-center gap-1.5 border border-slate-200">
+                <svg className="animate-spin h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving to Firestore...
+              </span>
+            )}
+            {saveStatus === 'saved' && (
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 animate-fade-in shadow-sm">
+                ✓ Saved to Firestore (Period {period}: {presentCount} Present, {absentCount} Absent)
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                ✕ Save failed
+              </span>
+            )}
+            {!saveStatus && hasSavedToday && (
+              <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                ✓ Recorded in Firestore (Period {period})
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button 
+              type="button"
+              onClick={() => handleMarkAll('Present')} 
+              className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-200"
+            >
+              Mark All Present
+            </button>
+            <button 
+              type="button"
+              onClick={() => handleMarkAll('Absent')} 
+              className="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-2 rounded-xl hover:bg-rose-100 transition-colors border border-rose-200"
+            >
+              Mark All Absent
+            </button>
+            <button 
+              type="button"
+              id="save-attendance-btn"
+              onClick={handleSaveAttendance} 
+              disabled={saveStatus === 'saving' || studentsList.length === 0}
+              className="px-5 py-2 bg-[#538C8C] hover:bg-[#437575] text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 active:scale-95"
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                  </svg>
+                  Save Attendance
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Student Roster Cards */}
         <div className="space-y-3">
-          {sectionStudents.map((st, idx) => {
+          {studentsList.map((st, idx) => {
              const status = attendanceData[st.id] || 'Present';
              return (
-               <div key={st.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:border-slate-200 transition-colors">
+               <div key={st.id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-white hover:border-slate-300 hover:shadow-sm transition-all">
                  <div className="flex items-center gap-4">
                    <span className="text-slate-400 font-bold w-6 text-right text-xs">{idx + 1}.</span>
-                   <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs">
+                   <div className="w-9 h-9 rounded-full bg-slate-100 text-[#538C8C] font-bold flex items-center justify-center text-sm border border-slate-200">
                      {st.name.charAt(0)}
                    </div>
-                   <span className="font-bold text-slate-900 text-sm">{st.name}</span>
+                   <div className="flex flex-col">
+                     <span className="font-bold text-slate-900 text-sm">{st.name}</span>
+                     <span className="text-[11px] font-medium text-slate-400">{st.roll || st.email}</span>
+                   </div>
                  </div>
-                 <button onClick={() => toggleStudentAttendance(st.id)} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all border ${status === 'Present' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                 <button 
+                   type="button"
+                   onClick={() => toggleStudentAttendance(st.id)} 
+                   className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-xs active:scale-95 ${
+                     status === 'Present' 
+                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                       : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                   }`}
+                   title="Click to toggle Present/Absent"
+                 >
                    {status}
                  </button>
                </div>
              );
           })}
         </div>
+
+        {/* Bottom Actions Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white border border-slate-200/80 rounded-2xl shadow-sm mt-4">
+          <div className="text-xs font-bold text-slate-600 flex items-center gap-3">
+            <span>Roster: <strong className="text-slate-900">{studentsList.length}</strong> students</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-emerald-700">Present: <strong>{presentCount}</strong></span>
+            <span className="text-slate-300">•</span>
+            <span className="text-rose-700">Absent: <strong>{absentCount}</strong></span>
+          </div>
+          <button 
+            type="button"
+            onClick={handleSaveAttendance} 
+            disabled={saveStatus === 'saving' || studentsList.length === 0}
+            className="w-full sm:w-auto px-6 py-2.5 bg-[#538C8C] hover:bg-[#437575] text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+          >
+            {saveStatus === 'saving' ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving Attendance...
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Save Attendance
+              </>
+            )}
+          </button>
+        </div>
       </div>
     );
   };
 
-  
-    let br = "Unknown";
-    let yr = "Unknown";
-    let sec = "All Sections";
-    let scopeText = "All Sections";
+  const displayYear = effectiveYear;
 
-    if (group && group.path) {
-      if (group.path.length >= 4) {
-        br = group.path[2] + " " + group.path[3]; // CSE AI
-      }
-      if (group.path.length >= 5) {
-        yr = group.path[4]; // 2nd Year
-      }
-      if (group.path.length >= 6) {
-        sec = group.path[5]; // Sec C
-      }
-      if (group.path.length >= 7) {
-        sec = group.path[5] + " · " + group.path[6]; // Sec C · DSA
-      }
-      if (group.scope) {
-        scopeText = group.scope;
-      }
-    }
-
-    if (br === "Unknown") br = "CSE AI";
-    if (yr === "Unknown") yr = "2nd Year";
-
-    return (
-       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
-         <div className="flex flex-col">
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
-            <span className="text-sm font-bold text-slate-500 mt-1">{br} · {yr} · {scopeText}</span>
-         </div>
-         {renderContent(br, yr, sec)}
+  return (
+     <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+       <div className="flex flex-col">
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
+          <span className="text-sm font-bold text-slate-500 mt-1">{displayBranch} · {displayYear} · {scopeText}</span>
        </div>
-    );
-
+       {renderContent()}
+     </div>
+  );
 }
 
 export function GradesView() {

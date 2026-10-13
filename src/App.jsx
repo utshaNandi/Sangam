@@ -225,11 +225,11 @@ function App() {
         className={appState === 'transition' ? 'z-[300]' : ''}
       >
         {activeRole === 'director' ? (
-          <DirectorApp onLogout={handleLogout} />
+          <DirectorApp userProfile={userProfile} onLogout={handleLogout} />
         ) : activeRole === 'student' ? (
           <StudentApp userProfile={userProfile} onLogout={handleLogout} />
         ) : (
-          <TeacherApp onLogout={handleLogout} />
+          <TeacherApp userProfile={userProfile} onLogout={handleLogout} />
         )}
         
         {/* Subtle light sweep to make it feel like paper catching light */}

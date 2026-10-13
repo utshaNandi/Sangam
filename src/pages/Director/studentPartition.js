@@ -81,3 +81,73 @@ export function partitionStudentRecords(rawList) {
 
   return { pendingList, activeList };
 }
+
+/**
+ * Deduplicates faculty records strictly by Firebase Authentication UID.
+ * 
+ * Guarantees that:
+ * 1. Faculty are deduplicated by their verified Firebase Auth UID (doc.uid || doc.id).
+ * 2. When multiple documents exist for the same Auth UID (e.g. users/{authUid} and users/{email}):
+ *    - Prefers the canonical document whose Firestore document ID matches the Auth UID (doc.id === authUid).
+ *    - The document UID (authUid) is used consistently for both `id` and `uid`.
+ * 3. Accounts with different Auth UIDs are NEVER merged, even if their emails are similar or identical.
+ * 4. Preserves all faculty metadata, role, department, and institution.
+ */
+export function deduplicateFacultyRecords(rawList) {
+  if (!Array.isArray(rawList)) return [];
+
+  const facultyMap = new Map();
+
+  for (const item of rawList) {
+    if (!item) continue;
+    const data = typeof item.data === 'function' ? item.data() : item;
+    const docId = item.id ? String(item.id).trim() : (data.id ? String(data.id).trim() : '');
+    const dataUid = data.uid ? String(data.uid).trim() : '';
+
+    // The verified Firebase Auth UID is stored in data.uid; fallback to docId if data.uid is omitted
+    const authUid = dataUid || docId;
+    if (!authUid) continue;
+
+    const record = {
+      ...data,
+      id: docId || authUid,
+      uid: authUid,
+    };
+
+    if (!facultyMap.has(authUid)) {
+      if (docId === authUid) {
+        record.id = authUid;
+      }
+      facultyMap.set(authUid, record);
+    } else {
+      const existing = facultyMap.get(authUid);
+      const isCurrentCanonicalDoc = docId === authUid;
+      const isExistingCanonicalDoc = existing.id === authUid;
+
+      if (isCurrentCanonicalDoc && !isExistingCanonicalDoc) {
+        // Current document is the canonical users/{authUid} document; it takes precedence
+        facultyMap.set(authUid, {
+          ...existing,
+          ...record,
+          id: authUid,
+          uid: authUid,
+        });
+      } else {
+        // Existing is already canonical (or both are non-canonical); merge non-empty fields
+        facultyMap.set(authUid, {
+          ...record,
+          ...existing,
+          id: authUid,
+          uid: authUid,
+        });
+      }
+    }
+  }
+
+  // Ensure every returned faculty record consistently uses the document UID for id and uid
+  return Array.from(facultyMap.values()).map(faculty => ({
+    ...faculty,
+    id: faculty.uid,
+    uid: faculty.uid,
+  }));
+}

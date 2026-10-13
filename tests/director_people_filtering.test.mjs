@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { partitionStudentRecords } from '../src/pages/Director/studentPartition.js';
+import { partitionStudentRecords, deduplicateFacultyRecords } from '../src/pages/Director/studentPartition.js';
 
 console.log('Running Director People Section filtering tests...\n');
 
@@ -225,6 +225,144 @@ test('Missing or null email/UID values do not falsely match or collide', () => {
 
   assert.equal(pendingList.length, 1);
   assert.equal(pendingList[0].id, 'pending_no_email');
+});
+
+// ---------------------------------------------------------------------
+// Test 8: Duplicate faculty records for ayanagarwal40@gmail.com are deduplicated to verified Auth UID
+// ---------------------------------------------------------------------
+test('Duplicate faculty records for ayanagarwal40@gmail.com deduplicate by Firebase Auth UID using document UID consistently', () => {
+  const ayanVerifiedUid = 'WgHtT4v015T18CfZnc7EejeWcJz2';
+  const facultyRecords = [
+    // Canonical document: users/WgHtT4v015T18CfZnc7EejeWcJz2
+    {
+      id: ayanVerifiedUid,
+      uid: ayanVerifiedUid,
+      name: 'Ayan Agarwal',
+      email: 'ayanagarwal40@gmail.com',
+      role: 'faculty',
+      status: 'active',
+      department: 'Computer Science',
+      institution: 'UEMK',
+      createdAt: '2026-10-12T10:00:00.000Z'
+    },
+    // Miskeyed duplicate: users/ayanagarwal40@gmail.com with uid = WgHtT4v015T18CfZnc7EejeWcJz2
+    {
+      id: 'ayanagarwal40@gmail.com',
+      uid: ayanVerifiedUid,
+      name: 'Ayan Agarwal',
+      email: 'ayanagarwal40@gmail.com',
+      role: 'faculty',
+      status: 'active',
+      department: 'Computer Science',
+      institution: 'UEMK',
+      createdAt: '2026-10-12T09:00:00.000Z'
+    }
+  ];
+
+  const result = deduplicateFacultyRecords(facultyRecords);
+
+  assert.equal(result.length, 1, 'Duplicate faculty profiles must resolve to exactly 1 card');
+  assert.equal(result[0].uid, ayanVerifiedUid, 'Faculty UID must match verified Firebase Auth UID');
+  assert.equal(result[0].id, ayanVerifiedUid, 'Document ID must consistently match verified Firebase Auth UID');
+  assert.equal(result[0].email, 'ayanagarwal40@gmail.com');
+  assert.equal(result[0].department, 'Computer Science');
+});
+
+// ---------------------------------------------------------------------
+// Test 9: Deduplication correctly prefers canonical docId even when miskeyed document is first
+// ---------------------------------------------------------------------
+test('Canonical document ID users/WgHtT4v015T18CfZnc7EejeWcJz2 is selected regardless of query return order', () => {
+  const ayanVerifiedUid = 'WgHtT4v015T18CfZnc7EejeWcJz2';
+  const facultyRecords = [
+    // Miskeyed document listed first
+    {
+      id: 'ayanagarwal40@gmail.com',
+      uid: ayanVerifiedUid,
+      name: 'Ayan Agarwal',
+      email: 'ayanagarwal40@gmail.com',
+      role: 'faculty',
+      status: 'active',
+      department: 'Computer Science',
+      institution: 'UEMK'
+    },
+    // Canonical document listed second
+    {
+      id: ayanVerifiedUid,
+      uid: ayanVerifiedUid,
+      name: 'Ayan Agarwal (Canonical)',
+      email: 'ayanagarwal40@gmail.com',
+      role: 'faculty',
+      status: 'active',
+      department: 'Computer Science',
+      institution: 'UEMK'
+    }
+  ];
+
+  const result = deduplicateFacultyRecords(facultyRecords);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, ayanVerifiedUid, 'Must consistently use canonical document UID');
+  assert.equal(result[0].uid, ayanVerifiedUid);
+});
+
+// ---------------------------------------------------------------------
+// Test 10: Accounts with different Auth UIDs are NEVER merged, even with similar/identical emails
+// ---------------------------------------------------------------------
+test('Distinct faculty accounts with different Auth UIDs are not merged even if emails look similar', () => {
+  const facultyRecords = [
+    {
+      id: 'uid_faculty_primary',
+      uid: 'uid_faculty_primary',
+      name: 'Ayan Primary',
+      email: 'ayanagarwal40@gmail.com',
+      role: 'faculty',
+      department: 'Computer Science'
+    },
+    {
+      id: 'uid_faculty_secondary',
+      uid: 'uid_faculty_secondary',
+      name: 'Ayan Work Account',
+      email: 'ayanagarwal40@gmail.com', // identical email on distinct auth account
+      role: 'faculty',
+      department: 'Computer Science'
+    },
+    {
+      id: 'uid_faculty_similar',
+      uid: 'uid_faculty_similar',
+      name: 'Ayan Alt',
+      email: 'ayanagarwal40+alt@gmail.com', // similar alias
+      role: 'faculty',
+      department: 'Computer Science'
+    }
+  ];
+
+  const result = deduplicateFacultyRecords(facultyRecords);
+
+  assert.equal(result.length, 3, 'All 3 distinct accounts must be preserved; no false merges based on email similarity');
+  const uids = result.map(f => f.uid);
+  assert.ok(uids.includes('uid_faculty_primary'));
+  assert.ok(uids.includes('uid_faculty_secondary'));
+  assert.ok(uids.includes('uid_faculty_similar'));
+});
+
+// ---------------------------------------------------------------------
+// Test 11: Multi-faculty roster with duplicates resolves correctly
+// ---------------------------------------------------------------------
+test('Faculty roster containing multiple staff and duplicates deduplicates cleanly', () => {
+  const ayanVerifiedUid = 'WgHtT4v015T18CfZnc7EejeWcJz2';
+  const facultyRecords = [
+    { id: 'faculty_alan', uid: 'faculty_alan', name: 'Alan Turing', email: 'alan@sangam.edu', role: 'faculty' },
+    { id: 'faculty_tesla', uid: 'faculty_tesla', name: 'Nikola Tesla', email: 'tesla@sangam.edu', role: 'faculty' },
+    { id: ayanVerifiedUid, uid: ayanVerifiedUid, name: 'Ayan Agarwal', email: 'ayanagarwal40@gmail.com', role: 'faculty' },
+    { id: 'ayanagarwal40@gmail.com', uid: ayanVerifiedUid, name: 'Ayan Agarwal Duplicate', email: 'ayanagarwal40@gmail.com', role: 'faculty' }
+  ];
+
+  const result = deduplicateFacultyRecords(facultyRecords);
+
+  assert.equal(result.length, 3, 'Must produce exactly 3 faculty members');
+  assert.equal(result.some(f => f.id === ayanVerifiedUid && f.uid === ayanVerifiedUid), true);
+  assert.equal(result.some(f => f.id === 'faculty_alan' && f.uid === 'faculty_alan'), true);
+  assert.equal(result.some(f => f.id === 'faculty_tesla' && f.uid === 'faculty_tesla'), true);
 });
 
 console.log(`\n========================================`);

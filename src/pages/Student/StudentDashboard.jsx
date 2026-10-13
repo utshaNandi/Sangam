@@ -1,9 +1,14 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icons } from '../Teacher/Icons';
 import StudentCharacter from '../../components/student/StudentCharacter';
-import { assignments, announcements, calculateSemesterAttendance } from '../Teacher/mockData';
+import { assignments, announcements } from '../Teacher/mockData';
 import { scheduleData, periodsTime } from './StudentSchedule';
+import { 
+  subscribeStudentAttendance, 
+  transformRecordsToPeriodData, 
+  calculateAttendanceMetrics 
+} from '../../services/attendanceService';
 
 function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, section }) {
   const boxRef = useRef(null);
@@ -82,15 +87,19 @@ function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, 
   )
 }
 
-function StatCard({ title, value, icon }) {
+function StatCard({ title, value, icon, subtitle, onClick }) {
   return (
-    <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] flex items-start gap-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] cursor-pointer group">
+    <div
+      onClick={onClick}
+      className={`bg-white p-6 rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] flex items-start gap-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] group ${onClick ? 'cursor-pointer' : ''}`}
+    >
       <div className="w-12 h-12 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
         {icon}
       </div>
-      <div>
+      <div className="flex-1">
         <p className="text-[13px] font-bold uppercase tracking-wide text-slate-400 mb-1">{title}</p>
         <p className="text-xl font-extrabold text-slate-900">{value}</p>
+        {subtitle && <p className="text-[11px] font-medium text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -166,8 +175,30 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
     })
     .filter(Boolean);
 
-  // 4. Attendance Percentage
-  const { percentage: attendancePercentage } = calculateSemesterAttendance(studentId);
+  // 4. Attendance Percentage from live Firestore records
+  const [dashboardAttendanceRecords, setDashboardAttendanceRecords] = useState([]);
+
+  useEffect(() => {
+    if (!studentId) {
+      setDashboardAttendanceRecords([]);
+      return;
+    }
+    const unsubscribe = subscribeStudentAttendance(
+      studentId,
+      (records) => {
+        setDashboardAttendanceRecords(records);
+      },
+      (err) => {
+        console.error('Error fetching dashboard attendance:', err);
+      }
+    );
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [studentId]);
+
+  const dashboardPeriodData = transformRecordsToPeriodData(dashboardAttendanceRecords);
+  const { percentage: attendancePercentage } = calculateAttendanceMetrics(dashboardPeriodData);
 
   const todayLabsCount = todayClasses.filter(c => c.type === 'Lab').length;
 
@@ -185,9 +216,15 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
       <div className="relative z-10 space-y-8">
         {/* Top Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StatCard title="Attendance" value={`${attendancePercentage}%`} icon={<Icons.Attendance />} />
-          <StatCard title="Pending Tasks" value={`${pendingAssignmentsCount} Due`} icon={<Icons.Assignments />} />
-          <StatCard title="Today's Classes" value={`${todayClasses.length} Scheduled`} icon={<Icons.Schedule />} />
+          <StatCard 
+            title="Attendance" 
+            value={`${attendancePercentage}%`} 
+            subtitle="Click to view full records" 
+            icon={<Icons.Attendance />} 
+            onClick={() => onNavigate('Attendance')} 
+          />
+          <StatCard title="Pending Tasks" value={`${pendingAssignmentsCount} Due`} icon={<Icons.Assignments />} onClick={() => onNavigate('Assignments')} />
+          <StatCard title="Today's Classes" value={`${todayClasses.length} Scheduled`} icon={<Icons.Schedule />} onClick={() => onNavigate('Schedule')} />
           <StatCard title="Labs" value={`${todayLabsCount} Scheduled`} icon={<Icons.Classes />} />
         </div>
 

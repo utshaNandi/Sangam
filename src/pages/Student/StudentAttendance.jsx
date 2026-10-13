@@ -1,13 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../Teacher/Icons';
-import { globalPeriodAttendance, calculateSemesterAttendance } from '../Teacher/mockData';
+import { 
+  subscribeStudentAttendance, 
+  transformRecordsToPeriodData, 
+  calculateAttendanceMetrics 
+} from '../../services/attendanceService';
 
 export default function StudentAttendance({ userProfile }) {
   const studentId = userProfile?.uid || '';
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+
+  useEffect(() => {
+    if (!studentId) {
+      setAttendanceRecords([]);
+      return;
+    }
+
+    const unsubscribe = subscribeStudentAttendance(
+      studentId,
+      (records) => {
+        setAttendanceRecords(records);
+      },
+      (err) => {
+        console.error('Error fetching live attendance:', err);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [studentId]);
 
   // Real-time access to the period attendance store
-  const periodData = (studentId && globalPeriodAttendance[studentId]) || {};
-  const hasAttendanceRecords = Object.keys(periodData).length > 0;
+  const periodData = transformRecordsToPeriodData(attendanceRecords);
+  const hasAttendanceRecords = attendanceRecords.length > 0 && Object.keys(periodData).length > 0;
 
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -59,8 +85,8 @@ export default function StudentAttendance({ userProfile }) {
     }
   });
 
-  // Calculate percentages
-  const { percentage: semesterPercentage, attended: semesterClassesAttended, total: semesterClassesHeld } = calculateSemesterAttendance(studentId);
+  // Calculate percentages from persisted data
+  const { percentage: semesterPercentage, attended: semesterClassesAttended, total: semesterClassesHeld } = calculateAttendanceMetrics(periodData);
 
   const weekPercent = weekDaysHeld > 0 ? Math.round((weekDaysAttended / weekDaysHeld) * 100) : 0;
   const monthPercent = monthDaysHeld > 0 ? Math.round((monthDaysAttended / monthDaysHeld) * 100) : 0;

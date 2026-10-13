@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Icons } from '../Teacher/Icons';
-import { db } from '../../firebase/config';
+import { auth, db } from '../../firebase/config';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { partitionStudentRecords } from './studentPartition';
+import { partitionStudentRecords, deduplicateFacultyRecords } from './studentPartition';
+import { createTeacherAllocation, deleteTeacherAllocation, fetchTeacherAllocations } from '../../services/attendanceService';
 
 const DEPARTMENTS = [
   'Computer Science',
@@ -14,24 +15,33 @@ const DEPARTMENTS = [
 ];
 
 const YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-const SECTIONS = ['Section A', 'Section B', 'Section C'];
+const SECTIONS = ['Sec A', 'Sec B', 'Sec C', 'Sec D', 'Section A', 'Section B', 'Section C'];
 
-export function PeopleView() {
-  const [activeTab, setActiveTab] = useState('Pending Approvals');
+export function PeopleView({ userProfile, initialTab }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'Pending Approvals');
   const [pendingStudents, setPendingStudents] = useState([]);
   const [activeStudents, setActiveStudents] = useState([]);
+  const [facultyList, setFacultyList] = useState([]);
+  const [allocationsList, setAllocationsList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionSuccess, setActionSuccess] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudentForApproval, setSelectedStudentForApproval] = useState(null);
+  const [selectedFacultyForAllocation, setSelectedFacultyForAllocation] = useState(null);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const fetchStudents = async (showLoading = false) => {
     if (showLoading) {
       setIsLoading(true);
     }
     try {
-      // Query students from Cloud Firestore as single source of truth
+      // 1. Query students from Cloud Firestore as single source of truth
       const studentsQ = query(
         collection(db, 'users'),
         where('role', '==', 'student')
@@ -43,8 +53,30 @@ export function PeopleView() {
       setError(null);
       setPendingStudents(pendingList);
       setActiveStudents(activeList);
+
+      // 2. Query faculty members
+      try {
+        const facultyQ = query(
+          collection(db, 'users'),
+          where('role', '==', 'faculty')
+        );
+        const facultySnap = await getDocs(facultyQ);
+        const deduplicatedFaculty = deduplicateFacultyRecords(facultySnap.docs);
+        setFacultyList(deduplicatedFaculty);
+      } catch (fErr) {
+        console.warn('Could not load faculty in Director PeopleView:', fErr);
+      }
+
+      // 3. Query teacher allocations
+      try {
+        const directorInst = userProfile?.institution || 'UEMK';
+        const allocs = await fetchTeacherAllocations({ institution: directorInst });
+        setAllocationsList(allocs);
+      } catch (aErr) {
+        console.warn('Could not load allocations in Director PeopleView:', aErr);
+      }
     } catch (err) {
-      console.error('Error fetching students in Director PeopleView:', err);
+      console.error('Error fetching records in Director PeopleView:', err);
       setError('Could not load student records. Please verify Director authorization in Firestore.');
       setPendingStudents([]);
       setActiveStudents([]);
@@ -55,8 +87,9 @@ export function PeopleView() {
 
   useEffect(() => {
     let isMounted = true;
-    const loadInitialStudents = async () => {
+    const loadInitialData = async () => {
       try {
+        // Query students
         const studentsQ = query(
           collection(db, 'users'),
           where('role', '==', 'student')
@@ -68,10 +101,36 @@ export function PeopleView() {
         setError(null);
         setPendingStudents(pendingList);
         setActiveStudents(activeList);
+
+        // Query faculty
+        try {
+          const facultyQ = query(
+            collection(db, 'users'),
+            where('role', '==', 'faculty')
+          );
+          const facultySnap = await getDocs(facultyQ);
+          if (isMounted) {
+            const deduplicatedFaculty = deduplicateFacultyRecords(facultySnap.docs);
+            setFacultyList(deduplicatedFaculty);
+          }
+        } catch (fErr) {
+          console.warn('Could not load initial faculty:', fErr);
+        }
+
+        // Query allocations
+        try {
+          const directorInst = userProfile?.institution || 'UEMK';
+          const allocs = await fetchTeacherAllocations({ institution: directorInst });
+          if (isMounted) {
+            setAllocationsList(allocs);
+          }
+        } catch (aErr) {
+          console.warn('Could not load initial allocations:', aErr);
+        }
       } catch (err) {
         if (!isMounted) return;
-        console.error('Error fetching students in Director PeopleView:', err);
-        setError('Could not load student records. Please verify Director authorization in Firestore.');
+        console.error('Error fetching records in Director PeopleView:', err);
+        setError('Could not load records. Please verify Director authorization in Firestore.');
         setPendingStudents([]);
         setActiveStudents([]);
       } finally {
@@ -81,11 +140,11 @@ export function PeopleView() {
       }
     };
 
-    loadInitialStudents();
+    loadInitialData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [userProfile?.institution]);
 
   const handleApprove = async (studentId, assignments) => {
     const studentDocRef = doc(db, 'users', studentId);
@@ -100,6 +159,37 @@ export function PeopleView() {
     setSelectedStudentForApproval(null);
     await fetchStudents(true);
     setTimeout(() => setActionSuccess(null), 4500);
+  };
+
+  const handleAllocateFaculty = async (facultyMember, { department, year, section }) => {
+    const directorUid = userProfile?.uid || auth?.currentUser?.uid || '';
+    const institution = userProfile?.institution || facultyMember.institution || 'UEMK';
+
+    await createTeacherAllocation({
+      teacherUid: facultyMember.uid || facultyMember.id,
+      institution,
+      department,
+      year,
+      section,
+      directorUid
+    });
+
+    setActionSuccess(`Successfully allocated ${department} • ${year} • ${section} to ${facultyMember.name || facultyMember.email}!`);
+    setSelectedFacultyForAllocation(null);
+    await fetchStudents(false);
+    setTimeout(() => setActionSuccess(null), 4500);
+  };
+
+  const handleRevokeAllocation = async (allocId) => {
+    try {
+      await deleteTeacherAllocation(allocId);
+      setActionSuccess('Class allocation revoked successfully.');
+      await fetchStudents(false);
+      setTimeout(() => setActionSuccess(null), 4500);
+    } catch (err) {
+      console.error('Error revoking allocation:', err);
+      setError('Failed to revoke allocation: ' + err.message);
+    }
   };
 
   // Filter lists based on search input with strict status verification
@@ -119,6 +209,13 @@ export function PeopleView() {
            (s.email || '').toLowerCase().includes(queryStr) ||
            (s.department || '').toLowerCase().includes(queryStr) ||
            (s.section || '').toLowerCase().includes(queryStr);
+  });
+
+  const filteredFaculty = facultyList.filter(f => {
+    const queryStr = searchQuery.toLowerCase();
+    return (f.name || '').toLowerCase().includes(queryStr) ||
+           (f.email || '').toLowerCase().includes(queryStr) ||
+           (f.department || '').toLowerCase().includes(queryStr);
   });
 
   return (
@@ -165,7 +262,7 @@ export function PeopleView() {
                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            Faculty
+            Faculty ({facultyList.length})
           </button>
         </div>
       </div>
@@ -338,20 +435,74 @@ export function PeopleView() {
         ) : (
           /* FACULTY TAB */
           <div className="space-y-4">
-            <div className="p-4 border border-slate-100 rounded-xl flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500">
-                  SJ
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900">Dr. Sarah Jenkins</h4>
-                  <p className="text-xs text-slate-500">Senior Professor</p>
-                </div>
+            {filteredFaculty.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <p className="font-bold text-base text-slate-600 mb-1">No faculty members found</p>
+                <p className="text-xs">Registered faculty will appear here for class allocation.</p>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-bold text-[#D67756] bg-[#FFF2ED] px-2.5 py-1 rounded-md">CSE AI</span>
-              </div>
-            </div>
+            ) : (
+              filteredFaculty.map(faculty => {
+                const facultyUid = faculty.uid || faculty.id;
+                const facultyAllocs = allocationsList.filter(a => a.teacherUid === facultyUid && a.authorized !== false);
+                return (
+                  <div 
+                    key={faculty.id || facultyUid} 
+                    className="p-5 border border-slate-100 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-all bg-white"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-sm border border-slate-200 flex-shrink-0">
+                        {(faculty.name || faculty.email || 'F').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-extrabold text-slate-900 text-base">{faculty.name || faculty.email?.split('@')[0]}</h4>
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            Faculty
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">{faculty.email}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{faculty.department || 'Computer Science'} • {faculty.institution || 'UEMK'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      {/* Allocations Badges */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {facultyAllocs.length === 0 ? (
+                          <span className="text-xs text-slate-400 italic">No class allocations</span>
+                        ) : (
+                          facultyAllocs.map(alloc => (
+                            <span 
+                              key={alloc.id} 
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D67756] bg-[#FFF2ED] px-2.5 py-1 rounded-lg border border-[#D67756]/20"
+                            >
+                              <span>{alloc.department} • {alloc.year} • {alloc.section}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeAllocation(alloc.id)}
+                                className="text-[#D67756] hover:text-rose-700 hover:bg-rose-50 rounded-full w-4 h-4 flex items-center justify-center font-black leading-none ml-0.5 transition-colors"
+                                title="Revoke class allocation"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Assign Class Button */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFacultyForAllocation(faculty)}
+                        className="px-4 py-2 bg-[#D67756] hover:bg-[#c26444] text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
+                      >
+                        <span>+ Assign Class</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </div>
@@ -362,6 +513,15 @@ export function PeopleView() {
           student={selectedStudentForApproval}
           onClose={() => setSelectedStudentForApproval(null)}
           onApprove={handleApprove}
+        />
+      )}
+
+      {/* FACULTY ALLOCATION MODAL */}
+      {selectedFacultyForAllocation && (
+        <FacultyAllocationModal 
+          faculty={selectedFacultyForAllocation}
+          onClose={() => setSelectedFacultyForAllocation(null)}
+          onAllocate={handleAllocateFaculty}
         />
       )}
     </div>
@@ -520,7 +680,157 @@ function ApprovalModal({ student, onClose, onApprove }) {
   );
 }
 
-export function AcademicManagementView() {
+function FacultyAllocationModal({ faculty, onClose, onAllocate }) {
+  const [department, setDepartment] = useState(faculty.department || 'Computer Science');
+  const [year, setYear] = useState('2nd Year');
+  const [section, setSection] = useState('Sec C');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [modalError, setModalError] = useState('');
+
+  const isFormValid = department.trim() !== '' && year.trim() !== '' && section.trim() !== '';
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isFormValid || isSubmitting) return;
+
+    setModalError('');
+    setIsSubmitting(true);
+    try {
+      await onAllocate(faculty, {
+        department,
+        year,
+        section
+      });
+    } catch (err) {
+      console.error('Faculty allocation modal error:', err);
+      setModalError(err.message || 'Failed to allocate class. Please verify administrative permissions.');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+      <div 
+        className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-extrabold text-slate-900">Assign Faculty to Class</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Grant attendance marking authority for this academic class.</p>
+          </div>
+          <button 
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="text-slate-400 hover:text-slate-700 font-bold text-xl p-1 leading-none rounded-lg"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Candidate Box */}
+          <div className="bg-[#FFF2ED]/60 border border-[#D67756]/20 p-4 rounded-2xl">
+            <h4 className="text-xs font-bold text-[#D67756] uppercase tracking-wider">Faculty Details</h4>
+            <p className="text-sm font-bold text-slate-900 mt-1">{faculty.name || faculty.email?.split('@')[0] || 'Faculty Member'}</p>
+            <p className="text-xs text-slate-600 font-medium">{faculty.email}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">UID: {faculty.uid || faculty.id}</p>
+          </div>
+
+          {modalError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+              {modalError}
+            </div>
+          )}
+
+          {/* Department */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Department / Discipline <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              required
+              disabled={isSubmitting}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-[#D67756] focus:ring-2 focus:ring-[#D67756]/20 transition-all"
+            >
+              {DEPARTMENTS.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Academic Year <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              required
+              disabled={isSubmitting}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-[#D67756] focus:ring-2 focus:ring-[#D67756]/20 transition-all"
+            >
+              {YEARS.map(yr => (
+                <option key={yr} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Section */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Section Allocation <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={section}
+              onChange={(e) => setSection(e.target.value)}
+              required
+              disabled={isSubmitting}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-[#D67756] focus:ring-2 focus:ring-[#D67756]/20 transition-all"
+            >
+              {SECTIONS.map(sec => (
+                <option key={sec} value={sec}>{sec}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!isFormValid || isSubmitting}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D67756] hover:bg-[#c26444] shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>Allocating...</span>
+                </>
+              ) : (
+                <span>Confirm Class Allocation</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function AcademicManagementView({ onNavigate }) {
   return (
     <div className="space-y-6 animate-hero-fade-up">
       <h2 className="text-2xl font-extrabold text-slate-900">Academic Management</h2>
@@ -539,11 +849,14 @@ export function AcademicManagementView() {
           <h3 className="text-lg font-bold text-slate-900">Branches & Specializations</h3>
           <p className="text-sm text-slate-500 mt-1">Manage CSE, AI, Core, etc.</p>
         </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow">
-          <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4">
+        <div 
+          onClick={() => onNavigate && onNavigate('People', 'Faculty')}
+          className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow group"
+        >
+          <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
             <Icons.Students />
           </div>
-          <h3 className="text-lg font-bold text-slate-900">Faculty Assignment</h3>
+          <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#D67756] transition-colors">Faculty Assignment</h3>
           <p className="text-sm text-slate-500 mt-1">Assign faculty to academic scopes.</p>
         </div>
       </div>

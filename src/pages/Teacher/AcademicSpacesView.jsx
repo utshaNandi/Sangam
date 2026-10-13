@@ -3,7 +3,7 @@ import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
 import { get20Students, getAssignmentsForSection, AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
 
-export default function AcademicSpacesView() {
+export default function AcademicSpacesView({ userProfile }) {
   const buildTree = (allocations) => {
     const tree = {};
     allocations.forEach(alloc => {
@@ -99,7 +99,7 @@ export default function AcademicSpacesView() {
     return (
       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
-        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : selectedGroup.isStudents ? <StudentsListView group={selectedGroup} /> : selectedGroup.isAttendance ? <AttendanceView group={selectedGroup} /> : <OfficialGroupView group={selectedGroup} />}
+        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : selectedGroup.isStudents ? <StudentsListView group={selectedGroup} /> : selectedGroup.isAttendance ? <AttendanceView group={selectedGroup} userProfile={userProfile} /> : <OfficialGroupView group={selectedGroup} />}
       </div>
     );
   }

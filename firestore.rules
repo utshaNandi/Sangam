@@ -121,6 +121,117 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
     }
 
+    // Check whether caller is an active, authorized Faculty verified by administrator whitelist
+    function isAuthorizedFaculty() {
+      return isAuthenticated() &&
+        hasValidEmail() &&
+        isPreAuthorizedStaff(request.auth.token.email.lower(), 'faculty') &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'faculty' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function getFacultyData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getDirectorData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Verify whether faculty member is authorized for the given class (institution, department, year, section)
+    function isFacultyAuthorizedForClass(teacherUid, institution, department, year, section) {
+      let allocId = teacherUid + '_' + year + '_' + section;
+      let allocPath = /databases/$(database)/documents/teacher_allocations/$(allocId);
+      let hasAllocDoc = exists(allocPath) &&
+                        get(allocPath).data.authorized == true &&
+                        get(allocPath).data.teacherUid == teacherUid &&
+                        get(allocPath).data.institution == institution &&
+                        get(allocPath).data.department == department &&
+                        get(allocPath).data.year == year &&
+                        get(allocPath).data.section == section;
+      let faculty = getFacultyData();
+      let hasProfileMatch = ('year' in faculty) && faculty.year == year &&
+                            ('section' in faculty) && faculty.section == section &&
+                            faculty.department == department &&
+                            faculty.institution == institution;
+      return hasAllocDoc || hasProfileMatch;
+    }
+
+    // Helper to match section strings, supporting standard variations (e.g. 'Sec C', 'Section C', 'CSE-C')
+    function isMatchingSection(studentSec, targetSec) {
+      return studentSec == targetSec ||
+             (studentSec == 'Section A' && targetSec == 'Sec A') ||
+             (studentSec == 'Sec A' && targetSec == 'Section A') ||
+             (studentSec == 'Section B' && targetSec == 'Sec B') ||
+             (studentSec == 'Sec B' && targetSec == 'Section B') ||
+             (studentSec == 'Section C' && targetSec == 'Sec C') ||
+             (studentSec == 'Sec C' && targetSec == 'Section C') ||
+             (studentSec == 'Section D' && targetSec == 'Sec D') ||
+             (studentSec == 'Sec D' && targetSec == 'Section D') ||
+             (studentSec == 'CSE-C' && (targetSec == 'Sec C' || targetSec == 'Section C')) ||
+             (studentSec == 'CSE-B' && (targetSec == 'Sec B' || targetSec == 'Section B')) ||
+             (studentSec == 'CSE-A' && (targetSec == 'Sec A' || targetSec == 'Section A'));
+    }
+
+    // Verify student is active and matches the faculty member's institution, department, year, and section
+    function isStudentInFacultyScope(studentUid, year, section) {
+      let studentPath = /databases/$(database)/documents/users/$(studentUid);
+      return exists(studentPath) &&
+             get(studentPath).data.role == 'student' &&
+             get(studentPath).data.status == 'active' &&
+             get(studentPath).data.department == getFacultyData().department &&
+             get(studentPath).data.institution == getFacultyData().institution &&
+             (!('year' in get(studentPath).data) || get(studentPath).data.year == year) &&
+             (!('section' in get(studentPath).data) || isMatchingSection(get(studentPath).data.section, section));
+    }
+
+    // Attendance record schema validation
+    function isValidAttendanceRecordSchema(data) {
+      let allowed = ['sessionId', 'institution', 'department', 'year', 'section', 'date', 'period', 'studentUid', 'status', 'markedBy', 'markedAt', 'studentName', 'studentRoll', 'subject'];
+      let required = ['sessionId', 'institution', 'department', 'year', 'section', 'date', 'period', 'studentUid', 'status', 'markedBy', 'markedAt'];
+
+      return request.resource.data.keys().hasOnly(allowed) &&
+             request.resource.data.keys().hasAll(required) &&
+             data.sessionId is string && data.sessionId.size() > 0 && data.sessionId.size() <= 150 &&
+             data.institution is string && data.institution.size() > 0 && data.institution.size() <= 100 &&
+             data.department is string && data.department.size() > 0 && data.department.size() <= 100 &&
+             data.year is string && data.year.size() > 0 && data.year.size() <= 50 &&
+             data.section is string && data.section.size() > 0 && data.section.size() <= 50 &&
+             data.date is string && data.date.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") &&
+             (data.period is int || data.period is number) && data.period >= 1 && data.period <= 9 &&
+             data.studentUid is string && data.studentUid.size() > 0 && data.studentUid.size() <= 128 &&
+             data.status in ['Present', 'Absent'] &&
+             data.markedBy is string && data.markedBy == request.auth.uid &&
+             data.markedAt is string &&
+             (!('studentName' in data) || (data.studentName is string && data.studentName.size() <= 100)) &&
+             (!('studentRoll' in data) || (data.studentRoll is string && data.studentRoll.size() <= 50)) &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() <= 100));
+    }
+
+    // Attendance session schema validation
+    function isValidAttendanceSessionSchema(data) {
+      let allowed = ['sessionId', 'institution', 'department', 'year', 'section', 'date', 'period', 'markedBy', 'markedAt', 'presentCount', 'absentCount', 'totalStudents', 'subject'];
+      let required = ['sessionId', 'institution', 'department', 'year', 'section', 'date', 'period', 'markedBy', 'markedAt', 'presentCount', 'absentCount', 'totalStudents'];
+
+      return request.resource.data.keys().hasOnly(allowed) &&
+             request.resource.data.keys().hasAll(required) &&
+             data.sessionId is string && data.sessionId.size() > 0 && data.sessionId.size() <= 150 &&
+             data.institution is string && data.institution.size() > 0 && data.institution.size() <= 100 &&
+             data.department is string && data.department.size() > 0 && data.department.size() <= 100 &&
+             data.year is string && data.year.size() > 0 && data.year.size() <= 50 &&
+             data.section is string && data.section.size() > 0 && data.section.size() <= 50 &&
+             data.date is string && data.date.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") &&
+             (data.period is int || data.period is number) && data.period >= 1 && data.period <= 9 &&
+             data.markedBy is string && data.markedBy == request.auth.uid &&
+             data.markedAt is string &&
+             (data.presentCount is int || data.presentCount is number) && data.presentCount >= 0 &&
+             (data.absentCount is int || data.absentCount is number) && data.absentCount >= 0 &&
+             (data.totalStudents is int || data.totalStudents is number) && data.totalStudents >= 0 &&
+             (data.presentCount + data.absentCount == data.totalStudents) &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() <= 100));
+    }
+
     // RBAC: Enforce trusted privilege authorization on profile creation
     function canCreateRole(data) {
       let emailLower = request.auth.token.email.lower();
@@ -191,10 +302,14 @@ service cloud.firestore {
     // Collection: users
     // ===============================================================
     match /users/{userId} {
-      // Users can only read their own profile; authorized Directors can read student profiles
-      allow get: if isOwner(userId) || (isAuthorizedDirector() && resource.data.role == 'student');
-      // Authorized Directors can list students for administrative review
-      allow list: if isAuthorizedDirector();
+      // Users can only read their own profile; authorized Directors can read student profiles; authorized Faculty can read active students in their department
+      allow get: if isOwner(userId) ||
+                    (isAuthorizedDirector() && resource.data.role == 'student' && (!('institution' in getDirectorData()) || !('institution' in resource.data) || resource.data.institution == getDirectorData().institution)) ||
+                    (isAuthorizedFaculty() && resource.data.role == 'student' && resource.data.status == 'active' && resource.data.department == getFacultyData().department && (!('institution' in getFacultyData()) || !('institution' in resource.data) || resource.data.institution == getFacultyData().institution));
+
+      // Authorized Directors can list students; Authorized Faculty can list active students within their department
+      allow list: if isAuthorizedDirector() ||
+                     (isAuthorizedFaculty() && resource.data.role == 'student' && resource.data.status == 'active' && resource.data.department == getFacultyData().department);
 
       // Account profile creation
       allow create: if isOwner(userId) &&
@@ -217,6 +332,116 @@ service cloud.firestore {
                         (isValidStudentApproval(request.resource.data, resource.data) || isValidStudentAcademicUpdate(request.resource.data, resource.data)));
 
       // Direct client deletion is denied
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // Collection: teacher_allocations
+    // ===============================================================
+    match /teacher_allocations/{allocId} {
+      // Directors can read only allocations within their authorized institution
+      // Faculty can read only allocations within their authorized institution or their own allocation
+      allow get: if (isAuthorizedDirector() && (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
+                    (isAuthorizedFaculty() && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution || resource.data.teacherUid == request.auth.uid));
+
+      allow list: if (isAuthorizedDirector() && (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
+                     (isAuthorizedFaculty() && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
+
+      // Only authorized Director can manage teacher allocations within their institution
+      allow create: if isAuthorizedDirector() &&
+                       allocId == request.resource.data.teacherUid + '_' + request.resource.data.year + '_' + request.resource.data.section &&
+                       request.resource.data.keys().hasOnly(['teacherUid', 'institution', 'department', 'year', 'section', 'authorized', 'createdAt', 'createdBy']) &&
+                       request.resource.data.keys().hasAll(['teacherUid', 'institution', 'department', 'year', 'section', 'authorized']) &&
+                       request.resource.data.teacherUid is string && request.resource.data.teacherUid.size() > 0 &&
+                       request.resource.data.institution is string && request.resource.data.institution.size() > 0 &&
+                       request.resource.data.department is string && request.resource.data.department.size() > 0 &&
+                       request.resource.data.year is string && request.resource.data.year.size() > 0 &&
+                       request.resource.data.section is string && request.resource.data.section.size() > 0 &&
+                       request.resource.data.authorized is bool &&
+                       (!('institution' in getDirectorData()) || request.resource.data.institution == getDirectorData().institution);
+
+      allow update: if isAuthorizedDirector() &&
+                       allocId == request.resource.data.teacherUid + '_' + request.resource.data.year + '_' + request.resource.data.section &&
+                       request.resource.data.keys().hasOnly(['teacherUid', 'institution', 'department', 'year', 'section', 'authorized', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']) &&
+                       request.resource.data.authorized is bool &&
+                       areImmutableFieldsUnchanged(['teacherUid', 'institution', 'department', 'year', 'section']) &&
+                       (!('institution' in getDirectorData()) || (resource.data.institution == getDirectorData().institution && request.resource.data.institution == getDirectorData().institution));
+
+      allow delete: if isAuthorizedDirector() &&
+                       (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution);
+    }
+
+    // ===============================================================
+    // Collection: attendance_records
+    // ===============================================================
+    match /attendance_records/{recordId} {
+      // Students can read ONLY their own attendance records
+      allow get: if (isAuthenticated() && resource != null && resource.data.studentUid == request.auth.uid) ||
+                    (isAuthorizedFaculty() && (resource == null || (resource.data.institution == getFacultyData().institution && resource.data.department == getFacultyData().department))) ||
+                    (isAuthorizedDirector() && (resource == null || (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)));
+
+      allow list: if (isAuthenticated() && resource.data.studentUid == request.auth.uid) ||
+                     (isAuthorizedFaculty() &&
+                      resource.data.institution == getFacultyData().institution &&
+                      resource.data.department == getFacultyData().department) ||
+                     (isAuthorizedDirector() &&
+                      (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution));
+
+      // Create: Authorized Faculty can create records for allocated class and in-scope active students
+      allow create: if isAuthorizedFaculty() &&
+                       isValidAttendanceRecordSchema(request.resource.data) &&
+                       recordId == request.resource.data.sessionId + '_' + request.resource.data.studentUid &&
+                       request.resource.data.markedBy == request.auth.uid &&
+                       request.resource.data.institution == getFacultyData().institution &&
+                       request.resource.data.department == getFacultyData().department &&
+                       isFacultyAuthorizedForClass(request.auth.uid, request.resource.data.institution, request.resource.data.department, request.resource.data.year, request.resource.data.section) &&
+                       isStudentInFacultyScope(request.resource.data.studentUid, request.resource.data.year, request.resource.data.section);
+
+      // Update: Authorized Faculty can update attendance status/timestamp for existing records
+      allow update: if isAuthorizedFaculty() &&
+                       isValidAttendanceRecordSchema(request.resource.data) &&
+                       request.resource.data.markedBy == request.auth.uid &&
+                       request.resource.data.institution == getFacultyData().institution &&
+                       request.resource.data.department == getFacultyData().department &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'markedBy', 'markedAt']) &&
+                       areImmutableFieldsUnchanged(['sessionId', 'studentUid', 'date', 'period', 'institution', 'department', 'year', 'section']) &&
+                       isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section) &&
+                       isStudentInFacultyScope(resource.data.studentUid, resource.data.year, resource.data.section);
+
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // Collection: attendance_sessions
+    // ===============================================================
+    match /attendance_sessions/{sessionId} {
+      allow get: if (isAuthorizedFaculty() &&
+                     (resource == null || (resource.data.institution == getFacultyData().institution && resource.data.department == getFacultyData().department))) ||
+                    (isAuthorizedDirector() &&
+                     (resource == null || (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)));
+
+      allow list: if (isAuthorizedFaculty() &&
+                      resource.data.institution == getFacultyData().institution &&
+                      resource.data.department == getFacultyData().department) ||
+                     (isAuthorizedDirector() &&
+                      (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution));
+
+      allow create: if isAuthorizedFaculty() &&
+                       isValidAttendanceSessionSchema(request.resource.data) &&
+                       request.resource.data.sessionId == sessionId &&
+                       request.resource.data.markedBy == request.auth.uid &&
+                       request.resource.data.institution == getFacultyData().institution &&
+                       request.resource.data.department == getFacultyData().department &&
+                       isFacultyAuthorizedForClass(request.auth.uid, request.resource.data.institution, request.resource.data.department, request.resource.data.year, request.resource.data.section);
+
+      allow update: if isAuthorizedFaculty() &&
+                       isValidAttendanceSessionSchema(request.resource.data) &&
+                       request.resource.data.institution == getFacultyData().institution &&
+                       request.resource.data.department == getFacultyData().department &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['presentCount', 'absentCount', 'totalStudents', 'markedAt', 'subject']) &&
+                       areImmutableFieldsUnchanged(['sessionId', 'date', 'period', 'institution', 'department', 'year', 'section', 'markedBy']) &&
+                       isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section);
+
       allow delete: if false;
     }
 

@@ -6,8 +6,9 @@ import { PeopleView, AcademicManagementView } from './DirectorViews';
 import DirectorAcademicSpacesView from './DirectorAcademicSpacesView';
 import DirectorDashboard from './DirectorDashboard';
 
-export default function DirectorApp({ onLogout }) {
+export default function DirectorApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
+  const [peopleInitialTab, setPeopleInitialTab] = useState('Pending Approvals');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -38,9 +39,12 @@ export default function DirectorApp({ onLogout }) {
       case 'Academic Space': 
         return <DirectorAcademicSpacesView />;
       case 'People':
-        return <PeopleView />;
+        return <PeopleView userProfile={userProfile} initialTab={peopleInitialTab} />;
       case 'Academic Management':
-        return <AcademicManagementView />;
+        return <AcademicManagementView onNavigate={(tab, subTab) => {
+          if (subTab) setPeopleInitialTab(subTab);
+          setActiveTab(tab);
+        }} />;
       case 'Announcements':
       case 'Attendance':
       case 'Performance':
