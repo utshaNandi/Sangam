@@ -11,7 +11,8 @@ import {
   fetchSessionAttendanceRecords, 
   generateSessionId, 
   getCurrentPeriod, 
-  getTodayDateString 
+  getTodayDateString,
+  resolveAcademicScope
 } from '../../services/attendanceService';
 
 export const scheduleData = {
@@ -124,60 +125,72 @@ export const get20Students = (branch, year, section) => {
 
 
 
-export function ClassesView() {
-  const daysMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const currentDayName = daysMap[new Date().getDay()].toLowerCase();
-  
-  let todaysSchedule = [];
-  for (const [dayKey, periods] of Object.entries(scheduleData)) {
-    if (dayKey.toLowerCase().trim() === currentDayName) {
-      todaysSchedule = periods;
-      break;
-    }
+export { resolveAcademicScope };
+
+export function ClassesView({ userProfile, allocations = [], isLoadingAllocations = false }) {
+  if (isLoadingAllocations) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Classes</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-theme-primary mb-3"></div>
+          <p className="text-sm font-medium text-slate-500">Loading your assigned classes...</p>
+        </div>
+      </div>
+    );
   }
-  
-  const myClasses = todaysSchedule.map(period => {
-    return {
-      id: period.period,
-      subject: period.subject,
-      section: period.classInfo ? period.classInfo : period.type,
-      semester: currentDayName.charAt(0).toUpperCase() + currentDayName.slice(1),
-      studentsCount: period.type === 'Break' ? 0 : 20,
-      room: period.type === 'Break' ? 'Cafeteria' : (period.type === 'Lab' ? 'Computer Lab' : 'Lecture Hall'),
-      time: period.time
-    };
-  });
+
+  if (!isLoadingAllocations && (!allocations || allocations.length === 0)) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Classes</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+            <Icons.Classes />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">No Classes Allocated</h3>
+          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+            You do not currently have any class allocations. Please contact your Director to assign your classes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const myClasses = allocations.map((alloc, idx) => ({
+    id: alloc.id || idx,
+    subject: alloc.subject || `${alloc.department} Core`,
+    section: `${alloc.year} • ${alloc.department} • ${alloc.section}`,
+    semester: alloc.year,
+    studentsCount: 20,
+    room: `Room ${101 + (idx * 5)}`,
+    time: `${9 + (idx % 6)}:30 AM - ${10 + (idx % 6)}:15 AM`
+  }));
 
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
       <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Classes</h2>
       
-      {myClasses.length === 0 ? (
-        <div className="bg-white rounded-[24px] border border-slate-100 p-10 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-           <p className="text-lg font-bold text-slate-500">No classes scheduled for today</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {myClasses.map(c => (
-            <div key={c.id} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 cursor-pointer group">
-              <div className="flex justify-between items-start mb-5">
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 group-hover:text-theme-primary transition-colors">{c.subject}</h3>
-                  <p className="text-sm font-medium text-slate-500 mt-1">{c.section} • {c.semester}</p>
-                </div>
-                <div className="w-12 h-12 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
-                  <Icons.Classes />
-                </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {myClasses.map(c => (
+          <div key={c.id} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 cursor-pointer group">
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 group-hover:text-theme-primary transition-colors">{c.subject}</h3>
+                <p className="text-sm font-medium text-slate-500 mt-1">{c.section} • {c.semester}</p>
               </div>
-              <div className="space-y-3 text-sm text-slate-500 font-medium">
-                <div className="flex justify-between items-center py-2 border-b border-slate-50"><span>Students:</span> <span className="font-bold text-slate-900 bg-slate-50 px-2 py-0.5 rounded-lg">{c.studentsCount}</span></div>
-                <div className="flex justify-between items-center py-2 border-b border-slate-50"><span>Room:</span> <span className="font-bold text-slate-900 group-hover:text-slate-600 transition-colors">{c.room}</span></div>
-                <div className="flex justify-between items-center py-2"><span>Time:</span> <span className="font-bold text-theme-primary">{c.time}</span></div>
+              <div className="w-12 h-12 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                <Icons.Classes />
               </div>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="space-y-3 text-sm text-slate-500 font-medium">
+              <div className="flex justify-between items-center py-2 border-b border-slate-50"><span>Students:</span> <span className="font-bold text-slate-900 bg-slate-50 px-2 py-0.5 rounded-lg">{c.studentsCount}</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-50"><span>Room:</span> <span className="font-bold text-slate-900 group-hover:text-slate-600 transition-colors">{c.room}</span></div>
+              <div className="flex justify-between items-center py-2"><span>Time:</span> <span className="font-bold text-theme-primary">{c.time}</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -257,10 +270,7 @@ export function TreeHierarchy({ title, tree, branches, renderContent, expandedNo
   );
 }
 
-export function StudentsView() {
-  
-  
-
+export function StudentsView({ userProfile, allocations = [], isLoadingAllocations = false }) {
   const [expandedNodes, setExpandedNodes] = useState({});
   const toggleNode = (nodeId) => setExpandedNodes(prev => {
     const isExpanding = !prev[nodeId];
@@ -310,7 +320,48 @@ export function StudentsView() {
     );
   };
 
-  return <TreeHierarchy title="Students" tree={tree} branches={branches} renderContent={renderContent} expandedNodes={expandedNodes} toggleNode={toggleNode} />;
+  if (isLoadingAllocations) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Students</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-theme-primary mb-3"></div>
+          <p className="text-sm font-medium text-slate-500">Loading student directory...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoadingAllocations && (!allocations || allocations.length === 0)) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Students</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+            <Icons.Students />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">No Students Allocated</h3>
+          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+            You do not currently have any student rosters because no classes have been allocated to you. Contact your Director to assign classes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const dynamicTree = {};
+  allocations.forEach(alloc => {
+    const branch = alloc.department;
+    const year = alloc.year;
+    const section = alloc.section;
+    if (!branch || !year || !section) return;
+    if (!dynamicTree[branch]) dynamicTree[branch] = {};
+    if (!dynamicTree[branch][year]) dynamicTree[branch][year] = new Set();
+    dynamicTree[branch][year].add(section);
+  });
+  const dynamicBranches = Object.keys(dynamicTree).sort();
+
+  return <TreeHierarchy title="Students" tree={dynamicTree} branches={dynamicBranches} renderContent={renderContent} expandedNodes={expandedNodes} toggleNode={toggleNode} />;
 }
 
 export const getAssignmentsForSection = (branch, year, section) => {
@@ -335,7 +386,7 @@ export const getAssignmentsForSection = (branch, year, section) => {
     return sectionAssignments;
 };
 
-export function AssignmentsView({ group }) {
+export function AssignmentsView({ group, userProfile, allocations = [] }) {
   
 
   const [expandedNodes, setExpandedNodes] = useState({});
@@ -734,33 +785,19 @@ if (viewingAssignment) {
   };
 
   
-    let br = "Unknown";
-    let yr = "Unknown";
-    let sec = "All Sections";
-    let scopeText = "All Sections";
+    const defaultAlloc = allocations?.[0] || null;
+    const { br, yr, sec, scopeText } = resolveAcademicScope(group, defaultAlloc);
 
-    if (group && group.path) {
-      // Path structure usually: ["UEMK", "B.Tech", "CSE", "AI", "2nd Year", "Sec C", "DSA"]
-      if (group.path.length >= 4) {
-        br = group.path[2] + " " + group.path[3]; // CSE AI
-      }
-      if (group.path.length >= 5) {
-        yr = group.path[4]; // 2nd Year
-      }
-      if (group.path.length >= 6) {
-        sec = group.path[5]; // Sec C
-      }
-      if (group.path.length >= 7) {
-        sec = group.path[5] + " · " + group.path[6]; // Sec C · DSA
-      }
-      if (group.scope) {
-        scopeText = group.scope;
-      }
+    if (br === "Unknown" && (!allocations || allocations.length === 0)) {
+      return (
+        <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ASSIGNMENTS</h2>
+          <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+            <p className="text-slate-500 font-medium">No class allocated for assignments.</p>
+          </div>
+        </div>
+      );
     }
-
-    // Default values if somehow not set
-    if (br === "Unknown") br = "CSE AI";
-    if (yr === "Unknown") yr = "2nd Year";
 
     return (
        <div className="space-y-6 animate-fade-in relative z-10 pb-10">
@@ -771,55 +808,32 @@ if (viewingAssignment) {
          {renderContent(br, yr, sec)}
        </div>
     );
-
 }
 
-export function AttendanceView({ group, userProfile }) {
-  // Resolve academic scope parameters
-  let br = "Unknown";
-  let yr = "Unknown";
-  let sec = "All Sections";
-  let scopeText = "All Sections";
+export function AttendanceView({ group, userProfile, allocations = [], isLoadingAllocations = false }) {
+  const [selectedAllocIndex, setSelectedAllocIndex] = useState(0);
 
-  if (group && group.path && Array.isArray(group.path) && group.path.length > 0) {
-    if (group.path.length >= 6 && (group.path[1] === 'B.Tech' || group.path[1] === 'M.Tech' || group.path[1] === 'BCA' || group.path[1] === 'BBA')) {
-      // 6+ level hierarchy: [institution, programme, branch, specialization, year, section, subject?]
-      br = group.path[2] + " " + group.path[3]; // CSE AI
-      yr = group.path[4]; // 2nd Year
-      sec = group.path[5]; // Sec C / Section A
-      if (group.path.length >= 7) {
-        sec = group.path[5] + " · " + group.path[6];
-      }
-    } else if (group.path.length >= 4) {
-      // 4 level hierarchy: [institution, department, year, section, subject?]
-      br = group.path[1]; // CSE AI
-      yr = group.path[2]; // 2nd Year
-      sec = group.path[3]; // Sec C
-      if (group.path.length >= 5) {
-        sec = group.path[3] + " · " + group.path[4];
-      }
-    } else if (group.path.length >= 2) {
-      br = group.path[1];
-      if (group.path.length >= 3) {
-        yr = group.path[2];
-      }
-    }
-    if (group.scope) {
-      scopeText = group.scope;
-    }
-  }
+  const activeAlloc = (!group && allocations && allocations.length > 0) 
+    ? (allocations[selectedAllocIndex] || allocations[0]) 
+    : null;
 
-  // Display label preserves academic branch ("CSE AI") for UI presentation
-  const displayBranch = br !== "Unknown" ? br : "CSE AI";
-  const effectiveYear = yr !== "Unknown" ? yr : "2nd Year";
-  const rawSection = (group?.path && group.path.length >= 6) ? group.path[5] : (sec.includes('·') ? sec.split('·')[0].trim() : sec);
-  const institution = userProfile?.institution || group?.path?.[0] || 'UEMK';
+  const { br, yr, sec, scopeText } = resolveAcademicScope(group, activeAlloc);
+
+  // Display label preserves academic branch (e.g. "Mechanical Engineering", "CSE AI")
+  const displayBranch = br !== "Unknown" ? br : (allocations[0]?.department || userProfile?.department || "Unassigned");
+  const effectiveYear = yr !== "Unknown" ? yr : (allocations[0]?.year || "1st Year");
+  const rawSection = (group?.path && group.path.length >= 6) 
+    ? group.path[5] 
+    : (sec.includes('·') ? sec.split('·')[0].trim() : (sec === 'All Sections' ? (activeAlloc?.section || 'Sec A') : sec));
+  const institution = userProfile?.institution || group?.path?.[0] || activeAlloc?.institution || 'UEMK';
 
   // Canonical mapping from academic hierarchy display branch to Firestore department names
   const CANONICAL_DEPARTMENT_MAP = {
     'CSE AI': 'Computer Science',
     'CSE': 'Computer Science',
     'Computer Science': 'Computer Science',
+    'IT': 'Information Technology',
+    'Information Technology': 'Information Technology',
     'ECE': 'Electronics & Communication',
     'Electronics & Communication': 'Electronics & Communication',
     'EE': 'Electrical Engineering',
@@ -856,11 +870,45 @@ export function AttendanceView({ group, userProfile }) {
   };
   const sessionId = generateSessionId(sessionInfo);
 
+  if (!group && isLoadingAllocations) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#538C8C] mb-3"></div>
+          <p className="text-sm font-medium text-slate-500">Loading attendance allocations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!group && !isLoadingAllocations && (!allocations || allocations.length === 0)) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+            <Icons.Attendance />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">No Classes Assigned</h3>
+          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+            You do not currently have any class allocations. Please contact your Director to assign your department, year, and section.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Load active approved students and existing session records
   useEffect(() => {
     let isCancelled = false;
 
     async function loadAttendanceData() {
+      if (!group && (!allocations || allocations.length === 0)) {
+        setIsLoadingStudents(false);
+        return;
+      }
+
       setIsLoadingStudents(true);
       setErrorMessage('');
       try {
@@ -938,7 +986,7 @@ export function AttendanceView({ group, userProfile }) {
 
     loadAttendanceData();
     return () => { isCancelled = true; };
-  }, [sessionId, canonicalDepartment, effectiveYear, rawSection, userProfile?.uid, userProfile?.institution, userProfile?.department]);
+  }, [sessionId, canonicalDepartment, effectiveYear, rawSection, userProfile?.uid, userProfile?.institution, userProfile?.department, selectedAllocIndex, allocations?.length]);
 
   const handleMarkAll = (status) => {
     if (studentsList.length === 0) return;
@@ -1222,6 +1270,28 @@ export function AttendanceView({ group, userProfile }) {
        <div className="flex flex-col">
           <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
           <span className="text-sm font-bold text-slate-500 mt-1">{displayBranch} · {displayYear} · {scopeText}</span>
+          {!group && allocations && allocations.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Select Class:</span>
+              {allocations.map((alloc, idx) => {
+                const isSelected = selectedAllocIndex === idx;
+                return (
+                  <button
+                    key={alloc.id || idx}
+                    type="button"
+                    onClick={() => setSelectedAllocIndex(idx)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      isSelected
+                        ? 'bg-[#538C8C] text-white shadow-sm'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {alloc.department} • {alloc.year} • {alloc.section}
+                  </button>
+                );
+              })}
+            </div>
+          )}
        </div>
        {renderContent()}
      </div>
@@ -1439,20 +1509,19 @@ export function ScheduleView() {
 
 
 
-export function ProfileView() {
-  let totalClasses = 0;
-  const uniqueSubjects = new Set();
-  const uniqueSections = new Set();
-  
-  Object.values(scheduleData).forEach(day => {
-    day.forEach(period => {
-      if (period.classInfo && period.type !== 'Break' && period.type !== 'Self Study') {
-         totalClasses++;
-         uniqueSubjects.add(period.subject);
-         uniqueSections.add(period.classInfo);
-      }
-    });
-  });
+export function ProfileView({ userProfile, allocations = [] }) {
+  const distinctDepts = allocations.length > 0 
+    ? [...new Set(allocations.map(a => a.department))].join(', ')
+    : (userProfile?.department || 'Unassigned');
+
+  const totalClasses = allocations.length;
+  const uniqueSubjects = new Set(allocations.map(a => a.subject || a.department));
+  const uniqueSections = new Set(allocations.map(a => `${a.year} • ${a.department} • ${a.section}`));
+
+  const facultyName = userProfile?.name || auth?.currentUser?.displayName || 'Faculty Member';
+  const facultyEmail = userProfile?.email || auth?.currentUser?.email || '';
+  const facultyRole = userProfile?.role === 'faculty' ? 'Faculty Member' : (userProfile?.role || 'Faculty Member');
+  const avatarLetter = (facultyName || facultyEmail || 'F').charAt(0).toUpperCase();
 
   return (
     <div className="space-y-8 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
@@ -1463,7 +1532,7 @@ export function ProfileView() {
            
            {/* avatar */}
            <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-theme-bg text-theme-primary flex items-center justify-center font-extrabold text-5xl shadow-sm border border-theme-primary/10 flex-shrink-0 z-10 relative transition-transform duration-500 group-hover:scale-105 group-hover:-rotate-2">
-              {teacherProfile.avatar}
+              {avatarLetter}
               <div className="absolute -bottom-2 -right-2 w-8 h-8 md:w-10 md:h-10 bg-emerald-500 rounded-full border-4 border-white shadow-sm flex items-center justify-center" title="Active Status">
                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
               </div>
@@ -1472,19 +1541,19 @@ export function ProfileView() {
            <div className="text-center md:text-left z-10 flex-1 pt-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold mb-4 shadow-sm border border-slate-200">
                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                 Faculty ID: EMP-4092
+                 Faculty ID: EMP-{userProfile?.uid ? userProfile.uid.substring(0, 6).toUpperCase() : '4092'}
               </div>
-              <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-3">{teacherProfile.name}</h2>
-              <p className="text-lg md:text-xl font-bold text-slate-500 mb-8">{teacherProfile.role} • <span className="text-theme-primary">{teacherProfile.department}</span></p>
+              <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-3">{facultyName}</h2>
+              <p className="text-lg md:text-xl font-bold text-slate-500 mb-8">{facultyRole} • <span className="text-theme-primary">{distinctDepts}</span></p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
                  <div className="flex items-center gap-3 text-sm font-bold text-slate-700 bg-slate-50 hover:bg-theme-primary/5 hover:border-theme-primary/20 hover:text-theme-primary px-5 py-3 rounded-2xl border border-slate-100 transition-all cursor-pointer shadow-sm">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                    {teacherProfile.email}
+                    {facultyEmail || 'No email registered'}
                  </div>
                  <div className="flex items-center gap-3 text-sm font-bold text-slate-700 bg-slate-50 hover:bg-theme-primary/5 hover:border-theme-primary/20 hover:text-theme-primary px-5 py-3 rounded-2xl border border-slate-100 transition-all cursor-pointer shadow-sm">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                    +91 98765 43210
+                    {userProfile?.institution || 'UEMK'}
                  </div>
               </div>
            </div>
@@ -1581,29 +1650,20 @@ export const get85Students = (branch, year, section) => {
   return sectionStudents;
 };
 
-export function StudentsListView({ group }) {
-  let br = "Unknown";
-  let yr = "Unknown";
-  let sec = "All Sections";
-  let scopeText = "All Sections";
+export function StudentsListView({ group, userProfile, allocations = [] }) {
+  const defaultAlloc = allocations?.[0] || null;
+  const { br, yr, sec, scopeText } = resolveAcademicScope(group, defaultAlloc);
 
-  if (group && group.path) {
-    if (group.path.length >= 4) {
-      br = group.path[2] + " " + group.path[3]; // CSE AI
-    }
-    if (group.path.length >= 5) {
-      yr = group.path[4]; // 2nd Year
-    }
-    if (group.path.length >= 6) {
-      sec = group.path[5]; // Sec C
-    }
-    if (group.scope) {
-      scopeText = group.scope;
-    }
+  if (br === "Unknown" && (!allocations || allocations.length === 0)) {
+    return (
+      <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">STUDENTS</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <p className="text-slate-500 font-medium">No class allocated to view student roster.</p>
+        </div>
+      </div>
+    );
   }
-
-  if (br === "Unknown") br = "CSE AI";
-  if (yr === "Unknown") yr = "2nd Year";
 
   const sectionStudents = get85Students(br, yr, sec);
 

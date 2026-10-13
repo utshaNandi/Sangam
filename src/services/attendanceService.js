@@ -64,6 +64,20 @@ export async function fetchStudentsForSection({ institution, department, year, s
   const CANONICAL_DEPARTMENT_MAP = {
     'CSE AI': 'Computer Science',
     'CSE': 'Computer Science',
+    'Computer Science': 'Computer Science',
+    'IT': 'Information Technology',
+    'Information Technology': 'Information Technology',
+    'ECE': 'Electronics & Communication',
+    'Electronics & Communication': 'Electronics & Communication',
+    'EE': 'Electrical Engineering',
+    'Electrical Engineering': 'Electrical Engineering',
+    'ME': 'Mechanical Engineering',
+    'Mechanical Engineering': 'Mechanical Engineering',
+    'CE': 'Civil Engineering',
+    'Civil Engineering': 'Civil Engineering',
+    'BT': 'Biotechnology',
+    'Biotechnology': 'Biotechnology',
+    'Management': 'Management'
   };
   const canonicalDept = CANONICAL_DEPARTMENT_MAP[department] || department;
 
@@ -549,19 +563,13 @@ export async function createTeacherAllocation({
     throw new Error('All allocation fields (teacherUid, institution, department, year, section) are required.');
   }
 
-  const CANONICAL_DEPARTMENT_MAP = {
-    'CSE AI': 'Computer Science',
-    'CSE': 'Computer Science',
-  };
-  const canonicalDept = CANONICAL_DEPARTMENT_MAP[department] || department;
-
   const allocId = `${teacherUid}_${year}_${section}`;
   const allocRef = doc(dbInstance, 'teacher_allocations', allocId);
 
   const payload = {
     teacherUid,
     institution,
-    department: canonicalDept,
+    department,
     year,
     section,
     authorized: true,
@@ -622,4 +630,116 @@ export async function fetchTeacherAllocations({ institution, teacherUid } = {}, 
   });
   return allocations;
 }
+
+/**
+ * Subscribes to real-time class allocations for a specific teacher.
+ */
+export function subscribeTeacherAllocations({ institution, teacherUid }, onUpdate, onError, dbInstance = db) {
+  if (!teacherUid) return () => {};
+
+  let q;
+  if (institution) {
+    q = query(
+      collection(dbInstance, 'teacher_allocations'),
+      where('institution', '==', institution),
+      where('teacherUid', '==', teacherUid)
+    );
+  } else {
+    q = query(
+      collection(dbInstance, 'teacher_allocations'),
+      where('teacherUid', '==', teacherUid)
+    );
+  }
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const allocations = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.authorized !== false) {
+          allocations.push({
+            id: docSnap.id,
+            ...data
+          });
+        }
+      });
+      onUpdate(allocations);
+    },
+    (err) => {
+      console.error('Error subscribing to teacher allocations:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Resolves the academic branch, year, section, and scope text from a group object or default allocation.
+ * Guarantees zero hardcoded fallbacks to any specific department or class.
+ */
+export function resolveAcademicScope(group, defaultAlloc = null) {
+  let br = "Unknown";
+  let yr = "Unknown";
+  let sec = "All Sections";
+  let scopeText = "All Sections";
+
+  if (group && group.path && Array.isArray(group.path) && group.path.length > 0) {
+    if (group.path.length >= 6 && (group.path[1] === 'B.Tech' || group.path[1] === 'M.Tech' || group.path[1] === 'BCA' || group.path[1] === 'BBA')) {
+      // 6+ level hierarchy: [institution, programme, branch, specialization, year, section, subject?]
+      br = group.path[2] + " " + group.path[3];
+      yr = group.path[4];
+      sec = group.path[5];
+      if (group.path.length >= 7) {
+        sec = group.path[5] + " · " + group.path[6];
+      }
+    } else if (group.path.length >= 4) {
+      // 4 level hierarchy: [institution, department, year, section, subject?]
+      br = group.path[1];
+      yr = group.path[2];
+      sec = group.path[3];
+      if (group.path.length >= 5) {
+        sec = group.path[3] + " · " + group.path[4];
+      }
+    } else if (group.path.length >= 2) {
+      br = group.path[1];
+      if (group.path.length >= 3) {
+        yr = group.path[2];
+      }
+    }
+    if (group.scope) {
+      scopeText = group.scope;
+    }
+  } else if (defaultAlloc) {
+    br = defaultAlloc.department || "Unknown";
+    yr = defaultAlloc.year || "Unknown";
+    sec = defaultAlloc.section || "All Sections";
+    scopeText = defaultAlloc.section ? `${defaultAlloc.section} only` : "All Sections";
+  }
+
+  return { br, yr, sec, scopeText };
+}
+
+/**
+ * Builds a dynamic hierarchy tree from a list of teacher allocations.
+ * Returns an empty tree when allocations are empty or not provided.
+ */
+export function buildAcademicHierarchyTree(allocList, defaultInstitution = 'UEMK') {
+  const tree = {};
+  if (!Array.isArray(allocList)) return tree;
+  allocList.forEach(alloc => {
+    const inst = alloc.institution || defaultInstitution;
+    const dept = alloc.department;
+    const yr = alloc.year;
+    const sec = alloc.section;
+    if (!dept || !yr || !sec) return;
+    if (!tree[inst]) tree[inst] = {};
+    if (!tree[inst][dept]) tree[inst][dept] = {};
+    if (!tree[inst][dept][yr]) tree[inst][dept][yr] = {};
+    if (!tree[inst][dept][yr][sec]) tree[inst][dept][yr][sec] = {};
+    const subject = alloc.subject || 'All Subjects';
+    tree[inst][dept][yr][sec][subject] = alloc.permissions || ['View', 'Announce', 'Attendance'];
+  });
+  return tree;
+}
+
 

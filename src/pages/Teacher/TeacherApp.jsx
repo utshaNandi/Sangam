@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import { teacherProfile } from './mockData';
 import DashboardHome from './DashboardHome';
@@ -12,11 +12,45 @@ import {
   ProfileView
 } from './TeacherViews';
 import AcademicSpacesView from './AcademicSpacesView';
+import { auth } from '../../firebase/config';
+import { subscribeTeacherAllocations } from '../../services/attendanceService';
 
 export default function TeacherApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [allocations, setAllocations] = useState([]);
+  const [isLoadingAllocations, setIsLoadingAllocations] = useState(true);
+
+  const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
+  const institution = userProfile?.institution || '';
+
+  useEffect(() => {
+    if (!teacherUid) {
+      setAllocations([]);
+      setIsLoadingAllocations(false);
+      return;
+    }
+
+    setIsLoadingAllocations(true);
+    const unsubscribe = subscribeTeacherAllocations(
+      { institution: institution || undefined, teacherUid },
+      (updatedAllocs) => {
+        setAllocations(updatedAllocs);
+        setIsLoadingAllocations(false);
+      },
+      (err) => {
+        console.warn('TeacherApp allocations subscription error:', err);
+        setIsLoadingAllocations(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [teacherUid, institution]);
 
   const navItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
@@ -34,16 +68,26 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
   const renderContent = () => {
     switch(activeTab) {
-      case 'Dashboard': return <DashboardHome onNavigate={setActiveTab} />;
-      case 'Academic Spaces': return <AcademicSpacesView userProfile={userProfile} />;
-      case 'My Classes': return <ClassesView />;
-      case 'Students': return <StudentsView />;
-      case 'Attendance': return <AttendanceView userProfile={userProfile} />;
-      case 'Grades': return <GradesView />;
-      case 'Announcements': return <AnnouncementsView />;
-      case 'Schedule': return <ScheduleView />;
-      case 'Profile': return <ProfileView />;
-      default: return <div className="p-8 text-slate-500">View under construction</div>;
+      case 'Dashboard': 
+        return <DashboardHome onNavigate={setActiveTab} userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Academic Spaces': 
+        return <AcademicSpacesView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'My Classes': 
+        return <ClassesView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Students': 
+        return <StudentsView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Attendance': 
+        return <AttendanceView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Grades': 
+        return <GradesView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Announcements': 
+        return <AnnouncementsView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Schedule': 
+        return <ScheduleView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      case 'Profile': 
+        return <ProfileView userProfile={userProfile} allocations={allocations} isLoadingAllocations={isLoadingAllocations} />;
+      default: 
+        return <div className="p-8 text-slate-500">View under construction</div>;
     }
   };
 

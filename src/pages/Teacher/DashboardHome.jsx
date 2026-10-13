@@ -1,20 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
 import { Icons } from './Icons';
-import { tree, scheduleData, get20Students, getAssignmentsForSection } from './TeacherViews';
+import { get20Students, getAssignmentsForSection } from './TeacherViews';
 import teacher1Img from '../../components/teacher1.png';
 
-export default function DashboardHome({ onNavigate }) {
-  // Calculate Active Classes (Sections)
-  let activeClassesCount = 0;
+export default function DashboardHome({ onNavigate, userProfile, allocations = [], isLoadingAllocations = false }) {
+  // Derive sections directly from saved allocations
   const allSections = [];
-  for (const b in tree) {
-    for (const y in tree[b]) {
-       for (const sec of tree[b][y]) {
-         activeClassesCount++;
-         allSections.push({ branch: b, year: y, section: sec });
-       }
-    }
+  if (Array.isArray(allocations) && allocations.length > 0) {
+    allocations.forEach(alloc => {
+      if (alloc.department && alloc.year && alloc.section) {
+        allSections.push({
+          branch: alloc.department,
+          year: alloc.year,
+          section: alloc.section,
+          subject: alloc.subject || `${alloc.department} Core`
+        });
+      }
+    });
   }
+
+  const activeClassesCount = allSections.length;
 
   // Calculate Total Students and Attendance
   const totalStudents = activeClassesCount * 20;
@@ -47,11 +52,10 @@ export default function DashboardHome({ onNavigate }) {
     });
   });
   // Sort assignments to get recent ones
-  const recentAssignments = allAssignments.slice(0, 3); // Get first 3 assignments to display
+  const recentAssignments = allAssignments.slice(0, 3);
 
   // Process submitted counts for recent assignments
   recentAssignments.forEach(a => {
-    // Extract branch, year, sec from className (format: "year • branch • section")
     const parts = a.className.split(' • ');
     if (parts.length === 3) {
       const yr = parts[0];
@@ -67,14 +71,17 @@ export default function DashboardHome({ onNavigate }) {
       });
       a.submitted = submitted;
     } else {
-      a.submitted = 0; // fallback
+      a.submitted = 0;
     }
   });
 
-  // Calculate Today's Classes from Schedule
-  const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  const rawTodayClasses = scheduleData[todayName] || [];
-  const todayClasses = rawTodayClasses.filter(c => c.type !== 'Break' && c.type !== 'Self Study');
+  // Calculate Today's Classes from allocated sections
+  const todayClasses = allSections.map((sec, idx) => ({
+    time: `${9 + (idx % 6)}:30 AM - ${10 + (idx % 6)}:15 AM`,
+    subject: sec.subject || `${sec.branch} Lecture`,
+    classInfo: `${sec.year} • ${sec.branch} • ${sec.section}`,
+    room: `Room ${101 + (idx * 5)}`
+  }));
 
   return (
     <div className="space-y-8 animate-fade-in relative">

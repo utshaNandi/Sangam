@@ -7,11 +7,16 @@ import { createTeacherAllocation, deleteTeacherAllocation, fetchTeacherAllocatio
 
 const DEPARTMENTS = [
   'Computer Science',
+  'CSE AI',
+  'CSE',
+  'Information Technology',
   'Electronics & Communication',
+  'ECE',
+  'Electrical Engineering',
   'Mechanical Engineering',
   'Civil Engineering',
-  'Management',
-  'Biotechnology'
+  'Biotechnology',
+  'Management'
 ];
 
 const YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];

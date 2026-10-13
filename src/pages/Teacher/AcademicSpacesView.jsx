@@ -1,22 +1,12 @@
 import { useState } from 'react';
-import { teacherAllocations } from './mockData';
 import { Icons } from './Icons';
 import { get20Students, getAssignmentsForSection, AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
+import { buildAcademicHierarchyTree } from '../../services/attendanceService';
 
-export default function AcademicSpacesView({ userProfile }) {
-  const buildTree = (allocations) => {
-    const tree = {};
-    allocations.forEach(alloc => {
-      if (!tree[alloc.institution]) tree[alloc.institution] = {};
-      if (!tree[alloc.institution][alloc.department]) tree[alloc.institution][alloc.department] = {};
-      if (!tree[alloc.institution][alloc.department][alloc.year]) tree[alloc.institution][alloc.department][alloc.year] = {};
-      if (!tree[alloc.institution][alloc.department][alloc.year][alloc.section]) tree[alloc.institution][alloc.department][alloc.year][alloc.section] = {};
-      tree[alloc.institution][alloc.department][alloc.year][alloc.section][alloc.subject] = alloc.permissions;
-    });
-    return tree;
-  };
+export const buildTree = buildAcademicHierarchyTree;
 
-  const tree = buildTree(teacherAllocations);
+export default function AcademicSpacesView({ userProfile, allocations = [], isLoadingAllocations = false }) {
+  const tree = buildAcademicHierarchyTree(allocations, userProfile?.institution || 'UEMK');
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [expandedPaths, setExpandedPaths] = useState(new Set());
   const [activePath, setActivePath] = useState([]);
@@ -99,7 +89,48 @@ export default function AcademicSpacesView({ userProfile }) {
     return (
       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
-        {selectedGroup.isAssignment ? <AssignmentsView group={selectedGroup} /> : selectedGroup.isStudents ? <StudentsListView group={selectedGroup} /> : selectedGroup.isAttendance ? <AttendanceView group={selectedGroup} userProfile={userProfile} /> : <OfficialGroupView group={selectedGroup} />}
+        {selectedGroup.isAssignment ? (
+          <AssignmentsView group={selectedGroup} userProfile={userProfile} allocations={allocations} />
+        ) : selectedGroup.isStudents ? (
+          <StudentsListView group={selectedGroup} userProfile={userProfile} allocations={allocations} />
+        ) : selectedGroup.isAttendance ? (
+          <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={allocations} />
+        ) : (
+          <OfficialGroupView group={selectedGroup} />
+        )}
+      </div>
+    );
+  }
+
+  if (isLoadingAllocations) {
+    return (
+      <div className="space-y-5 animate-hero-fade-up relative z-10 pb-20" style={{ animationDuration: '400ms' }}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[26px] font-extrabold text-slate-900 tracking-tight">My Academic Spaces</h2>
+        </div>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-theme-primary mb-3"></div>
+          <p className="text-sm font-medium text-slate-500">Loading your academic spaces...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoadingAllocations && (!allocations || allocations.length === 0)) {
+    return (
+      <div className="space-y-5 animate-hero-fade-up relative z-10 pb-20" style={{ animationDuration: '400ms' }}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[26px] font-extrabold text-slate-900 tracking-tight">My Academic Spaces</h2>
+        </div>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+            <Icons.Hierarchy />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">No Academic Spaces Assigned</h3>
+          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+            You do not currently have any class or department allocations. Please contact your Director to assign your academic spaces.
+          </p>
+        </div>
       </div>
     );
   }

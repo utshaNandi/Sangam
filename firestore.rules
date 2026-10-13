@@ -139,6 +139,26 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function isMatchingDepartment(d1, d2) {
+      return d1 == d2 ||
+             (d1 == 'Computer Science' && (d2 == 'CSE AI' || d2 == 'CSE')) ||
+             (d2 == 'Computer Science' && (d1 == 'CSE AI' || d1 == 'CSE')) ||
+             (d1 == 'CSE' && d2 == 'CSE AI') ||
+             (d2 == 'CSE' && d1 == 'CSE AI') ||
+             (d1 == 'Electronics & Communication' && d2 == 'ECE') ||
+             (d2 == 'Electronics & Communication' && d1 == 'ECE') ||
+             (d1 == 'Mechanical Engineering' && d2 == 'ME') ||
+             (d2 == 'Mechanical Engineering' && d1 == 'ME') ||
+             (d1 == 'Civil Engineering' && d2 == 'CE') ||
+             (d2 == 'Civil Engineering' && d1 == 'CE') ||
+             (d1 == 'Electrical Engineering' && d2 == 'EE') ||
+             (d2 == 'Electrical Engineering' && d1 == 'EE') ||
+             (d1 == 'Information Technology' && d2 == 'IT') ||
+             (d2 == 'Information Technology' && d1 == 'IT') ||
+             (d1 == 'Biotechnology' && d2 == 'BT') ||
+             (d2 == 'Biotechnology' && d1 == 'BT');
+    }
+
     // Verify whether faculty member is authorized for the given class (institution, department, year, section)
     function isFacultyAuthorizedForClass(teacherUid, institution, department, year, section) {
       let allocId = teacherUid + '_' + year + '_' + section;
@@ -147,13 +167,13 @@ service cloud.firestore {
                         get(allocPath).data.authorized == true &&
                         get(allocPath).data.teacherUid == teacherUid &&
                         get(allocPath).data.institution == institution &&
-                        get(allocPath).data.department == department &&
+                        isMatchingDepartment(get(allocPath).data.department, department) &&
                         get(allocPath).data.year == year &&
                         get(allocPath).data.section == section;
       let faculty = getFacultyData();
       let hasProfileMatch = ('year' in faculty) && faculty.year == year &&
                             ('section' in faculty) && faculty.section == section &&
-                            faculty.department == department &&
+                            isMatchingDepartment(faculty.department, department) &&
                             faculty.institution == institution;
       return hasAllocDoc || hasProfileMatch;
     }
@@ -174,14 +194,14 @@ service cloud.firestore {
              (studentSec == 'CSE-A' && (targetSec == 'Sec A' || targetSec == 'Section A'));
     }
 
-    // Verify student is active and matches the faculty member's institution, department, year, and section
-    function isStudentInFacultyScope(studentUid, year, section) {
+    // Verify student is active and matches the class institution, department, year, and section
+    function isStudentInFacultyScope(studentUid, department, year, section) {
       let studentPath = /databases/$(database)/documents/users/$(studentUid);
       return exists(studentPath) &&
              get(studentPath).data.role == 'student' &&
              get(studentPath).data.status == 'active' &&
-             get(studentPath).data.department == getFacultyData().department &&
-             get(studentPath).data.institution == getFacultyData().institution &&
+             isMatchingDepartment(get(studentPath).data.department, department) &&
+             (!('institution' in getFacultyData()) || get(studentPath).data.institution == getFacultyData().institution) &&
              (!('year' in get(studentPath).data) || get(studentPath).data.year == year) &&
              (!('section' in get(studentPath).data) || isMatchingSection(get(studentPath).data.section, section));
     }
@@ -340,12 +360,12 @@ service cloud.firestore {
     // ===============================================================
     match /teacher_allocations/{allocId} {
       // Directors can read only allocations within their authorized institution
-      // Faculty can read only allocations within their authorized institution or their own allocation
+      // Faculty can read only their own assigned allocations within their authorized institution
       allow get: if (isAuthorizedDirector() && (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
-                    (isAuthorizedFaculty() && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution || resource.data.teacherUid == request.auth.uid));
+                    (isAuthorizedFaculty() && resource.data.teacherUid == request.auth.uid && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
 
       allow list: if (isAuthorizedDirector() && (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)) ||
-                     (isAuthorizedFaculty() && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
+                     (isAuthorizedFaculty() && resource.data.teacherUid == request.auth.uid && (!('institution' in getFacultyData()) || resource.data.institution == getFacultyData().institution));
 
       // Only authorized Director can manage teacher allocations within their institution
       allow create: if isAuthorizedDirector() &&
@@ -377,13 +397,13 @@ service cloud.firestore {
     match /attendance_records/{recordId} {
       // Students can read ONLY their own attendance records
       allow get: if (isAuthenticated() && resource != null && resource.data.studentUid == request.auth.uid) ||
-                    (isAuthorizedFaculty() && (resource == null || (resource.data.institution == getFacultyData().institution && resource.data.department == getFacultyData().department))) ||
+                    (isAuthorizedFaculty() && (resource == null || (resource.data.institution == getFacultyData().institution && (isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section) || isMatchingDepartment(resource.data.department, getFacultyData().department))))) ||
                     (isAuthorizedDirector() && (resource == null || (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)));
 
       allow list: if (isAuthenticated() && resource.data.studentUid == request.auth.uid) ||
                      (isAuthorizedFaculty() &&
                       resource.data.institution == getFacultyData().institution &&
-                      resource.data.department == getFacultyData().department) ||
+                      (isMatchingDepartment(resource.data.department, getFacultyData().department) || resource.data.markedBy == request.auth.uid)) ||
                      (isAuthorizedDirector() &&
                       (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution));
 
@@ -393,20 +413,18 @@ service cloud.firestore {
                        recordId == request.resource.data.sessionId + '_' + request.resource.data.studentUid &&
                        request.resource.data.markedBy == request.auth.uid &&
                        request.resource.data.institution == getFacultyData().institution &&
-                       request.resource.data.department == getFacultyData().department &&
                        isFacultyAuthorizedForClass(request.auth.uid, request.resource.data.institution, request.resource.data.department, request.resource.data.year, request.resource.data.section) &&
-                       isStudentInFacultyScope(request.resource.data.studentUid, request.resource.data.year, request.resource.data.section);
+                       isStudentInFacultyScope(request.resource.data.studentUid, request.resource.data.department, request.resource.data.year, request.resource.data.section);
 
       // Update: Authorized Faculty can update attendance status/timestamp for existing records
       allow update: if isAuthorizedFaculty() &&
                        isValidAttendanceRecordSchema(request.resource.data) &&
                        request.resource.data.markedBy == request.auth.uid &&
                        request.resource.data.institution == getFacultyData().institution &&
-                       request.resource.data.department == getFacultyData().department &&
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'markedBy', 'markedAt']) &&
                        areImmutableFieldsUnchanged(['sessionId', 'studentUid', 'date', 'period', 'institution', 'department', 'year', 'section']) &&
                        isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section) &&
-                       isStudentInFacultyScope(resource.data.studentUid, resource.data.year, resource.data.section);
+                       isStudentInFacultyScope(resource.data.studentUid, resource.data.department, resource.data.year, resource.data.section);
 
       allow delete: if false;
     }
@@ -416,13 +434,13 @@ service cloud.firestore {
     // ===============================================================
     match /attendance_sessions/{sessionId} {
       allow get: if (isAuthorizedFaculty() &&
-                     (resource == null || (resource.data.institution == getFacultyData().institution && resource.data.department == getFacultyData().department))) ||
+                     (resource == null || (resource.data.institution == getFacultyData().institution && (isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section) || isMatchingDepartment(resource.data.department, getFacultyData().department))))) ||
                     (isAuthorizedDirector() &&
                      (resource == null || (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution)));
 
       allow list: if (isAuthorizedFaculty() &&
                       resource.data.institution == getFacultyData().institution &&
-                      resource.data.department == getFacultyData().department) ||
+                      (isMatchingDepartment(resource.data.department, getFacultyData().department) || resource.data.markedBy == request.auth.uid)) ||
                      (isAuthorizedDirector() &&
                       (!('institution' in getDirectorData()) || resource.data.institution == getDirectorData().institution));
 
@@ -431,13 +449,11 @@ service cloud.firestore {
                        request.resource.data.sessionId == sessionId &&
                        request.resource.data.markedBy == request.auth.uid &&
                        request.resource.data.institution == getFacultyData().institution &&
-                       request.resource.data.department == getFacultyData().department &&
                        isFacultyAuthorizedForClass(request.auth.uid, request.resource.data.institution, request.resource.data.department, request.resource.data.year, request.resource.data.section);
 
       allow update: if isAuthorizedFaculty() &&
                        isValidAttendanceSessionSchema(request.resource.data) &&
                        request.resource.data.institution == getFacultyData().institution &&
-                       request.resource.data.department == getFacultyData().department &&
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['presentCount', 'absentCount', 'totalStudents', 'markedAt', 'subject']) &&
                        areImmutableFieldsUnchanged(['sessionId', 'date', 'period', 'institution', 'department', 'year', 'section', 'markedBy']) &&
                        isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section);
