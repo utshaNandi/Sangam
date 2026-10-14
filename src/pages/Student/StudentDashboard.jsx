@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom';
 import { Icons } from '../Teacher/Icons';
 import StudentCharacter from '../../components/student/StudentCharacter';
 import { assignments, announcements } from '../Teacher/mockData';
-import { scheduleData, periodsTime } from './StudentSchedule';
 import { 
   subscribeStudentAttendance, 
   transformRecordsToPeriodData, 
   calculateAttendanceMetrics 
 } from '../../services/attendanceService';
+import { subscribeClassTimetable } from '../../services/timetableService.js';
 
 function HeroBox({ onNavigate, studentName, assignmentCount, announcementCount, section }) {
   const boxRef = useRef(null);
@@ -152,28 +152,59 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
     progress: 0
   }));
 
-  // 3. Schedule for today
-  const dayIndex = new Date().getDay();
-  // Map dayIndex (0=Sun, 1=Mon) to scheduleData index (0=Mon, 1=Tue)
-  const scheduleIndex = dayIndex === 0 ? 0 : dayIndex - 1;
-  const rawSchedule = scheduleData[scheduleIndex] || [];
+  // 3. Live Schedule for today
+  const dayIndex = new Date().getDay(); // 0 = Sun, 1 = Mon...
+  const isSunday = dayIndex === 0;
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayDayName = dayNames[dayIndex];
 
-  // Transform raw schedule into todayClasses format
-  const todayClasses = rawSchedule
-    .map((item, idx) => {
-      if (item.subject === 'LUNCH' || item.subject === 'BREAK') return null;
-      const periodInfo = periodsTime[idx];
-      return {
-        id: idx,
-        time: periodInfo ? periodInfo.time : '',
-        subject: item.subject,
-        section: section || 'Class',
-        teacher: item.teacher,
-        type: item.subject === 'LAB' ? 'Lab' : 'Lecture',
-        room: item.subject === 'LAB' ? 'Lab 2' : 'Room 402'
-      };
-    })
-    .filter(Boolean);
+  const institution = userProfile?.institution || 'UEMK';
+  const department = userProfile?.department;
+  const year = userProfile?.year;
+
+  const [todayClasses, setTodayClasses] = useState([]);
+  const [isLoadingTimetable, setIsLoadingTimetable] = useState(true);
+  const [timetableError, setTimetableError] = useState(null);
+
+  useEffect(() => {
+    if (isSunday || !department || !year || !section) {
+      setTodayClasses([]);
+      setIsLoadingTimetable(false);
+      return;
+    }
+
+    setIsLoadingTimetable(true);
+    setTimetableError(null);
+
+    const unsubscribe = subscribeClassTimetable(
+      { institution, department, year, section, day: todayDayName },
+      (slots) => {
+        const active = slots
+          .filter(s => s.type !== 'Break' && s.subject?.toUpperCase() !== 'LUNCH' && s.subject?.toUpperCase() !== 'LUNCH BREAK')
+          .map((s, idx) => ({
+            id: s.id || idx,
+            period: s.period,
+            time: `${s.startTime} - ${s.endTime}`,
+            subject: s.subject,
+            section: `${year} • ${section}` || section || 'Class',
+            teacher: s.teacherName || '',
+            type: s.type || 'Lecture',
+            room: s.room || 'Room 402'
+          }));
+        setTodayClasses(active);
+        setIsLoadingTimetable(false);
+      },
+      (err) => {
+        console.error('Error fetching today timetable in dashboard:', err);
+        setTimetableError(err.message || 'Unable to load today schedule.');
+        setIsLoadingTimetable(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [institution, department, year, section, todayDayName, isSunday]);
 
   // 4. Attendance Percentage from live Firestore records
   const [dashboardAttendanceRecords, setDashboardAttendanceRecords] = useState([]);
@@ -224,8 +255,17 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
             onClick={() => onNavigate('Attendance')} 
           />
           <StatCard title="Pending Tasks" value={`${pendingAssignmentsCount} Due`} icon={<Icons.Assignments />} onClick={() => onNavigate('Assignments')} />
-          <StatCard title="Today's Classes" value={`${todayClasses.length} Scheduled`} icon={<Icons.Schedule />} onClick={() => onNavigate('Schedule')} />
-          <StatCard title="Labs" value={`${todayLabsCount} Scheduled`} icon={<Icons.Classes />} />
+          <StatCard 
+            title="Today's Classes" 
+            value={isSunday ? 'None (Sunday)' : `${todayClasses.length} Scheduled`} 
+            icon={<Icons.Schedule />} 
+            onClick={() => onNavigate('Schedule')} 
+          />
+          <StatCard 
+            title="Labs" 
+            value={isSunday ? 'None' : `${todayLabsCount} Scheduled`} 
+            icon={<Icons.Classes />} 
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -238,26 +278,55 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
               <div className="absolute top-0 right-0 w-64 h-64 bg-theme-bg rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/3"></div>
               <h3 className="text-xl font-bold text-slate-900 mb-5 relative z-10 tracking-tight">Today's Classes</h3>
               <div className="space-y-3 relative z-10">
-                {todayClasses.map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-all duration-200 border border-transparent hover:border-slate-100 active:scale-[0.98] group cursor-pointer" onClick={() => onNavigate('Schedule')}>
-                    <div className="flex items-center gap-5">
-                      <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex flex-col items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-105">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{c.time.split(' ')[1]}</span>
-                        <span className="text-lg font-extrabold">{c.time.split(' ')[0]}</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors text-base">{c.subject}</h4>
-                        <p className="text-sm text-slate-500 font-medium">{c.section} — {c.type} — {c.teacher}</p>
-                      </div>
-                    </div>
-                    <div className="text-right hidden sm:block">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold transition-transform duration-300 group-hover:scale-105">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Upcoming
-                      </span>
-                      <p className="text-sm text-slate-500 mt-2 font-medium group-hover:text-slate-600 transition-colors">Room {c.room}</p>
-                    </div>
+                {isSunday ? (
+                  <div className="p-6 text-center border border-dashed border-amber-200 rounded-2xl bg-amber-50/50">
+                    <span className="text-2xl mb-1 block">📅</span>
+                    <h4 className="text-sm font-bold text-amber-900">Sunday — No classes scheduled today</h4>
+                    <p className="text-xs text-amber-700 font-medium mt-1">Campus is closed for the weekend. Have a great rest!</p>
+                    <button
+                      onClick={() => onNavigate('Schedule')}
+                      className="mt-3 text-xs font-bold text-theme-primary hover:underline block mx-auto"
+                    >
+                      View Weekly Schedule →
+                    </button>
                   </div>
-                ))}
+                ) : isLoadingTimetable ? (
+                  <div className="py-12 text-center text-slate-400 space-y-2">
+                    <div className="w-6 h-6 border-2 border-theme-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <p className="text-xs font-medium">Loading today's schedule from Cloud Firestore...</p>
+                  </div>
+                ) : timetableError ? (
+                  <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center justify-between">
+                    <span>{timetableError}</span>
+                    <button onClick={() => window.location.reload()} className="underline hover:no-underline font-bold">Retry</button>
+                  </div>
+                ) : todayClasses.length === 0 ? (
+                  <div className="p-6 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/40">
+                    <p className="text-sm font-bold text-slate-700">No classes scheduled for today ({todayDayName})</p>
+                    <p className="text-xs text-slate-400 mt-1">Check back later or view your full weekly schedule.</p>
+                  </div>
+                ) : (
+                  todayClasses.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-all duration-200 border border-transparent hover:border-slate-100 active:scale-[0.98] group cursor-pointer" onClick={() => onNavigate('Schedule')}>
+                      <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex flex-col items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-105">
+                          <span className="text-[10px] font-bold uppercase tracking-wider">{c.time.split(' ')[1]}</span>
+                          <span className="text-lg font-extrabold">{c.time.split(' ')[0]}</span>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors text-base">{c.subject}</h4>
+                          <p className="text-sm text-slate-500 font-medium">{c.section} — {c.type} {c.teacher ? `— ${c.teacher}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="text-right hidden sm:block">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold transition-transform duration-300 group-hover:scale-105">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Upcoming
+                        </span>
+                        <p className="text-sm text-slate-500 mt-2 font-medium group-hover:text-slate-600 transition-colors">Room {c.room}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </section>
 

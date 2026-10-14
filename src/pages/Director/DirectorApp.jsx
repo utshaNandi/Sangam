@@ -5,6 +5,7 @@ import OfficialGroupView from '../../components/OfficialGroupView';
 import { PeopleView, AcademicManagementView } from './DirectorViews';
 import DirectorAcademicSpacesView from './DirectorAcademicSpacesView';
 import DirectorDashboard from './DirectorDashboard';
+import DirectorTimetableView from './DirectorTimetableView';
 
 export default function DirectorApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -45,10 +46,11 @@ export default function DirectorApp({ userProfile, onLogout }) {
           if (subTab) setPeopleInitialTab(subTab);
           setActiveTab(tab);
         }} />;
+      case 'Timetable':
+        return <DirectorTimetableView userProfile={userProfile} />;
       case 'Announcements':
       case 'Attendance':
       case 'Performance':
-      case 'Timetable':
       case 'Reports & Analytics':
       case 'Resources':
       case 'Communication':

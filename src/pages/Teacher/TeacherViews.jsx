@@ -14,6 +14,7 @@ import {
   getTodayDateString,
   resolveAcademicScope
 } from '../../services/attendanceService';
+import { subscribeClassTimetable, VALID_DAYS } from '../../services/timetableService.js';
 
 export const scheduleData = {
     Monday: [
@@ -1432,76 +1433,284 @@ export function AnnouncementsView() {
   );
 }
 
-export function ScheduleView() {
+export function ScheduleView({ userProfile, allocations = [], isLoadingAllocations = false }) {
   const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedClassIndex, setSelectedClassIndex] = useState(0);
+  const [slots, setSlots] = useState([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+  const [slotsError, setSlotsError] = useState(null);
 
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const days = VALID_DAYS; // Monday - Saturday
+  const isSundayToday = new Date().getDay() === 0;
 
-  
+  // Filter valid, authorized allocations
+  const validAllocations = Array.isArray(allocations)
+    ? allocations.filter(a => a.authorized !== false && a.department && a.year && a.section)
+    : [];
+
+  const activeClass = validAllocations[selectedClassIndex] || validAllocations[0] || null;
+
+  // Real-time timetable listener for the currently selected class
+  useEffect(() => {
+    if (!activeClass) {
+      setSlots([]);
+      setIsLoadingSlots(false);
+      return;
+    }
+
+    setIsLoadingSlots(true);
+    setSlotsError(null);
+
+    const institution = activeClass.institution || userProfile?.institution || 'UEMK';
+    const department = activeClass.department;
+    const year = activeClass.year;
+    const section = activeClass.section;
+
+    const unsubscribe = subscribeClassTimetable(
+      { institution, department, year, section },
+      (classSlots) => {
+        setSlots(classSlots);
+        setIsLoadingSlots(false);
+      },
+      (err) => {
+        console.error('Error fetching teacher class timetable:', err);
+        setSlotsError(err.message || 'Unable to load class schedule.');
+        setIsLoadingSlots(false);
+      }
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [activeClass, userProfile?.institution]);
+
+  // Compute period count per day for the active class
+  const dayPeriodCounts = {};
+  days.forEach(d => { dayPeriodCounts[d] = 0; });
+  slots.forEach(s => {
+    if (dayPeriodCounts[s.day] !== undefined) {
+      dayPeriodCounts[s.day]++;
+    }
+  });
+
+  // 1. If viewing a specific day's schedule
   if (selectedDay) {
+    const daySlots = slots.filter(s => s.day === selectedDay);
+
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
-        <div className="flex items-center gap-4">
-          <button onClick={() => setSelectedDay(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-            Back
-          </button>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedDay} Schedule</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSelectedDay(null)}
+              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              Back
+            </button>
+            <div>
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedDay} Schedule</h2>
+              {activeClass && (
+                <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                  {activeClass.department} • {activeClass.year} • {activeClass.section}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Class Switcher inside Day View */}
+          {validAllocations.length > 1 && (
+            <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+              <span className="text-xs font-bold text-slate-400 pl-2">Class:</span>
+              <select
+                value={selectedClassIndex}
+                onChange={(e) => setSelectedClassIndex(Number(e.target.value))}
+                className="bg-slate-50 border-none outline-none text-xs font-bold text-slate-700 px-2 py-1 rounded-xl cursor-pointer"
+              >
+                {validAllocations.map((alloc, idx) => (
+                  <option key={idx} value={idx}>
+                    {alloc.department} • {alloc.year} • {alloc.section}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
+        {/* Schedule Content */}
         <div className="bg-white rounded-[24px] border border-slate-100 p-6 md:p-10 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="ml-2 pl-8 border-l-[3px] border-slate-100 space-y-6">
-            {scheduleData[selectedDay].map(period => (
-              <div key={period.period} className="relative flex items-start gap-5 group">
-                <div className="absolute -left-8 top-5 w-8 h-[3px] bg-slate-100 group-hover:bg-theme-primary/40 transition-colors rounded-r-full"></div>
-                
-                <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-5 flex-1 hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300">
-                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                     <div className="flex items-center gap-3">
-                       <span className="text-xs font-extrabold text-theme-primary bg-theme-bg px-3 py-1.5 rounded-lg uppercase tracking-wider">Period {period.period}</span>
-                       <span className="text-sm font-bold text-slate-500">{period.time}</span>
-                     </div>
-                     <span className={`text-[11px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider ${
-                        period.type === 'Break' ? 'bg-orange-50 text-orange-600 border border-orange-100/50' :
-                        period.type === 'Lab' ? 'bg-blue-50 text-blue-600 border border-blue-100/50' :
-                        period.type === 'Tutorial' ? 'bg-purple-50 text-purple-600 border border-purple-100/50' :
-                        period.type === 'Self Study' ? 'bg-slate-100 text-slate-600 border border-slate-200/50' :
-                        'bg-slate-100 text-slate-600 border border-slate-200/50'
-                     }`}>{period.type}</span>
-                   </div>
-                   <h4 className={`text-lg font-bold ${period.type === 'Break' ? 'text-slate-500' : 'text-slate-900'}`}>{period.subject}</h4>
-                   {period.classInfo && (
-                     <p className="text-sm font-medium text-slate-500 mt-1.5">{period.classInfo}</p>
-                   )}
-                </div>
-              </div>
-            ))}
-          </div>
+          {isLoadingSlots ? (
+            <div className="py-16 text-center space-y-3">
+              <div className="w-7 h-7 border-2 border-theme-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-xs font-semibold text-slate-500">Loading {selectedDay} schedule from Cloud Firestore...</p>
+            </div>
+          ) : slotsError ? (
+            <div className="p-6 text-center border border-dashed border-rose-200 rounded-2xl bg-rose-50/50">
+              <p className="text-sm font-bold text-rose-800">Error loading timetable</p>
+              <p className="text-xs text-rose-600 mt-1">{slotsError}</p>
+            </div>
+          ) : daySlots.length === 0 ? (
+            <div className="py-12 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/40">
+              <p className="text-base font-bold text-slate-700">No classes scheduled for {selectedDay}</p>
+              <p className="text-xs text-slate-400 mt-1">This class has no scheduled periods on this day in Cloud Firestore.</p>
+            </div>
+          ) : (
+            <div className="ml-2 pl-8 border-l-[3px] border-slate-100 space-y-6">
+              {daySlots.map(period => {
+                const isBreak = period.type === 'Break' || period.subject?.toUpperCase() === 'LUNCH';
+                const isTeacherAssigned = userProfile?.uid && period.teacherUid === userProfile.uid;
+
+                return (
+                  <div key={period.period} className="relative flex items-start gap-5 group">
+                    <div className="absolute -left-8 top-5 w-8 h-[3px] bg-slate-100 group-hover:bg-theme-primary/40 transition-colors rounded-r-full"></div>
+
+                    <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-5 flex-1 hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-extrabold text-theme-primary bg-theme-bg px-3 py-1.5 rounded-lg uppercase tracking-wider">
+                            Period {period.period}
+                          </span>
+                          <span className="text-sm font-bold text-slate-500">
+                            {period.startTime} - {period.endTime}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isTeacherAssigned && (
+                            <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                              Assigned to You
+                            </span>
+                          )}
+                          <span className={`text-[11px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider ${
+                            isBreak ? 'bg-orange-50 text-orange-600 border border-orange-100/50' :
+                            period.type === 'Lab' ? 'bg-blue-50 text-blue-600 border border-blue-100/50' :
+                            period.type === 'Tutorial' ? 'bg-purple-50 text-purple-600 border border-purple-100/50' :
+                            'bg-slate-100 text-slate-600 border border-slate-200/50'
+                          }`}>
+                            {period.type || 'Lecture'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h4 className={`text-lg font-bold ${isBreak ? 'text-slate-500' : 'text-slate-900'}`}>
+                        {period.subject}
+                      </h4>
+
+                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs font-medium text-slate-500">
+                        {period.room && (
+                          <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                            Room {period.room}
+                          </span>
+                        )}
+                        {period.teacherName && !isBreak && (
+                          <span>Faculty: {period.teacherName}</span>
+                        )}
+                        {activeClass && (
+                          <span className="text-slate-400">
+                            ({activeClass.department} • {activeClass.year} • {activeClass.section})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
+  // 2. Weekly Overview
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Weekly Schedule</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Weekly Schedule</h2>
+          {activeClass ? (
+            <p className="text-xs font-semibold text-slate-500 mt-0.5">
+              Showing timetable for {activeClass.department} • {activeClass.year} • {activeClass.section}
+            </p>
+          ) : (
+            <p className="text-xs font-semibold text-slate-500 mt-0.5">Academic Class Schedules</p>
+          )}
+        </div>
+
+        {/* Class Selector for Faculty with Multiple Assigned Classes */}
+        {validAllocations.length > 1 && (
+          <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+            <span className="text-xs font-bold text-slate-500 pl-1">Select Class:</span>
+            <select
+              value={selectedClassIndex}
+              onChange={(e) => setSelectedClassIndex(Number(e.target.value))}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+            >
+              {validAllocations.map((alloc, idx) => (
+                <option key={idx} value={idx}>
+                  {alloc.department} • {alloc.year} • {alloc.section}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      <div className="grid gap-4">
-        {days.map(day => (
-          <div key={day} onClick={() => setSelectedDay(day)} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] flex items-center justify-between gap-5 transition-all duration-300 group cursor-pointer">
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-theme-bg group-hover:text-theme-primary flex items-center justify-center font-bold text-xl transition-all duration-300">
-                 {day.charAt(0)}
-               </div>
-               <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{day}</h3>
-            </div>
-            <div className="text-slate-300 group-hover:text-theme-primary transition-colors group-hover:translate-x-1 duration-300">
-               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </div>
+      {/* Sunday Banner */}
+      {isSundayToday && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-3">
+          <span className="text-xl">📅</span>
+          <div>
+            <p className="font-extrabold text-sm">Sunday — No classes scheduled today</p>
+            <p className="text-amber-700 mt-0.5">Campus is closed for the weekend. Select any weekday below to view upcoming schedules.</p>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Empty State: No Allocations */}
+      {validAllocations.length === 0 && !isLoadingAllocations && (
+        <div className="p-12 text-center bg-white rounded-[24px] border border-dashed border-slate-200">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3 font-bold text-xl">
+            ⚠️
+          </div>
+          <h3 className="text-lg font-bold text-slate-800">No Classes Allocated Yet</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            You do not currently have any active class allocations assigned by the Director. Please contact your Department Director to configure your classes.
+          </p>
+        </div>
+      )}
+
+      {/* Weekly Grid of Days */}
+      <div className="grid gap-4">
+        {days.map(day => {
+          const count = dayPeriodCounts[day] || 0;
+          return (
+            <div
+              key={day}
+              onClick={() => setSelectedDay(day)}
+              className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] flex items-center justify-between gap-5 transition-all duration-300 group cursor-pointer"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-theme-bg group-hover:text-theme-primary flex items-center justify-center font-bold text-xl transition-all duration-300">
+                  {day.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{day}</h3>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">
+                    {count} {count === 1 ? 'period' : 'periods'} scheduled
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 group-hover:bg-theme-bg group-hover:text-theme-primary transition-colors">
+                  View Day →
+                </span>
+                <div className="text-slate-300 group-hover:text-theme-primary transition-colors group-hover:translate-x-1 duration-300">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

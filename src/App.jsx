@@ -84,7 +84,7 @@ function App() {
             const validRoles = ['student', 'faculty', 'director'];
             const userRole = validRoles.includes(data.role) ? data.role : 'student';
 
-            setUserProfile(data);
+            setUserProfile({ uid: firebaseUser.uid, ...data });
             setTransitionConfig(prev => ({
               ...(prev || {}),
               role: userRole,

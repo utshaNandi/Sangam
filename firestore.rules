@@ -77,7 +77,7 @@ service cloud.firestore {
 
     // Verify individual whitelist entry schema and role validity
     function isValidWhitelistEntry(data, requestedRole) {
-      let hasMatchingRole = 'role' in data && data.role is string && data.role == requestedRole;
+      let hasMatchingRole = 'role' in data && data.role is string && (data.role == requestedRole || (requestedRole == 'director' && data.role == 'admin'));
       let isFacultyFallback = requestedRole == 'faculty' && !('role' in data) && ('authorized' in data) && data.authorized == true;
       let isNotRevoked = !('authorized' in data) || (data.authorized is bool && data.authorized == true);
       return (hasMatchingRole || isFacultyFallback) && isNotRevoked;
@@ -137,6 +137,28 @@ service cloud.firestore {
 
     function getDirectorData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Check whether caller is an active, authorized Student
+    function isAuthorizedStudent() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function getStudentData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Check whether student belongs to the given class
+    function isStudentAuthorizedForClass(institution, department, year, section) {
+      let student = getStudentData();
+      return isAuthorizedStudent() &&
+             (!('institution' in student) || student.institution == institution) &&
+             isMatchingDepartment(student.department, department) &&
+             (!('year' in student) || student.year == year) &&
+             (!('section' in student) || isMatchingSection(student.section, section));
     }
 
     function isMatchingDepartment(d1, d2) {
@@ -272,6 +294,30 @@ service cloud.firestore {
              (data.totalStudents is int || data.totalStudents is number) && data.totalStudents >= 0 &&
              (data.presentCount + data.absentCount == data.totalStudents) &&
              (!('subject' in data) || (data.subject is string && data.subject.size() <= 100));
+    }
+
+    // Timetable slot schema validation
+    function isValidTimetableSlotSchema(data) {
+      let allowed = ['institution', 'department', 'year', 'section', 'day', 'period', 'startTime', 'endTime', 'subject', 'type', 'teacherUid', 'teacherName', 'room', 'updatedAt', 'updatedBy'];
+      let required = ['institution', 'department', 'year', 'section', 'day', 'period', 'startTime', 'endTime', 'subject', 'type', 'updatedAt', 'updatedBy'];
+
+      return hasOnlyAllowedFields(allowed) &&
+             hasRequiredFields(required) &&
+             data.institution is string && data.institution.size() > 0 && data.institution.size() <= 100 &&
+             data.department is string && data.department.size() > 0 && data.department.size() <= 100 &&
+             data.year is string && data.year.size() > 0 && data.year.size() <= 50 &&
+             data.section is string && data.section.size() > 0 && data.section.size() <= 50 &&
+             data.day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] &&
+             (data.period is int || data.period is number) && data.period >= 1 && data.period <= 9 &&
+             data.startTime is string && data.startTime.size() > 0 && data.startTime.size() <= 30 &&
+             data.endTime is string && data.endTime.size() > 0 && data.endTime.size() <= 30 &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100 &&
+             data.type in ['Lecture', 'Lab', 'Tutorial', 'Break', 'Self Study'] &&
+             data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() <= 50 &&
+             data.updatedBy is string && data.updatedBy == request.auth.uid &&
+             (!('teacherUid' in data) || (data.teacherUid is string && data.teacherUid.size() <= 128)) &&
+             (!('teacherName' in data) || (data.teacherName is string && data.teacherName.size() <= 100)) &&
+             (!('room' in data) || (data.room is string && data.room.size() <= 50));
     }
 
     // RBAC: Enforce trusted privilege authorization on profile creation
@@ -487,6 +533,36 @@ service cloud.firestore {
                        isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section);
 
       allow delete: if false;
+    }
+
+    // ===============================================================
+    // Collection: timetables
+    // ===============================================================
+    match /timetables/{slotId} {
+      // Students can read only their own class timetable
+      // Faculty can read only schedules for classes they are assigned to
+      // Directors can read timetables within their authorized institution
+      allow get: if (resource != null && isStudentAuthorizedForClass(resource.data.institution, resource.data.department, resource.data.year, resource.data.section)) ||
+                    (resource != null && isAuthorizedFaculty() && isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section)) ||
+                    (isAuthorizedDirector() && (resource == null || !('institution' in getDirectorData()) || !('institution' in resource.data) || resource.data.institution == getDirectorData().institution));
+
+      allow list: if (isStudentAuthorizedForClass(resource.data.institution, resource.data.department, resource.data.year, resource.data.section)) ||
+                     (isAuthorizedFaculty() && isFacultyAuthorizedForClass(request.auth.uid, resource.data.institution, resource.data.department, resource.data.year, resource.data.section)) ||
+                     (isAuthorizedDirector() && (!('institution' in getDirectorData()) || !('institution' in resource.data) || resource.data.institution == getDirectorData().institution));
+
+      // Only authorized Director can manage timetable slots within their institution
+      allow create: if isAuthorizedDirector() &&
+                       isValidTimetableSlotSchema(request.resource.data) &&
+                       slotId == request.resource.data.institution + '_' + request.resource.data.department + '_' + request.resource.data.year + '_' + request.resource.data.section + '_' + request.resource.data.day + '_P' + string(request.resource.data.period) &&
+                       (!('institution' in getDirectorData()) || request.resource.data.institution == getDirectorData().institution);
+
+      allow update: if isAuthorizedDirector() &&
+                       isValidTimetableSlotSchema(request.resource.data) &&
+                       areImmutableFieldsUnchanged(['institution', 'department', 'year', 'section', 'day', 'period']) &&
+                       (!('institution' in getDirectorData()) || ((!('institution' in resource.data) || resource.data.institution == getDirectorData().institution) && request.resource.data.institution == getDirectorData().institution));
+
+      allow delete: if isAuthorizedDirector() &&
+                       (resource == null || !('institution' in getDirectorData()) || !('institution' in resource.data) || resource.data.institution == getDirectorData().institution);
     }
 
     // ===============================================================
