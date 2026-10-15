@@ -1,181 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import WelcomeScreen from './pages/WelcomeScreen';
 import TeacherApp from './pages/Teacher/TeacherApp';
 import DirectorApp from './pages/Director/DirectorApp';
 import StudentApp from './pages/Student/StudentApp';
 import BookOpenTransition from './components/BookOpenTransition';
-import { auth, db } from './firebase/config';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { isRegistrationCoordinated } from './firebase/authCoordinator';
-
-function runWithTimeout(promise, ms = 3500, operationName = 'Firestore operation') {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => 
-      setTimeout(() => reject(new Error(`${operationName} timed out after ${ms}ms`)), ms)
-    )
-  ]);
-}
+import { getMockProfile, createMockFirebaseUser } from './data/mockAuthProfiles';
 
 function App() {
   const [appState, setAppState] = useState('login'); // 'login', 'transition', 'app'
   const [transitionConfig, setTransitionConfig] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [pendingApprovalNotice, setPendingApprovalNotice] = useState(null);
 
-  // Persist authentication state using onAuthStateChanged
-  useEffect(() => {
-    let isInitialAuthCheck = true;
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setCurrentUser(firebaseUser);
-        try {
-          const userDocSnap = await runWithTimeout(
-            getDoc(doc(db, 'users', firebaseUser.uid)),
-            3500,
-            'Profile check'
-          ).catch((e) => {
-            console.warn('Firestore profile fetch bypassed in onAuthStateChanged:', e.message);
-            return null;
-          });
-
-          if (userDocSnap && userDocSnap.exists && userDocSnap.exists()) {
-            const data = userDocSnap.data();
-
-            // Strict status check: block unapproved accounts
-            if (data.status === 'pending_approval') {
-              try {
-                await signOut(auth);
-              } catch (soErr) {
-                console.warn('Sign-out on pending approval failed:', soErr.message);
-              }
-              setCurrentUser(null);
-              setUserProfile(null);
-              setTransitionConfig(null);
-              setAppState('login');
-              setPendingApprovalNotice(
-                data.role === 'student'
-                  ? 'Your student account is pending Director approval and academic assignment. Please check back after approval.'
-                  : `Your ${data.role || 'staff'} account is pending administrative authorization.`
-              );
-              setAuthLoading(false);
-              return;
-            }
-
-            // Only active status accounts are permitted into the application
-            if (data.status !== 'active') {
-              try {
-                await signOut(auth);
-              } catch (soErr) {
-                console.warn('Sign-out on inactive status failed:', soErr.message);
-              }
-              setCurrentUser(null);
-              setUserProfile(null);
-              setTransitionConfig(null);
-              setAppState('login');
-              setPendingApprovalNotice('Your account is currently inactive. Please contact the administrator.');
-              setAuthLoading(false);
-              return;
-            }
-
-            const validRoles = ['student', 'faculty', 'director'];
-            const userRole = validRoles.includes(data.role) ? data.role : 'student';
-
-            setUserProfile({ uid: firebaseUser.uid, ...data });
-            setTransitionConfig(prev => ({
-              ...(prev || {}),
-              role: userRole,
-              user: firebaseUser
-            }));
-          } else {
-            // Check if registration is actively writing the profile document for this user
-            if (isRegistrationCoordinated(firebaseUser.uid)) {
-              setAppState('login');
-              setAuthLoading(false);
-              return;
-            }
-
-            // Strict role safety: never grant dashboard access without a verified active profile
-            try {
-              await signOut(auth);
-            } catch (soErr) {
-              console.warn('Sign-out on missing profile failed:', soErr.message);
-            }
-            setCurrentUser(null);
-            setUserProfile(null);
-            setTransitionConfig(null);
-            setAppState('login');
-            setPendingApprovalNotice('No active profile was found for this account. Please register or contact the Director.');
-            setAuthLoading(false);
-            return;
-          }
-        } catch (err) {
-          console.error('Error fetching Firestore user profile:', err);
-          if (isRegistrationCoordinated(firebaseUser.uid)) {
-            setAppState('login');
-            setAuthLoading(false);
-            return;
-          }
-          try {
-            await signOut(auth);
-          } catch (soErr) {
-            console.warn('Sign-out error on catch:', soErr.message);
-          }
-          setCurrentUser(null);
-          setUserProfile(null);
-          setTransitionConfig(null);
-          setAppState('login');
-          setPendingApprovalNotice('Unable to verify account profile. Please check your connection and try logging in again.');
-        }
-
-        // On initial app mount, restore existing session if authenticated
-        if (isInitialAuthCheck) {
-          setAppState('app');
-        }
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
-        setTransitionConfig(null);
-        setAppState('login');
-      }
-      setAuthLoading(false);
-      isInitialAuthCheck = false;
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
+  const handleLogout = () => {
     setCurrentUser(null);
     setUserProfile(null);
     setTransitionConfig(null);
     setAppState('login');
   };
 
-  const activeRole = transitionConfig?.role || userProfile?.role || 'student';
+  const switchDevRole = (newRole) => {
+    const resolvedRole = (newRole || 'student').toLowerCase().trim();
+    const profile = getMockProfile(resolvedRole);
+    const user = createMockFirebaseUser(profile);
+    setCurrentUser(user);
+    setUserProfile(profile);
+    setTransitionConfig(prev => ({
+      ...(prev || {}),
+      role: resolvedRole,
+      user,
+      profile
+    }));
+  };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[#F4EEE2] flex flex-col items-center justify-center">
-        <div className="flex items-center gap-3">
-          <div className="w-4 h-4 bg-[#DCA766] rounded-full animate-dot-pulse"></div>
-          <span className="font-serif text-[#3E2723] text-xl font-bold tracking-wide">Sangam</span>
-        </div>
-      </div>
-    );
-  }
+  const activeRole = (transitionConfig?.role || userProfile?.role || 'student').toLowerCase().trim();
 
   return (
     <>
-      {/* Pending Approval / Notice Banner */}
+      {/* Notice Banner */}
       {pendingApprovalNotice && appState === 'login' && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[400] max-w-lg w-[calc(100%-2rem)] animate-hero-fade-up">
           <div className="bg-[#FFF8E7] border border-[#DCA766] text-[#3E2723] rounded-2xl p-4 shadow-xl flex items-start gap-3 backdrop-blur-md">
@@ -203,6 +66,11 @@ function App() {
           onStartTransition={(config) => {
             setPendingApprovalNotice(null);
             setTransitionConfig(config);
+            const resolvedRole = (config.role || 'student').toLowerCase().trim();
+            const profile = config.profile || getMockProfile(resolvedRole);
+            const user = config.user || createMockFirebaseUser(profile);
+            setCurrentUser(user);
+            setUserProfile(profile);
             setAppState('transition');
             setTimeout(() => {
               setAppState('app');
@@ -222,7 +90,7 @@ function App() {
            zIndex: 50,
            willChange: appState === 'transition' ? 'opacity, filter, transform' : 'auto'
         }}
-        className={appState === 'transition' ? 'z-[300]' : ''}
+        className={appState === 'transition' ? 'z-[300]' : 'h-screen h-[100dvh] overflow-hidden'}
       >
         {activeRole === 'director' ? (
           <DirectorApp userProfile={userProfile} onLogout={handleLogout} />
@@ -244,6 +112,60 @@ function App() {
           }} />
         )}
       </div>
+
+      {/* UI/UX Dev Floating Role Switcher Widget */}
+      {appState === 'app' && (
+        <div 
+          className="fixed bottom-4 right-4 z-[9999] flex items-center gap-1.5 bg-[#2B1810]/90 backdrop-blur-md text-white text-xs px-3.5 py-1.5 rounded-full shadow-2xl border border-[#DFB980]/30 font-sans select-none animate-hero-fade-up"
+          style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.35)' }}
+        >
+          <div className="flex items-center gap-1.5 pr-2 border-r border-white/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[#DFB980] font-semibold tracking-wide text-[11px]">UI/UX Mode</span>
+          </div>
+
+          <button 
+            onClick={() => switchDevRole('student')}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+              activeRole === 'student' 
+                ? 'bg-[#DFB980] text-[#3E2723] font-bold shadow-sm scale-105' 
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Student
+          </button>
+
+          <button 
+            onClick={() => switchDevRole('faculty')}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+              activeRole === 'faculty' 
+                ? 'bg-[#538C8C] text-white font-bold shadow-sm scale-105' 
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Faculty
+          </button>
+
+          <button 
+            onClick={() => switchDevRole('director')}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+              activeRole === 'director' 
+                ? 'bg-[#D67756] text-white font-bold shadow-sm scale-105' 
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            Director
+          </button>
+
+          <button 
+            onClick={handleLogout}
+            className="ml-1 pl-2.5 border-l border-white/20 text-white/60 hover:text-white transition-colors text-[11px] font-medium"
+            title="Return to Bookshelf"
+          >
+            Shelf ⎋
+          </button>
+        </div>
+      )}
 
       <style>{`
         @keyframes revealApp {

@@ -38,7 +38,7 @@ export default function DirectorApp({ userProfile, onLogout }) {
       case 'Dashboard':
         return <DirectorDashboard onNavigate={setActiveTab} />;
       case 'Academic Space':
-        return <DirectorAcademicSpacesView />;
+        return <DirectorAcademicSpacesView userProfile={userProfile} />;
       case 'People':
         return <PeopleView userProfile={userProfile} initialTab={peopleInitialTab} />;
       case 'Academic Management':

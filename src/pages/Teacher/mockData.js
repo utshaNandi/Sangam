@@ -1,4 +1,4 @@
-﻿export const teacherProfile = {
+export const teacherProfile = {
   name: "Dr. Sarah Jenkins",
   role: "Senior Professor",
   department: "Computer Science",
@@ -60,6 +60,57 @@ export const announcements = [
 
 export const addAnnouncement = (ann) => {
   announcements.unshift(ann);
+};
+
+export const studyMaterials = [
+  {
+    id: 'mat-1',
+    title: 'Data Structures & Algorithms Comprehensive Lecture Notes',
+    description: 'Complete lecture slides and notes covering linear data structures, trees, graphs, sorting, and dynamic programming.',
+    category: 'Lecture Notes',
+    fileType: 'PDF',
+    fileSize: '5.2 MB',
+    uploadedAt: 'Oct 10, 2026',
+    author: 'Dr. Sarah Jenkins',
+    scopePath: 'UEMK/CSE AI/2nd Year'
+  },
+  {
+    id: 'mat-2',
+    title: 'Second Year CSE AI Mid-Term Practice Question Bank',
+    description: 'Curated question set and practice problems for upcoming mid-term continuous assessment examinations.',
+    category: 'Question Bank',
+    fileType: 'PDF',
+    fileSize: '1.8 MB',
+    uploadedAt: 'Oct 12, 2026',
+    author: 'Dr. Sarah Jenkins',
+    scopePath: 'UEMK/CSE AI/2nd Year'
+  },
+  {
+    id: 'mat-3',
+    title: 'Sec B Lab Manual: Binary Search Tree Practicals',
+    description: 'Step-by-step instructions, starter templates, and test cases for Section B practical lab session 4.',
+    category: 'Lab Manual',
+    fileType: 'PDF',
+    fileSize: '2.4 MB',
+    uploadedAt: 'Oct 13, 2026',
+    author: 'Dr. Sarah Jenkins',
+    scopePath: 'UEMK/CSE AI/2nd Year/Sec B'
+  },
+  {
+    id: 'mat-4',
+    title: 'Sec C Problem Set: Graph Traversal Algorithms & BFS/DFS',
+    description: 'Practice exercises and code templates specifically assigned to Section C students.',
+    category: 'Problem Set',
+    fileType: 'ZIP',
+    fileSize: '3.1 MB',
+    uploadedAt: 'Oct 14, 2026',
+    author: 'Dr. Sarah Jenkins',
+    scopePath: 'UEMK/CSE AI/2nd Year/Sec C'
+  }
+];
+
+export const addStudyMaterial = (mat) => {
+  studyMaterials.unshift(mat);
 };
 
 const generateMockPeriodAttendance = () => {

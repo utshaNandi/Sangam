@@ -74,18 +74,18 @@ export function SimilarityCheckView({ assignment, submittedStudents, onCompare }
 
   if (submittedStudents.length < 2) {
     return (
-      <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm mt-6">
-        <h3 className="text-lg font-bold text-slate-900 mb-2">Similarity Status</h3>
-        <p className="text-sm text-slate-500 font-medium">Peer comparison is not yet possible. Waiting for more submissions.</p>
+      <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs mt-6">
+        <h3 className="text-lg font-bold text-[#171717] mb-2">Similarity Status</h3>
+        <p className="text-sm text-[#858174] font-medium">Peer comparison is not yet possible. Waiting for more submissions.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm mt-6">
+    <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs mt-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-bold text-slate-900">Similarity Status</h3>
-        <span className={`text-xs font-bold px-3 py-1 rounded-full ${status === 'Analysis complete' ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600 animate-pulse'}`}>
+        <h3 className="text-lg font-bold text-[#171717]">Similarity Status</h3>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full border ${status === 'Analysis complete' ? 'bg-[#A9BD78]/25 text-[#273811] border-[#A9BD78]/50' : 'bg-[#F3D75E]/30 text-[#45380b] border-[#F3D75E]/50 animate-pulse'}`}>
            {status}
         </span>
       </div>
@@ -93,17 +93,17 @@ export function SimilarityCheckView({ assignment, submittedStudents, onCompare }
       {status === 'Analysis complete' && (
         <div className="space-y-8">
           <div>
-            <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">{submittedStudents.length} Submissions Analyzed</h4>
+            <h4 className="text-xs font-bold text-[#858174] mb-3 uppercase tracking-wider">{submittedStudents.length} Submissions Analyzed</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {submittedStudents.slice(0, 10).map(st => {
                  const score = studentScores[st.id] || 0;
                  const isHigh = score > 40;
                  return (
-                   <div key={st.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-50 bg-slate-50/50">
-                     <span className="font-bold text-slate-800 text-sm">{st.name}</span>
+                   <div key={st.id} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 transition-colors">
+                     <span className="font-bold text-[#171717] text-sm">{st.name}</span>
                      <div className="flex items-center gap-3">
-                       <span className={`text-sm font-bold ${isHigh ? 'text-red-600' : 'text-slate-500'}`}>{score}%</span>
-                       <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-md ${isHigh ? 'bg-red-100 text-red-700 cursor-pointer hover:bg-red-200' : 'bg-slate-100 text-slate-500'}`}
+                       <span className={`text-sm font-bold ${isHigh ? 'text-[#a12052]' : 'text-[#858174]'}`}>{score}%</span>
+                       <span className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-lg border transition-all ${isHigh ? 'bg-[#EFA9D1]/30 text-[#5e193c] border-[#EFA9D1]/60 cursor-pointer hover:bg-[#EFA9D1]/50' : 'bg-white border-[#D8D1C3] text-[#858174]'}`}
                          onClick={() => {
                            if (isHigh) {
                               const pair = pairs.find(p => p.score === score && (p.stA.id === st.id || p.stB.id === st.id));
@@ -118,27 +118,27 @@ export function SimilarityCheckView({ assignment, submittedStudents, onCompare }
                  )
               })}
               {submittedStudents.length > 10 && (
-                <div className="p-3 text-sm font-medium text-slate-500 italic">...and {submittedStudents.length - 10} more</div>
+                <div className="p-3 text-sm font-medium text-[#858174] italic">...and {submittedStudents.length - 10} more</div>
               )}
             </div>
           </div>
           
           <div>
-             <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Pairwise Similarity Matrix (Top 5)</h4>
+             <h4 className="text-xs font-bold text-[#858174] mb-3 uppercase tracking-wider">Pairwise Similarity Matrix (Top 5)</h4>
              <div className="overflow-x-auto">
                <table className="w-full text-sm text-left border-collapse">
                  <thead>
                    <tr>
-                     <th className="p-2 border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px]">Student</th>
-                     {submittedStudents.slice(0, 5).map(s => <th key={s.id} className="p-2 border-b border-slate-200 text-slate-400 font-bold uppercase text-[10px] truncate max-w-[80px]">{s.name.split(' ')[0]}</th>)}
+                     <th className="p-2.5 border-b border-[#D8D1C3] text-[#858174] font-bold uppercase text-[10px]">Student</th>
+                     {submittedStudents.slice(0, 5).map(s => <th key={s.id} className="p-2.5 border-b border-[#D8D1C3] text-[#858174] font-bold uppercase text-[10px] truncate max-w-[80px]">{s.name.split(' ')[0]}</th>)}
                    </tr>
                  </thead>
                  <tbody>
                    {submittedStudents.slice(0, 5).map(rowSt => (
-                     <tr key={rowSt.id}>
-                       <td className="p-2 border-b border-slate-100 font-bold text-slate-700 text-xs truncate max-w-[100px]">{rowSt.name}</td>
+                     <tr key={rowSt.id} className="hover:bg-[#F5E5EE]/30 transition-colors">
+                       <td className="p-2.5 border-b border-[#D8D1C3]/50 font-bold text-[#171717] text-xs truncate max-w-[100px]">{rowSt.name}</td>
                        {submittedStudents.slice(0, 5).map(colSt => {
-                         if (rowSt.id === colSt.id) return <td key={colSt.id} className="p-2 border-b border-slate-100 text-slate-300 text-center text-xs">—</td>;
+                         if (rowSt.id === colSt.id) return <td key={colSt.id} className="p-2.5 border-b border-[#D8D1C3]/50 text-[#858174]/40 text-center text-xs">—</td>;
                          const pair = pairs.find(p => (p.stA.id === rowSt.id && p.stB.id === colSt.id) || (p.stB.id === rowSt.id && p.stA.id === colSt.id));
                          const score = pair ? pair.score : 0;
                          const isHigh = score > 40;
@@ -146,7 +146,7 @@ export function SimilarityCheckView({ assignment, submittedStudents, onCompare }
                            <td 
                              key={colSt.id} 
                              onClick={() => pair && onCompare(pair)}
-                             className={`p-2 border-b border-slate-100 text-center font-bold text-xs cursor-pointer hover:bg-slate-50 transition-colors ${isHigh ? 'text-red-600' : 'text-slate-500'}`}
+                             className={`p-2.5 border-b border-[#D8D1C3]/50 text-center font-bold text-xs cursor-pointer hover:bg-[#F5E5EE] transition-colors ${isHigh ? 'text-[#a12052] font-extrabold' : 'text-[#858174]'}`}
                            >
                              {score < 10 ? `0${score}%` : `${score}%`}
                            </td>
