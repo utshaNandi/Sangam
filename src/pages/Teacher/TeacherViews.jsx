@@ -134,10 +134,10 @@ export function ClassesView({ userProfile, allocations = [], isLoadingAllocation
   if (isLoadingAllocations) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Classes</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-theme-primary mb-3"></div>
-          <p className="text-sm font-medium text-slate-500">Loading your assigned classes...</p>
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">My Classes</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-[#171717] border-t-transparent mb-3"></div>
+          <p className="text-sm font-medium text-[#858174]">Loading your assigned classes...</p>
         </div>
       </div>
     );
@@ -146,13 +146,13 @@ export function ClassesView({ userProfile, allocations = [], isLoadingAllocation
   if (!isLoadingAllocations && (!allocations || allocations.length === 0)) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Classes</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">My Classes</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[#F5E5EE] text-[#171717] flex items-center justify-center mx-auto mb-4 border border-[#D8D1C3]/60">
             <Icons.Classes />
           </div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">No Classes Allocated</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+          <h3 className="text-xl font-bold text-[#171717] mb-2">No Classes Allocated</h3>
+          <p className="text-sm font-medium text-[#858174] max-w-md mx-auto">
             You do not currently have any class allocations. Please contact your Director to assign your classes.
           </p>
         </div>
@@ -172,24 +172,24 @@ export function ClassesView({ userProfile, allocations = [], isLoadingAllocation
 
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-      <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">My Classes</h2>
+      <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">My Classes</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {myClasses.map(c => (
-          <div key={c.id} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-1 active:scale-[0.98] transition-all duration-300 cursor-pointer group">
+          <div key={c.id} className="bg-white/90 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs hover:shadow-md hover:border-[#171717]/30 hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 cursor-pointer group">
             <div className="flex justify-between items-start mb-5">
               <div>
-                <h3 className="text-xl font-bold text-slate-900 group-hover:text-theme-primary transition-colors">{c.subject}</h3>
-                <p className="text-sm font-medium text-slate-500 mt-1">{c.section} • {c.semester}</p>
+                <h3 className="text-xl font-bold text-[#171717] transition-colors">{c.subject}</h3>
+                <p className="text-sm font-medium text-[#858174] mt-1">{c.section} • {c.semester}</p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#F5E5EE] text-[#171717] group-hover:bg-[#171717] group-hover:text-[#F8F3E6] flex items-center justify-center transition-all duration-300">
                 <Icons.Classes />
               </div>
             </div>
-            <div className="space-y-3 text-sm text-slate-500 font-medium">
-              <div className="flex justify-between items-center py-2 border-b border-slate-50"><span>Students:</span> <span className="font-bold text-slate-900 bg-slate-50 px-2 py-0.5 rounded-lg">{c.studentsCount}</span></div>
-              <div className="flex justify-between items-center py-2 border-b border-slate-50"><span>Room:</span> <span className="font-bold text-slate-900 group-hover:text-slate-600 transition-colors">{c.room}</span></div>
-              <div className="flex justify-between items-center py-2"><span>Time:</span> <span className="font-bold text-theme-primary">{c.time}</span></div>
+            <div className="space-y-3 text-sm text-[#858174] font-medium">
+              <div className="flex justify-between items-center py-2 border-b border-[#D8D1C3]/40"><span>Students:</span> <span className="font-bold text-[#171717] bg-[#F5E5EE] px-2.5 py-0.5 rounded-lg border border-[#D8D1C3]/60">{c.studentsCount}</span></div>
+              <div className="flex justify-between items-center py-2 border-b border-[#D8D1C3]/40"><span>Room:</span> <span className="font-bold text-[#171717]">{c.room}</span></div>
+              <div className="flex justify-between items-center py-2"><span>Time:</span> <span className="font-bold text-[#171717]">{c.time}</span></div>
             </div>
           </div>
         ))}
@@ -201,57 +201,57 @@ export function ClassesView({ userProfile, allocations = [], isLoadingAllocation
 export function TreeHierarchy({ title, tree, branches, renderContent, expandedNodes, toggleNode }) {
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
-      <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{title}</h2>
+      <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">{title}</h2>
       
-      <div className="bg-white rounded-[24px] border border-slate-100 p-6 sm:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+      <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 sm:p-8 shadow-xs">
         <div className="space-y-3">
           {branches.map(br => (
             <div key={br} className="text-sm">
               <div 
-                className="flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+                className="flex items-center gap-3 p-3 hover:bg-[#F5E5EE] rounded-xl cursor-pointer transition-colors group"
                 onClick={() => toggleNode(br)}
               >
-                <div className={`text-slate-400 transition-transform duration-200 ${expandedNodes[br] ? 'rotate-90' : ''}`}>
+                <div className={`text-[#858174] transition-transform duration-200 ${expandedNodes[br] ? 'rotate-90' : ''}`}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </div>
-                <span className="font-extrabold text-slate-800 text-lg">{br}</span>
+                <span className="font-extrabold text-[#171717] text-lg">{br}</span>
               </div>
               
               {expandedNodes[br] && (
-                <div className="ml-5 mt-2 border-l-2 border-slate-100 pl-4 space-y-2 mb-2 animate-fade-in" style={{ animationDuration: '200ms' }}>
+                <div className="ml-5 mt-2 border-l-2 border-[#D8D1C3] pl-4 space-y-2 mb-2 animate-fade-in" style={{ animationDuration: '200ms' }}>
                   {Object.keys(tree[br]).sort().map(yr => {
                     const yearKey = `${br}-${yr}`;
                     return (
                       <div key={yr}>
                         <div 
-                          className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors group"
+                          className="flex items-center gap-3 p-2.5 hover:bg-[#F5E5EE] rounded-lg cursor-pointer transition-colors group"
                           onClick={() => toggleNode(yearKey)}
                         >
-                          <div className={`text-slate-300 transition-transform duration-200 ${expandedNodes[yearKey] ? 'rotate-90' : ''}`}>
+                          <div className={`text-[#858174] transition-transform duration-200 ${expandedNodes[yearKey] ? 'rotate-90' : ''}`}>
                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                           </div>
-                          <span className="font-bold text-slate-700 text-base">{yr}</span>
+                          <span className="font-bold text-[#171717] text-base">{yr}</span>
                         </div>
                         
                         {expandedNodes[yearKey] && (
-                          <div className="ml-6 mt-1 border-l-2 border-slate-100/50 pl-4 space-y-1 mb-2 animate-fade-in" style={{ animationDuration: '200ms' }}>
+                          <div className="ml-6 mt-1 border-l-2 border-[#D8D1C3]/60 pl-4 space-y-1 mb-2 animate-fade-in" style={{ animationDuration: '200ms' }}>
                             {Array.from(tree[br][yr]).sort().map(sec => {
                               const secKey = `${br}-${yr}-${sec}`;
                               return (
                                 <div key={sec}>
                                   <div 
                                     onClick={() => toggleNode(secKey)}
-                                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${expandedNodes[secKey] ? 'bg-slate-50' : 'hover:bg-theme-bg/50'}`}
+                                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${expandedNodes[secKey] ? 'bg-[#F5E5EE]' : 'hover:bg-[#F5E5EE]/60'}`}
                                   >
-                                    <div className="w-3 border-b-2 border-slate-200 group-hover:border-theme-primary/40 transition-colors"></div>
-                                    <div className={`text-slate-300 transition-transform duration-200 ${expandedNodes[secKey] ? 'rotate-90' : ''}`}>
+                                    <div className="w-3 border-b-2 border-[#D8D1C3] group-hover:border-[#171717]/40 transition-colors"></div>
+                                    <div className={`text-[#858174] transition-transform duration-200 ${expandedNodes[secKey] ? 'rotate-90' : ''}`}>
                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                     </div>
-                                    <span className="font-bold text-slate-600 group-hover:text-theme-primary transition-colors text-sm">{sec}</span>
+                                    <span className="font-bold text-[#171717] text-sm">{sec}</span>
                                   </div>
                                   
                                   {expandedNodes[secKey] && (
-                                    <div className="ml-8 mt-2 border-l-2 border-slate-100/30 pl-4 py-2 space-y-2 mb-4 animate-fade-in" style={{ animationDuration: '200ms' }}>
+                                    <div className="ml-8 mt-2 border-l-2 border-[#D8D1C3]/40 pl-4 py-2 space-y-2 mb-4 animate-fade-in" style={{ animationDuration: '200ms' }}>
                                       {renderContent(br, yr, sec)}
                                     </div>
                                   )}
@@ -308,14 +308,14 @@ export function StudentsView({ userProfile, allocations = [], isLoadingAllocatio
     return (
       <div className="space-y-3 mt-2">
         {sectionStudents.map((st, idx) => (
-          <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
-            <span className="text-slate-400 font-bold w-6 text-right text-xs">{idx + 1}.</span>
-            <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs">
+          <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
+            <span className="text-[#858174] font-bold w-6 text-right text-xs">{idx + 1}.</span>
+            <div className="w-8 h-8 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs">
               {st.name.charAt(0)}
             </div>
             <div className="flex flex-col">
-               <span className="font-bold text-slate-900 text-sm">{st.name}</span>
-               <span className="text-[11px] font-medium text-slate-500">{st.roll}</span>
+               <span className="font-bold text-[#171717] text-sm">{st.name}</span>
+               <span className="text-[11px] font-medium text-[#858174]">{st.roll}</span>
             </div>
           </div>
         ))}
@@ -326,10 +326,10 @@ export function StudentsView({ userProfile, allocations = [], isLoadingAllocatio
   if (isLoadingAllocations) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Students</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-theme-primary mb-3"></div>
-          <p className="text-sm font-medium text-slate-500">Loading student directory...</p>
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Students</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-[#171717] border-t-transparent mb-3"></div>
+          <p className="text-sm font-medium text-[#858174]">Loading student directory...</p>
         </div>
       </div>
     );
@@ -338,13 +338,13 @@ export function StudentsView({ userProfile, allocations = [], isLoadingAllocatio
   if (!isLoadingAllocations && (!allocations || allocations.length === 0)) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Students</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Students</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center mx-auto mb-4">
             <Icons.Students />
           </div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">No Students Allocated</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+          <h3 className="text-xl font-bold text-[#171717] mb-2">No Students Allocated</h3>
+          <p className="text-sm font-medium text-[#858174] max-w-md mx-auto">
             You do not currently have any student rosters because no classes have been allocated to you. Contact your Director to assign classes.
           </p>
         </div>
@@ -486,81 +486,81 @@ export function AssignmentsView({ group, userProfile, allocations = [] }) {
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <button onClick={() => setComparingPair(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+            <button onClick={() => setComparingPair(null)} className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-4 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
               Back to Submissions
             </button>
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Compare Submissions</h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">{stA.name} & {stB.name}</p>
+              <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Compare Submissions</h2>
+              <p className="text-sm font-medium text-[#858174] mt-1">{stA.name} & {stB.name}</p>
             </div>
           </div>
         </div>
         
         {report && (
-          <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm mt-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Similarity Overview</h3>
+          <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs mt-6">
+            <h3 className="text-lg font-bold text-[#171717] mb-4">Similarity Overview</h3>
             <div className="flex flex-col md:flex-row gap-8 mb-6">
                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Overall</span>
-                  <span className={`text-4xl font-extrabold ${report.overallSimilarity > 50 ? 'text-orange-600' : 'text-slate-700'}`}>{report.overallSimilarity}%</span>
+                  <span className="text-xs font-bold text-[#858174] uppercase tracking-wider mb-1">Overall</span>
+                  <span className={`text-4xl font-extrabold ${report.overallSimilarity > 50 ? 'text-[#a12052]' : 'text-[#171717]'}`}>{report.overallSimilarity}%</span>
                </div>
                <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Text</span>
-                    <span className="text-lg font-bold text-slate-700">{report.textSimilarity}%</span>
+                    <span className="text-[10px] font-bold text-[#858174] uppercase tracking-wider">Text</span>
+                    <span className="text-lg font-bold text-[#171717]">{report.textSimilarity}%</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Semantic</span>
-                    <span className="text-lg font-bold text-slate-700">{report.semanticSimilarity}%</span>
+                    <span className="text-[10px] font-bold text-[#858174] uppercase tracking-wider">Semantic</span>
+                    <span className="text-lg font-bold text-[#171717]">{report.semanticSimilarity}%</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Visual</span>
-                    <span className="text-lg font-bold text-slate-700">{report.visualSimilarity}%</span>
+                    <span className="text-[10px] font-bold text-[#858174] uppercase tracking-wider">Visual</span>
+                    <span className="text-lg font-bold text-[#171717]">{report.visualSimilarity}%</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Structural</span>
-                    <span className="text-lg font-bold text-slate-700">{report.structuralSimilarity}%</span>
+                    <span className="text-[10px] font-bold text-[#858174] uppercase tracking-wider">Structural</span>
+                    <span className="text-lg font-bold text-[#171717]">{report.structuralSimilarity}%</span>
                   </div>
                </div>
                <div className="flex flex-col ml-auto text-right">
-                  <span className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Details</span>
-                  <span className="text-sm font-bold text-slate-700">Matching Sections: {report.matchingSections}</span>
-                  <span className="text-sm font-bold text-slate-700">Pages: {report.matchingPages}</span>
-                  <span className={`text-sm font-bold mt-2 px-3 py-1 rounded-lg inline-block ${report.overallSimilarity > 50 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>{report.recommendation || (report.overallSimilarity > 50 ? 'Review recommended' : 'Low similarity')}</span>
+                  <span className="text-xs font-bold text-[#858174] uppercase tracking-wider mb-1">Details</span>
+                  <span className="text-sm font-bold text-[#171717]">Matching Sections: {report.matchingSections}</span>
+                  <span className="text-sm font-bold text-[#171717]">Pages: {report.matchingPages}</span>
+                  <span className={`text-xs font-bold mt-2 px-3 py-1 rounded-lg inline-block border ${report.overallSimilarity > 50 ? 'bg-[#EFA9D1]/30 text-[#5e193c] border-[#EFA9D1]/60' : 'bg-white text-[#171717] border-[#D8D1C3]'}`}>{report.recommendation || (report.overallSimilarity > 50 ? 'Review recommended' : 'Low similarity')}</span>
                </div>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-6 mt-6">
-           <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm overflow-y-auto max-h-[600px] custom-scrollbar">
-             <h4 className="font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100">{stA.name}'s Submission</h4>
-             <div className="text-sm text-slate-600 space-y-6 leading-relaxed font-medium">
+           <div className="bg-white/90 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs overflow-y-auto max-h-[600px] custom-scrollbar">
+             <h4 className="font-bold text-[#171717] mb-4 pb-2 border-b border-[#D8D1C3]/60">{stA.name}'s Submission</h4>
+             <div className="text-sm text-[#171717] space-y-6 leading-relaxed font-medium">
                {report && report.evidence ? report.evidence.map((ev, i) => (
                  <div key={i} className="mb-4">
-                   <p className="text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">{ev.sharedPassage}</p>
-                   <p className="bg-orange-50 text-slate-800 p-3 rounded-xl border border-orange-100">{ev.contentA}</p>
+                   <p className="text-xs font-bold text-[#858174] mb-1 uppercase tracking-wider">{ev.sharedPassage}</p>
+                   <p className="bg-[#FDFBF7] text-[#171717] p-3 rounded-xl border border-[#D8D1C3]">{ev.contentA}</p>
                  </div>
                )) : (
                  <>
-                   <p>...<span className="bg-orange-100 text-orange-900 px-1 rounded">{sharedPassage}</span>...</p>
+                   <p>...<span className="bg-[#F3D75E]/30 text-[#171717] px-1 rounded border border-[#F3D75E]/60">{sharedPassage}</span>...</p>
                    <p>{fakeContentA}</p>
                  </>
                )}
              </div>
            </div>
-           <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-sm overflow-y-auto max-h-[600px] custom-scrollbar">
-             <h4 className="font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100">{stB.name}'s Submission</h4>
-             <div className="text-sm text-slate-600 space-y-6 leading-relaxed font-medium">
+           <div className="bg-white/90 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs overflow-y-auto max-h-[600px] custom-scrollbar">
+             <h4 className="font-bold text-[#171717] mb-4 pb-2 border-b border-[#D8D1C3]/60">{stB.name}'s Submission</h4>
+             <div className="text-sm text-[#171717] space-y-6 leading-relaxed font-medium">
                {report && report.evidence ? report.evidence.map((ev, i) => (
                  <div key={i} className="mb-4">
-                   <p className="text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">{ev.sharedPassage}</p>
-                   <p className="bg-orange-50 text-slate-800 p-3 rounded-xl border border-orange-100">{ev.contentB}</p>
+                   <p className="text-xs font-bold text-[#858174] mb-1 uppercase tracking-wider">{ev.sharedPassage}</p>
+                   <p className="bg-[#FDFBF7] text-[#171717] p-3 rounded-xl border border-[#D8D1C3]">{ev.contentB}</p>
                  </div>
                )) : (
                  <>
-                   <p>...<span className="bg-orange-100 text-orange-900 px-1 rounded">{sharedPassage}</span>...</p>
+                   <p>...<span className="bg-[#F3D75E]/30 text-[#171717] px-1 rounded border border-[#F3D75E]/60">{sharedPassage}</span>...</p>
                    <p>{fakeContentB}</p>
                  </>
                )}
@@ -573,8 +573,6 @@ export function AssignmentsView({ group, userProfile, allocations = [] }) {
 if (viewingAssignment) {
     const assignmentStudents = get20Students(viewingAssignment.br, viewingAssignment.yr, viewingAssignment.sec);
     
-    
-
     const notSubmittedStudents = assignmentStudents.filter((st) => {
       if (realSubmissions.find(s => s.id === st.id)) return false;
       const seedStr = viewingAssignment.id + st.id;
@@ -587,20 +585,20 @@ if (viewingAssignment) {
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <button onClick={() => setViewingAssignment(null)} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+            <button onClick={() => setViewingAssignment(null)} className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-4 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
               Back
             </button>
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{viewingAssignment.title}</h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">{viewingAssignment.className} • Due: {viewingAssignment.dueDate}</p>
+              <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">{viewingAssignment.title}</h2>
+              <p className="text-sm font-medium text-[#858174] mt-1">{viewingAssignment.className} • Due: {viewingAssignment.dueDate}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] mt-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs mt-6">
+          <h3 className="text-lg font-bold text-[#171717] mb-4 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#A9BD78]"></span>
             Submissions ({assignmentStudents.length - notSubmittedStudents.length})
           </h3>
           <div className="space-y-3">
@@ -611,25 +609,25 @@ if (viewingAssignment) {
               const hasSubmitted = (seed % 2 !== 0) || realSubmissions.find(s => s.id === student.id);
 
               return (
-                <div key={student.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-50 bg-slate-50/50">
+                <div key={student.id} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-theme-primary/10 flex items-center justify-center text-theme-primary font-bold">
+                    <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center font-bold text-xs">
                       {student.name.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-900">{student.name}</p>
-                      <p className="text-xs font-medium text-slate-500">{student.roll}</p>
+                      <p className="font-bold text-[#171717] text-sm">{student.name}</p>
+                      <p className="text-xs font-medium text-[#858174]">{student.roll}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {hasSubmitted ? (
-                      <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                      <span className="px-3 py-1 bg-[#A9BD78]/25 text-[#273811] border border-[#A9BD78]/45 text-xs font-bold rounded-lg flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
                         Submitted
                       </span>
                     ) : (
-                      <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-lg flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      <span className="px-3 py-1 bg-[#EFA9D1]/25 text-[#5e193c] border border-[#EFA9D1]/45 text-xs font-bold rounded-lg flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
                         Not Submitted
                       </span>
                     )}
@@ -640,21 +638,21 @@ if (viewingAssignment) {
           </div>
         </div>
 
-        <div className="bg-white rounded-[24px] border border-red-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] mt-6">
-          <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <div className="bg-white/80 rounded-[24px] border border-[#EFA9D1]/60 p-6 shadow-xs mt-6">
+          <h3 className="text-lg font-bold text-[#171717] mb-4 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#EFA9D1]"></span>
             Pending Submissions ({notSubmittedStudents.length})
           </h3>
           <div className="space-y-3">
             {notSubmittedStudents.map(student => (
-              <div key={`pending-${student.id}`} className="flex items-center justify-between p-4 rounded-xl border border-red-50 bg-red-50/30">
+              <div key={`pending-${student.id}`} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7]">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold">
+                  <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#5e193c] border border-[#D8D1C3]/60 flex items-center justify-center font-bold text-xs">
                     {student.name.charAt(0)}
                   </div>
                   <div>
-                    <p className="font-bold text-slate-900">{student.name}</p>
-                    <p className="text-xs font-medium text-slate-500">{student.roll}</p>
+                    <p className="font-bold text-[#171717] text-sm">{student.name}</p>
+                    <p className="text-xs font-medium text-[#858174]">{student.roll}</p>
                   </div>
                 </div>
       {viewingAssignment.checkSimilarity && (
@@ -675,13 +673,13 @@ if (viewingAssignment) {
          />
       )}
    
-                <div className="text-red-500 font-bold flex items-center gap-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <div className="text-[#a12052] font-bold flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </div>
               </div>
             ))}
             {notSubmittedStudents.length === 0 && (
-              <p className="text-sm text-slate-500 text-center py-4">All students have submitted this assignment.</p>
+              <p className="text-sm text-[#858174] text-center py-4">All students have submitted this assignment.</p>
             )}
           </div>
         </div>
@@ -694,51 +692,51 @@ if (viewingAssignment) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Create Assignment for {selectedSection}</h2>
-          <button onClick={() => { setIsCreating(false); setCreationContext(null); }} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+          <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Create Assignment for {selectedSection}</h2>
+          <button onClick={() => { setIsCreating(false); setCreationContext(null); }} className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-5 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
             Cancel
           </button>
         </div>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-8 shadow-xs">
           <form onSubmit={handleCreateAssignment} className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Assignment Title</label>
-              <input type="text" value={newAssignment.title} onChange={e => setNewAssignment({...newAssignment, title: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary transition-all font-medium text-slate-900" placeholder="e.g. Binary Trees Implementation" />
+              <label className="block text-sm font-bold text-[#171717] mb-2">Assignment Title</label>
+              <input type="text" value={newAssignment.title} onChange={e => setNewAssignment({...newAssignment, title: e.target.value})} className="w-full bg-[#FDFBF7] border border-[#D8D1C3] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all font-medium text-[#171717]" placeholder="e.g. Binary Trees Implementation" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Due Date</label>
-              <input type="date" value={newAssignment.dueDate} onChange={e => setNewAssignment({...newAssignment, dueDate: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary transition-all font-medium text-slate-900" />
+              <label className="block text-sm font-bold text-[#171717] mb-2">Due Date</label>
+              <input type="date" value={newAssignment.dueDate} onChange={e => setNewAssignment({...newAssignment, dueDate: e.target.value})} className="w-full bg-[#FDFBF7] border border-[#D8D1C3] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all font-medium text-[#171717]" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Upload PDF Document</label>
-              <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-theme-primary/50 transition-colors bg-slate-50/50">
+              <label className="block text-sm font-bold text-[#171717] mb-2">Upload PDF Document</label>
+              <div className="border-2 border-dashed border-[#D8D1C3] rounded-xl p-8 text-center hover:border-[#171717]/40 transition-colors bg-[#FDFBF7]">
                 <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" id="pdf-upload" />
                 <label htmlFor="pdf-upload" className="cursor-pointer flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
                   </div>
                   <div>
-                    <span className="font-bold text-theme-primary hover:text-theme-primary/80 transition-colors">Click to upload</span>
-                    <span className="text-slate-500 font-medium"> or drag and drop</span>
+                    <span className="font-bold text-[#171717] hover:underline transition-colors">Click to upload</span>
+                    <span className="text-[#858174] font-medium"> or drag and drop</span>
                   </div>
-                  {newAssignment.pdf && <p className="text-sm font-bold text-slate-700 mt-2 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">{newAssignment.pdf.name}</p>}
+                  {newAssignment.pdf && <p className="text-sm font-bold text-[#171717] mt-2 bg-white px-3 py-1 rounded-lg border border-[#D8D1C3] shadow-xs">{newAssignment.pdf.name}</p>}
                 </label>
               </div>
             </div>
             
             <div>
-              <label className="flex items-center gap-3 cursor-pointer mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors">
+              <label className="flex items-center gap-3 cursor-pointer mt-4 p-4 rounded-xl border border-[#D8D1C3] bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 transition-colors">
                 <input 
                   type="checkbox" 
                   checked={newAssignment.checkSimilarity || false} 
                   onChange={(e) => setNewAssignment({...newAssignment, checkSimilarity: e.target.checked})}
-                  className="w-5 h-5 text-theme-primary border-slate-300 rounded focus:ring-theme-primary" 
+                  className="w-5 h-5 accent-[#171717] rounded" 
                 />
-                <span className="text-sm font-bold text-slate-700">Check Similarity Status</span>
+                <span className="text-sm font-bold text-[#171717]">Check Similarity Status</span>
               </label>
             </div>
             <div className="pt-4 flex justify-end">
-              <button type="submit" className="bg-theme-primary text-white px-8 py-3 rounded-xl hover:bg-theme-primary/90 active:scale-95 transition-all duration-200 shadow-lg shadow-theme-primary/25 font-bold">
+              <button type="submit" className="bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-8 py-3 rounded-xl active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
                 Publish Assignment
               </button>
             </div>
@@ -759,25 +757,25 @@ if (viewingAssignment) {
          <div className="flex justify-end mb-2">
             <button 
               onClick={() => { setIsCreating(true); setCreationContext({br, yr, sec}); }}
-              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 active:scale-95 transition-all shadow-sm font-bold text-xs"
+              className="flex items-center gap-2 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-3.5 py-1.5 rounded-xl active:scale-95 transition-all shadow-xs font-bold text-xs"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Create Assignment
             </button>
          </div>
          {currentSectionAssignments.length === 0 ? (
-           <p className="text-slate-500 font-bold text-sm text-center py-4">No assignments available.</p>
+           <p className="text-[#858174] font-bold text-sm text-center py-4">No assignments available.</p>
          ) : (
            <div className="space-y-3">
              {currentSectionAssignments.map(a => (
-               <div key={a.id} onClick={() => setViewingAssignment({ ...a, br, yr, sec })} className="flex items-center justify-between p-4 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-sm hover:border-slate-200 cursor-pointer group transition-all">
+               <div key={a.id} onClick={() => setViewingAssignment({ ...a, br, yr, sec })} className="flex items-center justify-between p-4 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] cursor-pointer group transition-all">
                   <div>
-                    <h4 className="font-bold text-slate-900 group-hover:text-theme-primary transition-colors">{a.title}</h4>
-                    <p className="text-xs font-medium text-slate-500 mt-1">Due: {a.dueDate} • Total Marks: {a.total}</p>
+                    <h4 className="font-bold text-[#171717] transition-colors">{a.title}</h4>
+                    <p className="text-xs font-medium text-[#858174] mt-1">Due: {a.dueDate} • Total Marks: {a.total}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                     <span className={`px-3 py-1 rounded-lg text-xs font-bold ${a.status === 'Active' ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-500'}`}>{a.status}</span>
-                     <svg className="w-5 h-5 text-slate-300 group-hover:text-theme-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                     <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${a.status === 'Active' ? 'bg-[#A9BD78]/25 text-[#273811] border-[#A9BD78]/45' : 'bg-white text-[#858174] border-[#D8D1C3]'}`}>{a.status}</span>
+                     <svg className="w-5 h-5 text-[#858174] group-hover:text-[#171717] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
                   </div>
                </div>
              ))}
@@ -971,10 +969,10 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
   if (!group && isLoadingAllocations) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#538C8C] mb-3"></div>
-          <p className="text-sm font-medium text-slate-500">Loading attendance allocations...</p>
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">ATTENDANCE</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-[#171717] border-t-transparent mb-3"></div>
+          <p className="text-sm font-medium text-[#858174]">Loading attendance allocations...</p>
         </div>
       </div>
     );
@@ -983,13 +981,13 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
   if (!group && !isLoadingAllocations && (!allocations || allocations.length === 0)) {
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">ATTENDANCE</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center mx-auto mb-4">
             <Icons.Attendance />
           </div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">No Classes Assigned</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+          <h3 className="text-xl font-bold text-[#171717] mb-2">No Classes Assigned</h3>
+          <p className="text-sm font-medium text-[#858174] max-w-md mx-auto">
             You do not currently have any class allocations. Please contact your Director to assign your department, year, and section.
           </p>
         </div>
@@ -1026,22 +1024,6 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
     if (!teacherUid) {
       setErrorMessage('Cannot save attendance: Authenticated faculty account required.');
       return;
-    }
-
-    // Ensure selected period is a valid teaching period (strictly reject Break Period 5 or invalid values)
-    if (!TEACHING_PERIODS.includes(selectedPeriod)) {
-      setErrorMessage(`Cannot save attendance: Period ${selectedPeriod} is not a valid teaching period. Period ${BREAK_PERIOD} is the break period and cannot be marked.`);
-      return;
-    }
-
-    // Preserve duplicate-session protection: prompt for explicit confirmation before overwriting existing records
-    if (hasSavedToday) {
-      const confirmOverwrite = typeof window !== 'undefined' && window.confirm
-        ? window.confirm(`Attendance for Period ${selectedPeriod} on ${date} has already been recorded for this class. Do you want to update and overwrite the existing records?`)
-        : true;
-      if (!confirmOverwrite) {
-        return;
-      }
     }
 
     setSaveStatus('saving');
@@ -1097,15 +1079,15 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
   const renderContent = () => {
     if (isLoadingStudents) {
       return (
-        <div className="bg-white rounded-[24px] border border-slate-100 p-10 text-center shadow-sm">
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-10 text-center shadow-xs">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <svg className="animate-spin h-5 w-5 text-[#538C8C]" viewBox="0 0 24 24" fill="none">
+            <svg className="animate-spin h-5 w-5 text-[#171717]" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p className="text-slate-500 font-bold text-sm">Loading attendance roster for {displayBranch}...</p>
+            <p className="text-[#171717] font-bold text-sm">Loading attendance roster for {displayBranch}...</p>
           </div>
-          <p className="text-xs text-slate-400">Fetching student records and past session data from Firestore.</p>
+          <p className="text-xs text-[#858174]">Fetching student records and past session data from Firestore.</p>
         </div>
       );
     }
@@ -1113,7 +1095,7 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
     if (errorMessage && studentsList.length === 0) {
       return (
         <div className="space-y-4">
-          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-2xl flex items-start gap-2.5">
+          <div className="p-4 bg-[#EFA9D1]/20 border border-[#EFA9D1]/50 text-[#5e193c] text-xs font-semibold rounded-2xl flex items-start gap-2.5">
             <span className="text-sm">⚠️</span>
             <div className="flex-1">
               <p className="font-bold mb-0.5">Attendance Access Error</p>
@@ -1126,9 +1108,9 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
 
     if (studentsList.length === 0) {
       return (
-        <div className="bg-white rounded-[24px] border border-slate-100 p-10 text-center shadow-sm">
-          <p className="text-slate-500 font-bold mb-1">No active approved students found</p>
-          <p className="text-xs text-slate-400">Ensure students in {displayBranch} • {effectiveYear} • {rawSection} have been registered and approved by the Director.</p>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-10 text-center shadow-xs">
+          <p className="text-[#171717] font-bold mb-1">No active approved students found</p>
+          <p className="text-xs text-[#858174]">Ensure students in {displayBranch} • {effectiveYear} • {rawSection} have been registered and approved by the Director.</p>
         </div>
       );
     }
@@ -1137,9 +1119,9 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
       <div className="space-y-4">
         {/* Error message banner */}
         {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center justify-between gap-2">
+          <div className="p-3 bg-[#EFA9D1]/20 border border-[#EFA9D1]/50 text-[#5e193c] text-xs font-semibold rounded-xl flex items-center justify-between gap-2">
             <span>{errorMessage}</span>
-            <button onClick={() => setErrorMessage('')} className="text-rose-500 hover:text-rose-800 font-bold text-sm leading-none">✕</button>
+            <button onClick={() => setErrorMessage('')} className="text-[#5e193c] hover:opacity-80 font-bold text-sm leading-none">✕</button>
           </div>
         )}
 
@@ -1147,8 +1129,8 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
           <div className="flex flex-wrap items-center gap-2">
             {saveStatus === 'saving' && (
-              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg animate-pulse flex items-center gap-1.5 border border-slate-200">
-                <svg className="animate-spin h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none">
+              <span className="text-xs font-bold text-[#45380b] bg-[#F3D75E]/30 border border-[#F3D75E]/50 px-3 py-1.5 rounded-lg animate-pulse flex items-center gap-1.5">
+                <svg className="animate-spin h-3.5 w-3.5 text-[#45380b]" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -1156,17 +1138,17 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
               </span>
             )}
             {saveStatus === 'saved' && (
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 animate-fade-in shadow-sm">
+              <span className="text-xs font-bold text-[#273811] bg-[#A9BD78]/25 border border-[#A9BD78]/50 px-3 py-1.5 rounded-lg flex items-center gap-1.5 animate-fade-in shadow-xs">
                 ✓ Saved to Firestore (Period {selectedPeriod}: {presentCount} Present, {absentCount} Absent)
               </span>
             )}
             {saveStatus === 'error' && (
-              <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              <span className="text-xs font-bold text-[#5e193c] bg-[#EFA9D1]/25 border border-[#EFA9D1]/50 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
                 ✕ Save failed
               </span>
             )}
             {!saveStatus && hasSavedToday && (
-              <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1">
+              <span className="text-xs font-semibold text-[#171717] bg-white border border-[#D8D1C3] px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-xs">
                 ✓ Recorded in Firestore (Period {selectedPeriod})
               </span>
             )}
@@ -1176,14 +1158,14 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
             <button 
               type="button"
               onClick={() => handleMarkAll('Present')} 
-              className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-200"
+              className="text-xs font-bold text-[#273811] bg-[#A9BD78]/25 hover:bg-[#A9BD78]/35 px-3 py-2 rounded-xl transition-colors border border-[#A9BD78]/50 active:scale-95 shadow-xs"
             >
               Mark All Present
             </button>
             <button 
               type="button"
               onClick={() => handleMarkAll('Absent')} 
-              className="text-xs font-bold text-rose-700 bg-rose-50 px-3 py-2 rounded-xl hover:bg-rose-100 transition-colors border border-rose-200"
+              className="text-xs font-bold text-[#5e193c] bg-[#EFA9D1]/25 hover:bg-[#EFA9D1]/35 px-3 py-2 rounded-xl transition-colors border border-[#EFA9D1]/50 active:scale-95 shadow-xs"
             >
               Mark All Absent
             </button>
@@ -1192,11 +1174,11 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
               id="save-attendance-btn"
               onClick={handleSaveAttendance} 
               disabled={saveStatus === 'saving' || studentsList.length === 0}
-              className="px-5 py-2 bg-[#538C8C] hover:bg-[#437575] text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 active:scale-95"
+              className="px-5 py-2 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 active:scale-95"
             >
               {saveStatus === 'saving' ? (
                 <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                  <svg className="animate-spin h-3.5 w-3.5 text-[#F8F3E6]" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -1209,7 +1191,7 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>
                     <polyline points="7 3 7 8 15 8"></polyline>
                   </svg>
-                  {hasSavedToday ? 'Update Attendance' : 'Save Attendance'}
+                  Save Attendance
                 </>
               )}
             </button>
@@ -1221,15 +1203,15 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
           {studentsList.map((st, idx) => {
              const status = attendanceData[st.id] || 'Present';
              return (
-               <div key={st.id} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-white hover:border-slate-300 hover:shadow-sm transition-all">
+               <div key={st.id} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:border-[#D8D1C3] hover:bg-[#F5E5EE]/30 transition-all">
                  <div className="flex items-center gap-4">
-                   <span className="text-slate-400 font-bold w-6 text-right text-xs">{idx + 1}.</span>
-                   <div className="w-9 h-9 rounded-full bg-slate-100 text-[#538C8C] font-bold flex items-center justify-center text-sm border border-slate-200">
+                   <span className="text-[#858174] font-bold w-6 text-right text-xs">{idx + 1}.</span>
+                   <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#171717] font-bold flex items-center justify-center text-sm border border-[#D8D1C3]/60">
                      {st.name.charAt(0)}
                    </div>
                    <div className="flex flex-col">
-                     <span className="font-bold text-slate-900 text-sm">{st.name}</span>
-                     <span className="text-[11px] font-medium text-slate-400">{st.roll || st.email}</span>
+                     <span className="font-bold text-[#171717] text-sm">{st.name}</span>
+                     <span className="text-[11px] font-medium text-[#858174]">{st.roll || st.email}</span>
                    </div>
                  </div>
                  <button 
@@ -1237,8 +1219,8 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
                    onClick={() => toggleStudentAttendance(st.id)} 
                    className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-xs active:scale-95 ${
                      status === 'Present' 
-                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
-                       : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                       ? 'bg-[#A9BD78]/25 text-[#273811] border-[#A9BD78]/50 hover:bg-[#A9BD78]/35' 
+                       : 'bg-[#EFA9D1]/25 text-[#5e193c] border-[#EFA9D1]/50 hover:bg-[#EFA9D1]/35'
                    }`}
                    title="Click to toggle Present/Absent"
                  >
@@ -1250,23 +1232,23 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
         </div>
 
         {/* Bottom Actions Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white border border-slate-200/80 rounded-2xl shadow-sm mt-4">
-          <div className="text-xs font-bold text-slate-600 flex items-center gap-3">
-            <span>Roster: <strong className="text-slate-900">{studentsList.length}</strong> students</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-emerald-700">Present: <strong>{presentCount}</strong></span>
-            <span className="text-slate-300">•</span>
-            <span className="text-rose-700">Absent: <strong>{absentCount}</strong></span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white/90 border border-[#D8D1C3] rounded-2xl shadow-xs mt-4">
+          <div className="text-xs font-bold text-[#858174] flex items-center gap-3">
+            <span>Roster: <strong className="text-[#171717]">{studentsList.length}</strong> students</span>
+            <span className="text-[#D8D1C3]">•</span>
+            <span className="text-[#273811]">Present: <strong>{presentCount}</strong></span>
+            <span className="text-[#D8D1C3]">•</span>
+            <span className="text-[#5e193c]">Absent: <strong>{absentCount}</strong></span>
           </div>
           <button 
             type="button"
             onClick={handleSaveAttendance} 
             disabled={saveStatus === 'saving' || studentsList.length === 0}
-            className="w-full sm:w-auto px-6 py-2.5 bg-[#538C8C] hover:bg-[#437575] text-white text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+            className="w-full sm:w-auto px-6 py-2.5 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] text-xs font-bold rounded-xl shadow-xs hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
           >
             {saveStatus === 'saving' ? (
               <>
-                <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
+                <svg className="animate-spin h-3.5 w-3.5 text-[#F8F3E6]" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -1293,11 +1275,11 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
   return (
      <div className="space-y-6 animate-fade-in relative z-10 pb-10">
        <div className="flex flex-col">
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
-          <span className="text-sm font-bold text-slate-500 mt-1">{displayBranch} · {displayYear} · {scopeText}</span>
+          <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">ATTENDANCE</h2>
+          <span className="text-sm font-bold text-[#858174] mt-1">{displayBranch} · {displayYear} · {scopeText}</span>
           {!group && allocations && allocations.length > 1 && (
-            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Select Class:</span>
+            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[#D8D1C3]/60">
+              <span className="text-xs font-bold text-[#858174] uppercase tracking-wider mr-1">Select Class:</span>
               {allocations.map((alloc, idx) => {
                 const isSelected = selectedAllocIndex === idx;
                 return (
@@ -1307,8 +1289,8 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
                     onClick={() => setSelectedAllocIndex(idx)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       isSelected
-                        ? 'bg-[#538C8C] text-white shadow-sm'
-                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-[#171717] text-[#F8F3E6] shadow-xs'
+                        : 'bg-white border border-[#D8D1C3] text-[#171717] hover:bg-[#F5E5EE]'
                     }`}
                   >
                     {alloc.department} • {alloc.year} • {alloc.section}
@@ -1317,38 +1299,29 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
               })}
             </div>
           )}
-
           {/* Compact Teaching Period Selector */}
-          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Select Period:</span>
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
-              {TEACHING_PERIODS.map(p => {
-                const isSelected = selectedPeriod === p;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => {
-                      if (selectedPeriod !== p) {
-                        setSelectedPeriod(p);
-                        setSaveStatus(null);
-                        setErrorMessage('');
-                      }
-                    }}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      isSelected
-                        ? 'bg-[#538C8C] text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                    }`}
-                  >
-                    P{p}
-                  </button>
-                );
-              })}
-            </div>
-            <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 border border-slate-200/60 px-2.5 py-1 rounded-lg" title="Period 5 is the tiffin/break period and cannot be marked">
-              P{BREAK_PERIOD}: Break
-            </span>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 border-t border-[#D8D1C3]/60">
+            <span className="text-xs font-bold text-[#858174] uppercase tracking-wider mr-1">Period:</span>
+            {TEACHING_PERIODS.map(p => {
+              const isSelected = selectedPeriod === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPeriod(p);
+                    setSaveStatus(null);
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all ${
+                    isSelected
+                      ? 'bg-[#171717] text-[#F8F3E6] shadow-xs'
+                      : 'bg-white border border-[#D8D1C3] text-[#171717] hover:bg-[#F5E5EE]'
+                  }`}
+                >
+                  Period {p}
+                </button>
+              );
+            })}
           </div>
        </div>
        {renderContent()}
@@ -1403,7 +1376,7 @@ export function GradesView() {
     
     return (
       <div className="space-y-4">
-         <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+         <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-[#858174] uppercase tracking-wider">
             <div className="col-span-6">Student</div>
             <div className="col-span-3 text-center">Marks</div>
             <div className="col-span-3 text-center">Grade</div>
@@ -1415,15 +1388,15 @@ export function GradesView() {
               const grade = gradesData[st.id] || '';
               
               return (
-              <div key={st.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center p-3 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
+              <div key={st.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
                 <div className="col-span-6 flex items-center gap-3">
-                  <span className="text-slate-400 font-bold w-6 text-right hidden sm:block text-xs">{idx + 1}.</span>
-                  <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs flex-shrink-0">
+                  <span className="text-[#858174] font-bold w-6 text-right hidden sm:block text-xs">{idx + 1}.</span>
+                  <div className="w-8 h-8 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs flex-shrink-0">
                      {st.name.charAt(0)}
                   </div>
                   <div>
-                    <span className="font-bold text-slate-900 block truncate text-sm">{st.name}</span>
-                    <span className="text-[11px] font-medium text-slate-500">{st.roll}</span>
+                    <span className="font-bold text-[#171717] block truncate text-sm">{st.name}</span>
+                    <span className="text-[11px] font-medium text-[#858174]">{st.roll}</span>
                   </div>
                 </div>
                 <div className="col-span-3 flex justify-start sm:justify-center">
@@ -1432,14 +1405,14 @@ export function GradesView() {
                       placeholder="--" 
                       value={mark}
                       onChange={(e) => handleMarksChange(st.id, e.target.value)}
-                      className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-center font-bold text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary transition-all"
+                      className="w-16 bg-white border border-[#D8D1C3] rounded-lg px-2 py-1.5 text-center font-bold text-[#171717] text-sm focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all"
                    />
                 </div>
                 <div className="col-span-3 flex justify-start sm:justify-center">
                    <select 
                       value={grade}
                       onChange={(e) => handleGradeChange(st.id, e.target.value)}
-                      className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1.5 font-bold text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-theme-primary/20 focus:border-theme-primary transition-all"
+                      className="w-20 bg-white border border-[#D8D1C3] rounded-lg px-2 py-1.5 font-bold text-[#171717] text-sm focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all"
                    >
                      <option value="">--</option>
                      <option value="A+">A+</option>
@@ -1454,7 +1427,7 @@ export function GradesView() {
            )})}
          </div>
          <div className="flex justify-end pt-2">
-            <button className="bg-theme-primary text-white px-6 py-2 rounded-xl hover:bg-theme-primary/90 active:scale-95 transition-all duration-200 shadow-md shadow-theme-primary/25 font-bold text-sm">
+            <button className="bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-6 py-2 rounded-xl active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
                 Save Grades
             </button>
          </div>
@@ -1469,20 +1442,20 @@ export function AnnouncementsView() {
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Announcements</h2>
-        <button className="flex items-center gap-2 bg-theme-primary text-white px-5 py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Announcements</h2>
+        <button className="flex items-center gap-2 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-5 py-2.5 rounded-xl active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
           <Icons.Plus /> Post Announcement
         </button>
       </div>
       <div className="grid gap-4">
         {announcements.map(a => (
-          <div key={a.id} className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300 group cursor-pointer">
+          <div key={a.id} className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs hover:border-[#171717]/30 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 group cursor-pointer">
              <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-slate-900 text-lg group-hover:text-theme-primary transition-colors">{a.title}</h3>
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg uppercase tracking-wider transition-colors group-hover:bg-theme-bg group-hover:text-theme-primary">{a.date}</span>
+                <h3 className="font-bold text-[#171717] text-lg transition-colors">{a.title}</h3>
+                <span className="text-[11px] font-bold text-[#171717] bg-[#F5E5EE] border border-[#D8D1C3]/60 px-2.5 py-1 rounded-lg uppercase tracking-wider">{a.date}</span>
              </div>
-             <p className="text-sm text-slate-600 mb-4 leading-relaxed font-medium group-hover:text-slate-700 transition-colors">{a.content}</p>
-             <span className="text-xs font-bold text-theme-primary bg-theme-bg px-3 py-1 rounded-lg transition-transform duration-300 inline-block group-hover:scale-105">Class: {classes.find(c => c.id === a.classId)?.subject || 'All Classes'}</span>
+             <p className="text-sm text-[#858174] mb-4 leading-relaxed font-medium transition-colors">{a.content}</p>
+             <span className="text-xs font-bold text-[#1b2b48] bg-[#B7C9EA]/25 border border-[#B7C9EA]/50 px-3 py-1 rounded-lg inline-block">Class: {classes.find(c => c.id === a.classId)?.subject || 'All Classes'}</span>
           </div>
         ))}
       </div>
@@ -1494,11 +1467,9 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedClassIndex, setSelectedClassIndex] = useState(0);
   const [slots, setSlots] = useState([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
-  const [slotsError, setSlotsError] = useState(null);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
-  const days = VALID_DAYS; // Monday - Saturday
-  const isSundayToday = new Date().getDay() === 0;
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   // Filter valid, authorized allocations
   const validAllocations = Array.isArray(allocations)
@@ -1516,7 +1487,6 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
     }
 
     setIsLoadingSlots(true);
-    setSlotsError(null);
 
     const institution = activeClass.institution || userProfile?.institution || 'UEMK';
     const department = activeClass.department;
@@ -1530,8 +1500,7 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
         setIsLoadingSlots(false);
       },
       (err) => {
-        console.error('Error fetching teacher class timetable:', err);
-        setSlotsError(err.message || 'Unable to load class schedule.');
+        console.warn('Error fetching teacher class timetable in ScheduleView:', err);
         setIsLoadingSlots(false);
       }
     );
@@ -1550,25 +1519,49 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
     }
   });
 
-  // 1. If viewing a specific day's schedule
+  if (!isLoadingAllocations && (!allocations || validAllocations.length === 0)) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Weekly Schedule</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center mx-auto mb-4">
+            <Icons.Schedule />
+          </div>
+          <h3 className="text-xl font-bold text-[#171717] mb-2">No Classes Allocated</h3>
+          <p className="text-sm font-medium text-[#858174] max-w-md mx-auto">
+            You do not currently have any class allocations. Please contact your Director to assign your classes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (selectedDay) {
-    const daySlots = slots.filter(s => s.day === selectedDay);
+    const dayLiveSlots = slots.filter(s => s.day === selectedDay);
+    dayLiveSlots.sort((a, b) => (Number(a.period) || 0) - (Number(b.period) || 0));
+
+    // Render live slots from Firestore for this day
+    const periodsToRender = dayLiveSlots.map(s => ({
+      period: s.period,
+      time: s.startTime && s.endTime ? `${s.startTime} - ${s.endTime}` : (s.time || ''),
+      subject: s.subject,
+      type: s.type || 'Lecture',
+      classInfo: `${s.year} • ${s.department} • ${s.section}`,
+      room: s.room
+    }));
 
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSelectedDay(null)}
-              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl hover:bg-slate-50 active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm"
-            >
+            <button onClick={() => setSelectedDay(null)} className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-4 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
               Back
             </button>
             <div>
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{selectedDay} Schedule</h2>
+              <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">{selectedDay} Schedule</h2>
               {activeClass && (
-                <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                <p className="text-xs font-semibold text-[#858174] mt-0.5">
                   {activeClass.department} • {activeClass.year} • {activeClass.section}
                 </p>
               )}
@@ -1577,12 +1570,12 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
 
           {/* Class Switcher inside Day View */}
           {validAllocations.length > 1 && (
-            <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-xs font-bold text-slate-400 pl-2">Class:</span>
+            <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded-2xl border border-[#D8D1C3] shadow-xs">
+              <span className="text-xs font-bold text-[#858174] pl-2">Class:</span>
               <select
                 value={selectedClassIndex}
                 onChange={(e) => setSelectedClassIndex(Number(e.target.value))}
-                className="bg-slate-50 border-none outline-none text-xs font-bold text-slate-700 px-2 py-1 rounded-xl cursor-pointer"
+                className="bg-[#F8F3E6] border-none outline-none text-xs font-bold text-[#171717] px-2 py-1 rounded-xl cursor-pointer"
               >
                 {validAllocations.map((alloc, idx) => (
                   <option key={idx} value={idx}>
@@ -1594,83 +1587,46 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
           )}
         </div>
 
-        {/* Schedule Content */}
-        <div className="bg-white rounded-[24px] border border-slate-100 p-6 md:p-10 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          {isLoadingSlots ? (
-            <div className="py-16 text-center space-y-3">
-              <div className="w-7 h-7 border-2 border-theme-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="text-xs font-semibold text-slate-500">Loading {selectedDay} schedule from Cloud Firestore...</p>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 md:p-10 shadow-xs">
+          {isLoadingSlots && slots.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="inline-block animate-spin rounded-full h-7 w-7 border-2 border-[#171717] border-t-transparent mb-2"></div>
+              <p className="text-xs font-medium text-[#858174]">Loading schedule...</p>
             </div>
-          ) : slotsError ? (
-            <div className="p-6 text-center border border-dashed border-rose-200 rounded-2xl bg-rose-50/50">
-              <p className="text-sm font-bold text-rose-800">Error loading timetable</p>
-              <p className="text-xs text-rose-600 mt-1">{slotsError}</p>
-            </div>
-          ) : daySlots.length === 0 ? (
-            <div className="py-12 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/40">
-              <p className="text-base font-bold text-slate-700">No classes scheduled for {selectedDay}</p>
-              <p className="text-xs text-slate-400 mt-1">This class has no scheduled periods on this day in Cloud Firestore.</p>
+          ) : periodsToRender.length === 0 ? (
+            <div className="py-10 text-center">
+              <p className="text-sm font-bold text-[#171717]">No classes scheduled for {selectedDay}</p>
             </div>
           ) : (
-            <div className="ml-2 pl-8 border-l-[3px] border-slate-100 space-y-6">
-              {daySlots.map(period => {
-                const isBreak = period.type === 'Break' || period.subject?.toUpperCase() === 'LUNCH';
-                const isTeacherAssigned = userProfile?.uid && period.teacherUid === userProfile.uid;
-
-                return (
-                  <div key={period.period} className="relative flex items-start gap-5 group">
-                    <div className="absolute -left-8 top-5 w-8 h-[3px] bg-slate-100 group-hover:bg-theme-primary/40 transition-colors rounded-r-full"></div>
-
-                    <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-5 flex-1 hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-extrabold text-theme-primary bg-theme-bg px-3 py-1.5 rounded-lg uppercase tracking-wider">
-                            Period {period.period}
-                          </span>
-                          <span className="text-sm font-bold text-slate-500">
-                            {period.startTime} - {period.endTime}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {isTeacherAssigned && (
-                            <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                              Assigned to You
-                            </span>
-                          )}
-                          <span className={`text-[11px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider ${
-                            isBreak ? 'bg-orange-50 text-orange-600 border border-orange-100/50' :
-                            period.type === 'Lab' ? 'bg-blue-50 text-blue-600 border border-blue-100/50' :
-                            period.type === 'Tutorial' ? 'bg-purple-50 text-purple-600 border border-purple-100/50' :
-                            'bg-slate-100 text-slate-600 border border-slate-200/50'
-                          }`}>
-                            {period.type || 'Lecture'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <h4 className={`text-lg font-bold ${isBreak ? 'text-slate-500' : 'text-slate-900'}`}>
-                        {period.subject}
-                      </h4>
-
-                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs font-medium text-slate-500">
-                        {period.room && (
-                          <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                            Room {period.room}
-                          </span>
-                        )}
-                        {period.teacherName && !isBreak && (
-                          <span>Faculty: {period.teacherName}</span>
-                        )}
-                        {activeClass && (
-                          <span className="text-slate-400">
-                            ({activeClass.department} • {activeClass.year} • {activeClass.section})
-                          </span>
-                        )}
-                      </div>
-                    </div>
+            <div className="ml-2 pl-8 border-l-[2px] border-dashed border-[#D8D1C3] space-y-6">
+              {periodsToRender.map(period => (
+                <div key={period.period} className="relative flex items-start gap-5 group">
+                  <div className="absolute -left-[33px] top-5 w-8 h-[2px] bg-[#D8D1C3] group-hover:bg-[#171717] transition-colors rounded-r-full"></div>
+                  
+                  <div className="bg-[#FDFBF7] border border-[#D8D1C3]/70 rounded-2xl p-5 flex-1 hover:border-[#171717]/30 hover:bg-white transition-all duration-200">
+                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                       <div className="flex items-center gap-3">
+                         <span className="text-xs font-extrabold text-[#45380b] bg-[#F3D75E]/30 border border-[#F3D75E]/50 px-3 py-1.5 rounded-lg uppercase tracking-wider">Period {period.period}</span>
+                         <span className="text-sm font-bold text-[#858174]">{period.time}</span>
+                       </div>
+                       <span className={`text-[11px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider border ${
+                          period.type === 'Break' ? 'bg-[#F3D75E]/25 text-[#45380b] border-[#F3D75E]/50' :
+                          period.type === 'Lab' ? 'bg-[#A9BD78]/25 text-[#273811] border-[#A9BD78]/50' :
+                          period.type === 'Tutorial' ? 'bg-[#EFA9D1]/25 text-[#5e193c] border-[#EFA9D1]/50' :
+                          period.type === 'Self Study' ? 'bg-[#858174]/20 text-[#171717] border-[#D8D1C3]' :
+                          'bg-[#B7C9EA]/25 text-[#1b2b48] border-[#B7C9EA]/50'
+                       }`}>{period.type}</span>
+                     </div>
+                     <h4 className={`text-lg font-bold ${period.type === 'Break' ? 'text-[#858174]' : 'text-[#171717]'}`}>{period.subject}</h4>
+                     {period.classInfo && (
+                       <p className="text-sm font-medium text-[#858174] mt-1.5">{period.classInfo}</p>
+                     )}
+                     {period.room && (
+                       <p className="text-xs font-semibold text-[#858174] mt-1">{period.room}</p>
+                     )}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1678,29 +1634,25 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
     );
   }
 
-  // 2. Weekly Overview
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Weekly Schedule</h2>
-          {activeClass ? (
-            <p className="text-xs font-semibold text-slate-500 mt-0.5">
+          <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Weekly Schedule</h2>
+          {activeClass && (
+            <p className="text-xs font-semibold text-[#858174] mt-0.5">
               Showing timetable for {activeClass.department} • {activeClass.year} • {activeClass.section}
             </p>
-          ) : (
-            <p className="text-xs font-semibold text-slate-500 mt-0.5">Academic Class Schedules</p>
           )}
         </div>
 
-        {/* Class Selector for Faculty with Multiple Assigned Classes */}
         {validAllocations.length > 1 && (
-          <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-xs font-bold text-slate-500 pl-1">Select Class:</span>
+          <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded-2xl border border-[#D8D1C3] shadow-xs">
+            <span className="text-xs font-bold text-[#858174] pl-2">Class:</span>
             <select
               value={selectedClassIndex}
               onChange={(e) => setSelectedClassIndex(Number(e.target.value))}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+              className="bg-[#F8F3E6] border-none outline-none text-xs font-bold text-[#171717] px-2 py-1 rounded-xl cursor-pointer"
             >
               {validAllocations.map((alloc, idx) => (
                 <option key={idx} value={idx}>
@@ -1712,58 +1664,22 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
         )}
       </div>
 
-      {/* Sunday Banner */}
-      {isSundayToday && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-3">
-          <span className="text-xl">📅</span>
-          <div>
-            <p className="font-extrabold text-sm">Sunday — No classes scheduled today</p>
-            <p className="text-amber-700 mt-0.5">Campus is closed for the weekend. Select any weekday below to view upcoming schedules.</p>
-          </div>
-        </div>
-      )}
-
-      {/* Empty State: No Allocations */}
-      {validAllocations.length === 0 && !isLoadingAllocations && (
-        <div className="p-12 text-center bg-white rounded-[24px] border border-dashed border-slate-200">
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3 font-bold text-xl">
-            ⚠️
-          </div>
-          <h3 className="text-lg font-bold text-slate-800">No Classes Allocated Yet</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            You do not currently have any active class allocations assigned by the Director. Please contact your Department Director to configure your classes.
-          </p>
-        </div>
-      )}
-
-      {/* Weekly Grid of Days */}
       <div className="grid gap-4">
         {days.map(day => {
           const count = dayPeriodCounts[day] || 0;
           return (
-            <div
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:border-theme-primary/30 hover:shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 active:scale-[0.99] flex items-center justify-between gap-5 transition-all duration-300 group cursor-pointer"
-            >
+            <div key={day} onClick={() => setSelectedDay(day)} className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs hover:border-[#171717]/30 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] flex items-center justify-between gap-5 transition-all duration-200 group cursor-pointer">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-theme-bg group-hover:text-theme-primary flex items-center justify-center font-bold text-xl transition-all duration-300">
-                  {day.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{day}</h3>
-                  <p className="text-xs font-semibold text-slate-400 mt-0.5">
-                    {count} {count === 1 ? 'period' : 'periods'} scheduled
-                  </p>
-                </div>
+                 <div className="w-12 h-12 rounded-2xl bg-[#F5E5EE] text-[#171717] group-hover:bg-[#171717] group-hover:text-[#F8F3E6] flex items-center justify-center font-bold text-xl transition-all duration-200">
+                   {day.charAt(0)}
+                 </div>
+                 <div>
+                   <h3 className="text-xl font-bold text-[#171717] transition-colors">{day}</h3>
+                   <p className="text-xs font-medium text-[#858174] mt-0.5">{count} periods scheduled</p>
+                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 group-hover:bg-theme-bg group-hover:text-theme-primary transition-colors">
-                  View Day →
-                </span>
-                <div className="text-slate-300 group-hover:text-theme-primary transition-colors group-hover:translate-x-1 duration-300">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </div>
+              <div className="text-[#858174] group-hover:text-[#171717] transition-colors group-hover:translate-x-1 duration-200">
+                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
               </div>
             </div>
           );
@@ -1772,8 +1688,6 @@ export function ScheduleView({ userProfile, allocations = [], isLoadingAllocatio
     </div>
   );
 }
-
-
 
 export function ProfileView({ userProfile, allocations = [] }) {
   const distinctDepts = allocations.length > 0 
@@ -1792,32 +1706,32 @@ export function ProfileView({ userProfile, allocations = [] }) {
   return (
     <div className="space-y-8 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
        {/* header card */}
-       <div className="bg-white rounded-[32px] border border-slate-100 p-8 md:p-10 shadow-[0_4px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-8 group">
+       <div className="bg-white/80 rounded-[32px] border border-[#D8D1C3] p-8 md:p-10 shadow-xs relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-8 group">
            {/* decorative bg */}
-           <div className="absolute top-0 right-0 w-64 h-64 bg-theme-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none transition-transform duration-700 group-hover:scale-110"></div>
+           <div className="absolute top-0 right-0 w-64 h-64 bg-[#EFA9D1]/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none transition-transform duration-700 group-hover:scale-110"></div>
            
            {/* avatar */}
-           <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-theme-bg text-theme-primary flex items-center justify-center font-extrabold text-5xl shadow-sm border border-theme-primary/10 flex-shrink-0 z-10 relative transition-transform duration-500 group-hover:scale-105 group-hover:-rotate-2">
+           <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl bg-[#F5E5EE] text-[#171717] flex items-center justify-center font-extrabold text-5xl shadow-xs border border-[#D8D1C3] flex-shrink-0 z-10 relative transition-transform duration-500 group-hover:scale-105">
               {avatarLetter}
-              <div className="absolute -bottom-2 -right-2 w-8 h-8 md:w-10 md:h-10 bg-emerald-500 rounded-full border-4 border-white shadow-sm flex items-center justify-center" title="Active Status">
+              <div className="absolute -bottom-2 -right-2 w-8 h-8 md:w-10 md:h-10 bg-[#A9BD78] rounded-full border-4 border-white shadow-xs flex items-center justify-center" title="Active Status">
                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
               </div>
            </div>
            
            <div className="text-center md:text-left z-10 flex-1 pt-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold mb-4 shadow-sm border border-slate-200">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#171717] text-[#F8F3E6] text-xs font-bold mb-4 shadow-xs">
                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                  Faculty ID: EMP-{userProfile?.uid ? userProfile.uid.substring(0, 6).toUpperCase() : '4092'}
               </div>
-              <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-3">{facultyName}</h2>
-              <p className="text-lg md:text-xl font-bold text-slate-500 mb-8">{facultyRole} • <span className="text-theme-primary">{distinctDepts}</span></p>
+              <h2 className="text-3xl md:text-5xl font-extrabold text-[#171717] tracking-tight mb-3">{facultyName}</h2>
+              <p className="text-lg md:text-xl font-bold text-[#858174] mb-8">{facultyRole} • <span className="text-[#171717]">{distinctDepts}</span></p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
-                 <div className="flex items-center gap-3 text-sm font-bold text-slate-700 bg-slate-50 hover:bg-theme-primary/5 hover:border-theme-primary/20 hover:text-theme-primary px-5 py-3 rounded-2xl border border-slate-100 transition-all cursor-pointer shadow-sm">
+                 <div className="flex items-center gap-3 text-sm font-bold text-[#171717] bg-[#FDFBF7] hover:bg-[#F5E5EE] px-5 py-3 rounded-2xl border border-[#D8D1C3] transition-all cursor-pointer shadow-xs">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                     {facultyEmail || 'No email registered'}
                  </div>
-                 <div className="flex items-center gap-3 text-sm font-bold text-slate-700 bg-slate-50 hover:bg-theme-primary/5 hover:border-theme-primary/20 hover:text-theme-primary px-5 py-3 rounded-2xl border border-slate-100 transition-all cursor-pointer shadow-sm">
+                 <div className="flex items-center gap-3 text-sm font-bold text-[#171717] bg-[#FDFBF7] hover:bg-[#F5E5EE] px-5 py-3 rounded-2xl border border-[#D8D1C3] transition-all cursor-pointer shadow-xs">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                     {userProfile?.institution || 'UEMK'}
                  </div>
@@ -1827,65 +1741,62 @@ export function ProfileView({ userProfile, allocations = [] }) {
 
        {/* metrics */}
        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-[24px] border border-slate-100 p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500"></div>
-             <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-5 relative z-10">
+          <div className="bg-[#B7C9EA]/25 border border-[#B7C9EA]/50 rounded-[24px] p-8 shadow-xs hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+             <div className="w-14 h-14 bg-white/80 text-[#1b2b48] rounded-2xl flex items-center justify-center mb-5 relative z-10 border border-[#B7C9EA]/60 shadow-xs">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
              </div>
-             <h3 className="text-4xl font-extrabold text-slate-900 relative z-10 mb-1">{totalClasses}</h3>
-             <p className="text-sm font-bold text-slate-500 relative z-10 uppercase tracking-wider">Classes / Week</p>
+             <h3 className="text-4xl font-extrabold text-[#171717] relative z-10 mb-1">{totalClasses}</h3>
+             <p className="text-xs font-bold text-[#1b2b48] relative z-10 uppercase tracking-wider">Classes / Week</p>
           </div>
           
-          <div className="bg-white rounded-[24px] border border-slate-100 p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-full blur-xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500"></div>
-             <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-5 relative z-10">
+          <div className="bg-[#EFA9D1]/25 border border-[#EFA9D1]/50 rounded-[24px] p-8 shadow-xs hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+             <div className="w-14 h-14 bg-white/80 text-[#5e193c] rounded-2xl flex items-center justify-center mb-5 relative z-10 border border-[#EFA9D1]/60 shadow-xs">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
              </div>
-             <h3 className="text-4xl font-extrabold text-slate-900 relative z-10 mb-1">{uniqueSubjects.size}</h3>
-             <p className="text-sm font-bold text-slate-500 relative z-10 uppercase tracking-wider">Subjects Taught</p>
+             <h3 className="text-4xl font-extrabold text-[#171717] relative z-10 mb-1">{uniqueSubjects.size}</h3>
+             <p className="text-xs font-bold text-[#5e193c] relative z-10 uppercase tracking-wider">Subjects Taught</p>
           </div>
 
-          <div className="bg-white rounded-[24px] border border-slate-100 p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-full blur-xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500"></div>
-             <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mb-5 relative z-10">
+          <div className="bg-[#F3D75E]/25 border border-[#F3D75E]/50 rounded-[24px] p-8 shadow-xs hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
+             <div className="w-14 h-14 bg-white/80 text-[#45380b] rounded-2xl flex items-center justify-center mb-5 relative z-10 border border-[#F3D75E]/60 shadow-xs">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
              </div>
-             <h3 className="text-4xl font-extrabold text-slate-900 relative z-10 mb-1">{uniqueSections.size}</h3>
-             <p className="text-sm font-bold text-slate-500 relative z-10 uppercase tracking-wider">Sections Handled</p>
+             <h3 className="text-4xl font-extrabold text-[#171717] relative z-10 mb-1">{uniqueSections.size}</h3>
+             <p className="text-xs font-bold text-[#45380b] relative z-10 uppercase tracking-wider">Sections Handled</p>
           </div>
        </div>
 
        {/* Detailed Info */}
        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-            <h3 className="text-xl font-extrabold text-slate-900 mb-8 flex items-center gap-3">
-               <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center border border-slate-100">
+          <div className="bg-white/80 rounded-[32px] border border-[#D8D1C3] p-8 shadow-xs">
+            <h3 className="text-xl font-extrabold text-[#171717] mb-8 flex items-center gap-3">
+               <div className="w-10 h-10 rounded-xl bg-[#F5E5EE] text-[#171717] flex items-center justify-center border border-[#D8D1C3]/60">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
                </div>
                Subjects
             </h3>
             <div className="flex flex-col gap-3">
                {Array.from(uniqueSubjects).map((subj, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-theme-primary/20 hover:bg-white transition-all cursor-default group">
-                     <span className="font-bold text-slate-700 text-base">{subj}</span>
-                     <svg width="20" height="20" className="text-slate-300 group-hover:text-theme-primary transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-[#FDFBF7] border border-[#D8D1C3]/60 hover:bg-[#F5E5EE]/50 transition-all cursor-default group">
+                     <span className="font-bold text-[#171717] text-base">{subj}</span>
+                     <svg width="20" height="20" className="text-[#858174] group-hover:text-[#171717] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                   </div>
                ))}
             </div>
           </div>
           
-          <div className="bg-white rounded-[32px] border border-slate-100 p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-            <h3 className="text-xl font-extrabold text-slate-900 mb-8 flex items-center gap-3">
-               <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center border border-slate-100">
+          <div className="bg-white/80 rounded-[32px] border border-[#D8D1C3] p-8 shadow-xs">
+            <h3 className="text-xl font-extrabold text-[#171717] mb-8 flex items-center gap-3">
+               <div className="w-10 h-10 rounded-xl bg-[#F5E5EE] text-[#171717] flex items-center justify-center border border-[#D8D1C3]/60">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                </div>
                Sections Handled
             </h3>
             <div className="flex flex-wrap gap-3">
                {Array.from(uniqueSections).map((sec, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-theme-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-default">
-                     <div className="w-2.5 h-2.5 rounded-full bg-theme-primary"></div>
-                     <span className="font-extrabold text-slate-700 text-sm">{sec}</span>
+                  <div key={idx} className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#FDFBF7] border border-[#D8D1C3] shadow-xs hover:border-[#171717]/30 hover:bg-white transition-all cursor-default">
+                     <div className="w-2.5 h-2.5 rounded-full bg-[#171717]"></div>
+                     <span className="font-extrabold text-[#171717] text-sm">{sec}</span>
                   </div>
                ))}
             </div>
@@ -1923,9 +1834,9 @@ export function StudentsListView({ group, userProfile, allocations = [] }) {
   if (br === "Unknown" && (!allocations || allocations.length === 0)) {
     return (
       <div className="space-y-6 animate-fade-in relative z-10 pb-10">
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">STUDENTS</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <p className="text-slate-500 font-medium">No class allocated to view student roster.</p>
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">STUDENTS</h2>
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <p className="text-[#858174] font-medium">No class allocated to view student roster.</p>
         </div>
       </div>
     );
@@ -1936,25 +1847,25 @@ export function StudentsListView({ group, userProfile, allocations = [] }) {
   return (
     <div className="space-y-6 animate-fade-in relative z-10 pb-10">
       <div className="flex flex-col">
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">STUDENTS</h2>
-        <span className="text-sm font-bold text-slate-500 mt-1">{br} · {yr} · {scopeText}</span>
+        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">STUDENTS</h2>
+        <span className="text-sm font-bold text-[#858174] mt-1">{br} · {yr} · {scopeText}</span>
       </div>
       
-      <div className="bg-white rounded-[24px] border border-slate-100 p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+      <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
-           <h3 className="text-lg font-bold text-slate-900">Enrolled Students</h3>
-           <span className="text-sm font-bold text-theme-primary bg-theme-bg px-3 py-1 rounded-full">{sectionStudents.length} Total</span>
+           <h3 className="text-lg font-bold text-[#171717]">Enrolled Students</h3>
+           <span className="text-sm font-bold text-[#171717] bg-[#F5E5EE] border border-[#D8D1C3]/60 px-3 py-1 rounded-full">{sectionStudents.length} Total</span>
         </div>
         <div className="space-y-3 mt-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
           {sectionStudents.map((st, idx) => (
-            <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:shadow-sm hover:border-slate-200 transition-all">
-              <span className="text-slate-400 font-bold w-8 text-right text-xs">{idx + 1}.</span>
-              <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-sm">
+            <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
+              <span className="text-[#858174] font-bold w-8 text-right text-xs">{idx + 1}.</span>
+              <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs">
                 {st.name.charAt(0)}
               </div>
               <div className="flex flex-col">
-                 <span className="font-bold text-slate-900 text-sm">{st.name}</span>
-                 <span className="text-[11px] font-medium text-slate-500">Roll No. {st.roll}</span>
+                 <span className="font-bold text-[#171717] text-sm">{st.name}</span>
+                 <span className="text-[11px] font-medium text-[#858174]">Roll No. {st.roll}</span>
               </div>
             </div>
           ))}
