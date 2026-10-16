@@ -365,6 +365,90 @@ test('Faculty roster containing multiple staff and duplicates deduplicates clean
   assert.equal(result.some(f => f.id === 'faculty_tesla' && f.uid === 'faculty_tesla'), true);
 });
 
+// ---------------------------------------------------------------------
+// Test 12: Recreated Test Student vs Obsolete Profile in Director Partitioning
+// ---------------------------------------------------------------------
+test('Recreated Test Student (qfQnw...) is active; obsolete account (MXE8I...) is excluded from pending and active', () => {
+  const records = [
+    {
+      id: 'MXE8Ip0nD4YnLPGIfyjALctKR7n2',
+      uid: 'MXE8Ip0nD4YnLPGIfyjALctKR7n2',
+      name: 'Test Student',
+      email: 'test_student_1791818183865@test.com',
+      role: 'student',
+      status: 'pending_approval',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec A',
+      institution: 'UEMK',
+      createdAt: '2026-10-12T10:00:00.000Z'
+    },
+    {
+      id: 'qfQnwVbU6ZWbXyc0LxasTeBNRq13',
+      uid: 'qfQnwVbU6ZWbXyc0LxasTeBNRq13',
+      name: 'Test Student',
+      email: 'test_student_1791818183865@test.com',
+      role: 'student',
+      status: 'active',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec A',
+      institution: 'UEMK',
+      createdAt: '2026-10-13T10:00:00.000Z'
+    }
+  ];
+
+  const { pendingList, activeList } = partitionStudentRecords(records);
+
+  assert.equal(activeList.length, 1, 'activeList must contain exactly 1 student');
+  assert.equal(activeList[0].uid, 'qfQnwVbU6ZWbXyc0LxasTeBNRq13', 'Active student must have UID qfQnwVbU6ZWbXyc0LxasTeBNRq13');
+  assert.equal(activeList[0].name, 'Test Student');
+  assert.equal(activeList[0].status, 'active');
+
+  // Obsolete record must NOT appear in pendingList because active student has the same email
+  assert.equal(pendingList.length, 0, 'pendingList must exclude obsolete record MXE8Ip0nD4YnLPGIfyjALctKR7n2');
+  assert.equal(activeList.some(s => s.uid === 'MXE8Ip0nD4YnLPGIfyjALctKR7n2'), false);
+  assert.equal(pendingList.some(s => s.uid === 'MXE8Ip0nD4YnLPGIfyjALctKR7n2'), false);
+});
+
+// ---------------------------------------------------------------------
+// Test 13: Multiple active accounts for same email deduplicate to exactly 1 active student
+// ---------------------------------------------------------------------
+test('Multiple active student documents for same email deduplicate to exactly 1 active student', () => {
+  const records = [
+    {
+      id: 'MXE8Ip0nD4YnLPGIfyjALctKR7n2',
+      uid: 'MXE8Ip0nD4YnLPGIfyjALctKR7n2',
+      name: 'Test Student',
+      email: 'test_student_1791818183865@test.com',
+      role: 'student',
+      status: 'active',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec A',
+      createdAt: '2026-10-12T10:00:00.000Z'
+    },
+    {
+      id: 'qfQnwVbU6ZWbXyc0LxasTeBNRq13',
+      uid: 'qfQnwVbU6ZWbXyc0LxasTeBNRq13',
+      name: 'Test Student',
+      email: 'test_student_1791818183865@test.com',
+      role: 'student',
+      status: 'active',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec A',
+      createdAt: '2026-10-13T10:00:00.000Z'
+    }
+  ];
+
+  const { pendingList, activeList } = partitionStudentRecords(records);
+
+  assert.equal(activeList.length, 1, 'activeList must contain exactly 1 student even if both had status active');
+  assert.equal(activeList[0].uid, 'qfQnwVbU6ZWbXyc0LxasTeBNRq13', 'Newer active record must be selected');
+  assert.equal(pendingList.length, 0);
+});
+
 console.log(`\n========================================`);
 console.log(`FILTERING TESTS: ${passed} PASSED, ${failed} FAILED`);
 console.log(`========================================\n`);

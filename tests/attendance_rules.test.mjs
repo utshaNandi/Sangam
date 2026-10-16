@@ -353,7 +353,7 @@ try {
   }
 
   // -------------------------------------------------------------
-  // Test 7: Invalid date format and invalid period are rejected
+  // Test 7: Invalid date format, Period 5 (break), and out-of-range periods are rejected
   // -------------------------------------------------------------
   try {
     await assertFails(setDoc(doc(facultyCsDb, 'attendance_records', `${validSessionId}_student_cs_02`), {
@@ -366,9 +366,29 @@ try {
       studentUid: 'student_cs_02',
       period: 10 // invalid period (> 9)
     }));
-    report(7, 'Invalid date format and out-of-range periods are rejected', true);
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_records', `${validSessionId}_student_cs_02`), {
+      ...validRecordPayload,
+      studentUid: 'student_cs_02',
+      period: 5 // break period (strictly rejected by rules)
+    }));
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_records', `${validSessionId}_student_cs_02`), {
+      ...validRecordPayload,
+      studentUid: 'student_cs_02',
+      period: 0 // invalid period (< 1)
+    }));
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_records', `${validSessionId}_student_cs_02`), {
+      ...validRecordPayload,
+      studentUid: 'student_cs_02',
+      period: -1 // negative period
+    }));
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_records', `${validSessionId}_student_cs_02`), {
+      ...validRecordPayload,
+      studentUid: 'student_cs_02',
+      period: '1' // non-numeric period rejected
+    }));
+    report(7, 'Invalid date format, Period 5 (break), and out-of-range/non-numeric periods are rejected for records', true);
   } catch (err) {
-    report(7, 'Invalid date format and out-of-range periods are rejected', false, err.message);
+    report(7, 'Invalid date format, Period 5 (break), and out-of-range/non-numeric periods are rejected for records', false, err.message);
   }
 
   // -------------------------------------------------------------
@@ -1409,6 +1429,137 @@ try {
     report(45, 'Diagnostic identifies rejected write target and preserves privacy (no PII leaked)', identifiesNoAlloc && identifiesRecordFail && noSensitiveData);
   } catch (err) {
     report(45, 'Diagnostic validation', false, err.message);
+  }
+
+  // -------------------------------------------------------------
+  // Test 46: Attendance sessions strictly reject Period 5 (break) and out-of-range periods
+  // -------------------------------------------------------------
+  try {
+    const breakSessionId = 'UEMK_ComputerScience_2ndYear_SecC_2026-10-13_P5';
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_sessions', breakSessionId), {
+      sessionId: breakSessionId,
+      institution: 'UEMK',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec C',
+      date: '2026-10-13',
+      period: 5, // break period rejected by rules
+      markedBy: 'faculty_cs_uid',
+      markedAt: new Date().toISOString(),
+      presentCount: 1,
+      absentCount: 0,
+      totalStudents: 1
+    }));
+
+    const zeroPeriodSessionId = 'UEMK_ComputerScience_2ndYear_SecC_2026-10-13_P0';
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_sessions', zeroPeriodSessionId), {
+      sessionId: zeroPeriodSessionId,
+      institution: 'UEMK',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec C',
+      date: '2026-10-13',
+      period: 0, // period 0 rejected by rules
+      markedBy: 'faculty_cs_uid',
+      markedAt: new Date().toISOString(),
+      presentCount: 1,
+      absentCount: 0,
+      totalStudents: 1
+    }));
+
+    const highPeriodSessionId = 'UEMK_ComputerScience_2ndYear_SecC_2026-10-13_P10';
+    await assertFails(setDoc(doc(facultyCsDb, 'attendance_sessions', highPeriodSessionId), {
+      sessionId: highPeriodSessionId,
+      institution: 'UEMK',
+      department: 'Computer Science',
+      year: '2nd Year',
+      section: 'Sec C',
+      date: '2026-10-13',
+      period: 10, // period 10 rejected by rules
+      markedBy: 'faculty_cs_uid',
+      markedAt: new Date().toISOString(),
+      presentCount: 1,
+      absentCount: 0,
+      totalStudents: 1
+    }));
+
+    report(46, 'Attendance session strictly rejects Period 5 (break) and out-of-range periods (0, 10)', true);
+  } catch (err) {
+    report(46, 'Attendance session period validation', false, err.message);
+  }
+
+  // -------------------------------------------------------------
+  // Test 47: All eight teaching periods (1, 2, 3, 4, 6, 7, 8, 9) remain strictly valid in Firestore rules
+  // -------------------------------------------------------------
+  try {
+    const teachingPeriods = [1, 2, 3, 4, 6, 7, 8, 9];
+    let allValid = true;
+    for (const p of teachingPeriods) {
+      const pSessionId = `UEMK_ComputerScience_2ndYear_SecC_2026-10-13_P${p}`;
+      const res = await setDoc(doc(facultyCsDb, 'attendance_sessions', pSessionId), {
+        sessionId: pSessionId,
+        institution: 'UEMK',
+        department: 'Computer Science',
+        year: '2nd Year',
+        section: 'Sec C',
+        date: '2026-10-13',
+        period: p,
+        markedBy: 'faculty_cs_uid',
+        markedAt: new Date().toISOString(),
+        presentCount: 1,
+        absentCount: 0,
+        totalStudents: 1
+      });
+    }
+    report(47, 'All eight teaching periods (1, 2, 3, 4, 6, 7, 8, 9) remain valid in Firestore rules', true);
+  } catch (err) {
+    report(47, 'All eight teaching periods remain valid in Firestore rules', false, err.message);
+  }
+
+  // -------------------------------------------------------------
+  // Test 48: savePeriodAttendance and saveSingleStudentAttendance reject Period 5 before writes
+  // -------------------------------------------------------------
+  try {
+    let bulkBreakRejected = false;
+    try {
+      await savePeriodAttendance({
+        sessionInfo: {
+          institution: 'UEMK',
+          department: 'Computer Science',
+          year: '2nd Year',
+          section: 'Sec C',
+          date: '2026-10-13',
+          period: 5
+        },
+        studentStatuses: { 'student_cs_01': 'Present' },
+        teacherUid: 'faculty_cs_uid'
+      }, facultyCsDb);
+    } catch (e) {
+      bulkBreakRejected = e.message.includes('Period 5');
+    }
+
+    let singleBreakRejected = false;
+    try {
+      await saveSingleStudentAttendance({
+        sessionInfo: {
+          institution: 'UEMK',
+          department: 'Computer Science',
+          year: '2nd Year',
+          section: 'Sec C',
+          date: '2026-10-13',
+          period: 5
+        },
+        studentUid: 'student_cs_01',
+        status: 'Present',
+        teacherUid: 'faculty_cs_uid'
+      }, facultyCsDb);
+    } catch (e) {
+      singleBreakRejected = e.message.includes('Period 5');
+    }
+
+    report(48, 'Service functions savePeriodAttendance and saveSingleStudentAttendance reject Period 5 before writes', bulkBreakRejected && singleBreakRejected);
+  } catch (err) {
+    report(48, 'Service period validation guard', false, err.message);
   }
 
 } finally {

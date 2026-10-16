@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icons } from '../Teacher/Icons';
 import StudentCharacter from '../../components/student/StudentCharacter';
@@ -168,17 +168,14 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
 
   useEffect(() => {
     if (isSunday || !department || !year || !section) {
-      setTodayClasses([]);
-      setIsLoadingTimetable(false);
       return;
     }
 
-    setIsLoadingTimetable(true);
-    setTimetableError(null);
-
+    let isMounted = true;
     const unsubscribe = subscribeClassTimetable(
       { institution, department, year, section, day: todayDayName },
       (slots) => {
+        if (!isMounted) return;
         const active = slots
           .filter(s => s.type !== 'Break' && s.subject?.toUpperCase() !== 'LUNCH' && s.subject?.toUpperCase() !== 'LUNCH BREAK')
           .map((s, idx) => ({
@@ -186,7 +183,7 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
             period: s.period,
             time: `${s.startTime} - ${s.endTime}`,
             subject: s.subject,
-            section: `${year} • ${section}` || section || 'Class',
+            section: `${year} • ${section}`,
             teacher: s.teacherName || '',
             type: s.type || 'Lecture',
             room: s.room || 'Room 402'
@@ -195,6 +192,7 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
         setIsLoadingTimetable(false);
       },
       (err) => {
+        if (!isMounted) return;
         console.error('Error fetching today timetable in dashboard:', err);
         setTimetableError(err.message || 'Unable to load today schedule.');
         setIsLoadingTimetable(false);
@@ -202,6 +200,7 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
     );
 
     return () => {
+      isMounted = false;
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [institution, department, year, section, todayDayName, isSunday]);
@@ -210,14 +209,12 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
   const [dashboardAttendanceRecords, setDashboardAttendanceRecords] = useState([]);
 
   useEffect(() => {
-    if (!studentId) {
-      setDashboardAttendanceRecords([]);
-      return;
-    }
+    if (!studentId) return;
+
     const unsubscribe = subscribeStudentAttendance(
       studentId,
       (records) => {
-        setDashboardAttendanceRecords(records);
+        setDashboardAttendanceRecords(records || []);
       },
       (err) => {
         console.error('Error fetching dashboard attendance:', err);
@@ -229,7 +226,12 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
   }, [studentId]);
 
   const dashboardPeriodData = transformRecordsToPeriodData(dashboardAttendanceRecords);
-  const { percentage: attendancePercentage } = calculateAttendanceMetrics(dashboardPeriodData);
+  const { 
+    percentage: attendancePercentage,
+    attended: dashAttended,
+    total: dashTotal,
+    pendingDays: dashPending
+  } = calculateAttendanceMetrics(dashboardPeriodData);
 
   const todayLabsCount = todayClasses.filter(c => c.type === 'Lab').length;
 
@@ -249,8 +251,12 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <StatCard 
             title="Attendance" 
-            value={`${attendancePercentage}%`} 
-            subtitle="Click to view full records" 
+            value={dashTotal > 0 ? `${attendancePercentage}%` : (dashPending > 0 ? 'Pending' : '0%')} 
+            subtitle={
+              dashTotal > 0 
+                ? (dashPending > 0 ? `${dashAttended}/${dashTotal} days • ${dashPending} pending` : `${dashAttended}/${dashTotal} completed days`)
+                : (dashPending > 0 ? `${dashPending} day pending • Click to view` : 'Click to view full records')
+            } 
             icon={<Icons.Attendance />} 
             onClick={() => onNavigate('Attendance')} 
           />

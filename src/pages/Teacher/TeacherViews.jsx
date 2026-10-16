@@ -12,7 +12,9 @@ import {
   generateSessionId, 
   getCurrentPeriod, 
   getTodayDateString,
-  resolveAcademicScope
+  resolveAcademicScope,
+  TEACHING_PERIODS,
+  BREAK_PERIOD
 } from '../../services/attendanceService';
 import { subscribeClassTimetable, VALID_DAYS } from '../../services/timetableService.js';
 
@@ -851,8 +853,14 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
   // Canonical department for Firestore querying, session documents, and rules authorization
   const canonicalDepartment = CANONICAL_DEPARTMENT_MAP[displayBranch] || userProfile?.department || displayBranch;
   const date = getTodayDateString();
-  const period = getCurrentPeriod();
   const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
+
+  // Manual teaching period selection: initialized with current period if valid teaching period,
+  // falling back safely to the first teaching period (P1) if currently break period or outside teaching hours.
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    const cur = getCurrentPeriod();
+    return (TEACHING_PERIODS && TEACHING_PERIODS.includes(cur)) ? cur : (TEACHING_PERIODS?.[0] || 1);
+  });
 
   const [studentsList, setStudentsList] = useState([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(true);
@@ -867,38 +875,9 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
     year: effectiveYear,
     section: rawSection,
     date,
-    period
+    period: selectedPeriod
   };
   const sessionId = generateSessionId(sessionInfo);
-
-  if (!group && isLoadingAllocations) {
-    return (
-      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#538C8C] mb-3"></div>
-          <p className="text-sm font-medium text-slate-500">Loading attendance allocations...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!group && !isLoadingAllocations && (!allocations || allocations.length === 0)) {
-    return (
-      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
-        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
-          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
-            <Icons.Attendance />
-          </div>
-          <h3 className="text-xl font-bold text-slate-800 mb-2">No Classes Assigned</h3>
-          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
-            You do not currently have any class allocations. Please contact your Director to assign your department, year, and section.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   // Load active approved students and existing session records
   useEffect(() => {
@@ -989,6 +968,35 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
     return () => { isCancelled = true; };
   }, [sessionId, canonicalDepartment, effectiveYear, rawSection, userProfile?.uid, userProfile?.institution, userProfile?.department, selectedAllocIndex, allocations?.length]);
 
+  if (!group && isLoadingAllocations) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#538C8C] mb-3"></div>
+          <p className="text-sm font-medium text-slate-500">Loading attendance allocations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!group && !isLoadingAllocations && (!allocations || allocations.length === 0)) {
+    return (
+      <div className="space-y-6 animate-hero-fade-up relative z-10 pb-10" style={{ animationDuration: '400ms' }}>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">ATTENDANCE</h2>
+        <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-[0_2px_20px_rgba(0,0,0,0.02)]">
+          <div className="w-16 h-16 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center mx-auto mb-4">
+            <Icons.Attendance />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">No Classes Assigned</h3>
+          <p className="text-sm font-medium text-slate-500 max-w-md mx-auto">
+            You do not currently have any class allocations. Please contact your Director to assign your department, year, and section.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const handleMarkAll = (status) => {
     if (studentsList.length === 0) return;
 
@@ -1018,6 +1026,22 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
     if (!teacherUid) {
       setErrorMessage('Cannot save attendance: Authenticated faculty account required.');
       return;
+    }
+
+    // Ensure selected period is a valid teaching period (strictly reject Break Period 5 or invalid values)
+    if (!TEACHING_PERIODS.includes(selectedPeriod)) {
+      setErrorMessage(`Cannot save attendance: Period ${selectedPeriod} is not a valid teaching period. Period ${BREAK_PERIOD} is the break period and cannot be marked.`);
+      return;
+    }
+
+    // Preserve duplicate-session protection: prompt for explicit confirmation before overwriting existing records
+    if (hasSavedToday) {
+      const confirmOverwrite = typeof window !== 'undefined' && window.confirm
+        ? window.confirm(`Attendance for Period ${selectedPeriod} on ${date} has already been recorded for this class. Do you want to update and overwrite the existing records?`)
+        : true;
+      if (!confirmOverwrite) {
+        return;
+      }
     }
 
     setSaveStatus('saving');
@@ -1133,7 +1157,7 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
             )}
             {saveStatus === 'saved' && (
               <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 animate-fade-in shadow-sm">
-                ✓ Saved to Firestore (Period {period}: {presentCount} Present, {absentCount} Absent)
+                ✓ Saved to Firestore (Period {selectedPeriod}: {presentCount} Present, {absentCount} Absent)
               </span>
             )}
             {saveStatus === 'error' && (
@@ -1143,7 +1167,7 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
             )}
             {!saveStatus && hasSavedToday && (
               <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                ✓ Recorded in Firestore (Period {period})
+                ✓ Recorded in Firestore (Period {selectedPeriod})
               </span>
             )}
           </div>
@@ -1185,7 +1209,7 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>
                     <polyline points="7 3 7 8 15 8"></polyline>
                   </svg>
-                  Save Attendance
+                  {hasSavedToday ? 'Update Attendance' : 'Save Attendance'}
                 </>
               )}
             </button>
@@ -1255,7 +1279,7 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
                   <polyline points="17 21 17 13 7 13 7 21"></polyline>
                   <polyline points="7 3 7 8 15 8"></polyline>
                 </svg>
-                Save Attendance
+                {hasSavedToday ? 'Update Attendance' : 'Save Attendance'}
               </>
             )}
           </button>
@@ -1293,6 +1317,39 @@ export function AttendanceView({ group, userProfile, allocations = [], isLoading
               })}
             </div>
           )}
+
+          {/* Compact Teaching Period Selector */}
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1">Select Period:</span>
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl">
+              {TEACHING_PERIODS.map(p => {
+                const isSelected = selectedPeriod === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      if (selectedPeriod !== p) {
+                        setSelectedPeriod(p);
+                        setSaveStatus(null);
+                        setErrorMessage('');
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      isSelected
+                        ? 'bg-[#538C8C] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    P{p}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 border border-slate-200/60 px-2.5 py-1 rounded-lg" title="Period 5 is the tiffin/break period and cannot be marked">
+              P{BREAK_PERIOD}: Break
+            </span>
+          </div>
        </div>
        {renderContent()}
      </div>

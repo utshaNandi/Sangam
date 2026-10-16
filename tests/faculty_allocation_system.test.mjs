@@ -578,7 +578,7 @@ try {
           year: '2nd Year',
           section: 'Sec B',
           date: '2026-10-13',
-          period: 5
+          period: 4
         },
         studentStatuses: { 'student_me_2b_01': 'Present' },
         teacherUid: 'faculty_multime_uid'
