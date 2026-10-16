@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+# Sangam Pre-Commit Hook: Automated Secret Prevention
+# Runs scripts/diff_audit.cjs against staged git changes before allowing commit
+
+echo "🔒 Running Sangam pre-commit secret scan..."
+node scripts/diff_audit.cjs
+
+SCAN_EXIT=$?
+if [ $SCAN_EXIT -ne 0 ]; then
+  echo ""
+  echo "❌ Git commit aborted: Potential secret or forbidden file detected."
+  echo "📖 For remediation instructions, see docs/SECRET_PREVENTION.md"
+  exit 1
+fi
+
+exit 0

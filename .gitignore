@@ -37,6 +37,11 @@ uploads/**
 *firebase-adminsdk*.json
 credentials.json
 client_secret*.json
+*.pem
+*.key
+*.pkcs12
+*.p12
+*.pfx
 
 # Temporary scratch scripts
 temp_*.js

@@ -1,0 +1,20 @@
+# Gitleaks Configuration for Sangam Repository
+# Pinning rules and allowlisting safe documentation / test mocks
+title = "Sangam Repository Gitleaks Profile"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist for repository templates, mock test fixtures, and scanner implementation"
+paths = [
+  '''^\.env\.example$''',
+  '''^package-lock\.json$''',
+  '''^scripts/diff_audit\.cjs$''',
+  '''^tests/'''
+]
+regexes = [
+  '''(?i)dummy''',
+  '''(?i)placeholder''',
+  '''(?i)example'''
+]
