@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Icons } from './Icons';
-import { get20Students, getAssignmentsForSection } from './TeacherViews';
+import { get20Students } from './TeacherViews';
+import { getStudentAssignments } from '../../services/storageService.js';
 import { teacherProfile } from './mockData';
 import InteractiveDotCanvas from './InteractiveDotCanvas';
 import AcademicSpacesView from './AcademicSpacesView';
@@ -127,41 +128,36 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
   const avgAttendance = totalStudents > 0 ? (totalAttendance / totalStudents).toFixed(1) + '%' : '0%';
   const presentCount = Math.round((parseFloat(avgAttendance) / 100) * totalStudents);
 
-  // Calculate Assignments
-  let pendingAssignmentsCount = 0;
-  let totalSubmitted = 0;
-  const allAssignments = [];
-  allSections.forEach(sec => {
-    const sectionAssignments = getAssignmentsForSection(sec.branch, sec.year, sec.section);
-    sectionAssignments.forEach(a => {
-      allAssignments.push(a);
-      if (a.status === 'Active') {
-        pendingAssignmentsCount++;
+  // Real Assignments fetched from backend
+  const [realAssignments, setRealAssignments] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    getStudentAssignments().then(res => {
+      if (isMounted) {
+        if (res && Array.isArray(res.assignments)) {
+          setRealAssignments(res.assignments);
+        } else {
+          setRealAssignments([]);
+        }
+      }
+    }).catch(err => {
+      if (isMounted) {
+        console.warn('[DashboardHome] Failed to load assignments:', err.message);
+        setRealAssignments([]);
       }
     });
-  });
-  const recentAssignments = allAssignments.slice(0, 3);
-  recentAssignments.forEach(a => {
-    const parts = (a.className || '').split(' • ');
-    if (parts.length === 3) {
-      const yr = parts[0];
-      const br = parts[1];
-      const sc = parts[2];
-      const studentsForAssignment = get20Students(br, yr, sc);
-      let sub = 0;
-      studentsForAssignment.forEach(student => {
-        const seedStr = a.id + student.id;
-        let seed = 0;
-        for (let i = 0; i < seedStr.length; i++) seed += seedStr.charCodeAt(i);
-        if (seed % 2 !== 0) sub++;
-      });
-      a.submitted = sub;
-      totalSubmitted += sub;
-    } else {
-      a.submitted = 14;
-      totalSubmitted += 14;
-    }
-  });
+    return () => { isMounted = false; };
+  }, [userProfile?.uid]);
+
+  // Derived allAssignments safely accessible across all memo hooks and renderers
+  const allAssignments = useMemo(() => {
+    return Array.isArray(realAssignments) ? realAssignments : [];
+  }, [realAssignments]);
+
+  const pendingAssignmentsCount = useMemo(() => {
+    return allAssignments.filter(a => a.status === 'Active' || !a.status).length;
+  }, [allAssignments]);
 
   // All allocated class timetable slots across the full week from Firestore
   const [allocatedClassSlots, setAllocatedClassSlots] = useState([]);
@@ -381,7 +377,18 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
     let hasDeadline = false;
     allAssignments.forEach(a => {
       if (!a.dueDate) return;
-      const parts = a.dueDate.trim().split(/\s+/);
+      const isoMatch = String(a.dueDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        const y = parseInt(isoMatch[1], 10);
+        const m = parseInt(isoMatch[2], 10) - 1;
+        const d = parseInt(isoMatch[3], 10);
+        if (y === year && m === monthIndex && d === dayNum) {
+          assignmentsCount++;
+          hasDeadline = true;
+          return;
+        }
+      }
+      const parts = String(a.dueDate).trim().split(/\s+/);
       if (parts.length >= 2 && parts[0].toLowerCase() === curMonthAbbr.toLowerCase() && parseInt(parts[1], 10) === dayNum) {
         assignmentsCount++;
         hasDeadline = true;
@@ -713,8 +720,24 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
     const curMonthAbbr = monthAbbrs[monthIndex];
     allAssignments.forEach((a, idx) => {
       if (!a.dueDate) return;
-      const parts = a.dueDate.trim().split(/\s+/);
-      if (parts.length >= 2 && parts[0].toLowerCase() === curMonthAbbr.toLowerCase() && parseInt(parts[1], 10) === dayNum) {
+      let isMatch = false;
+      const isoMatch = String(a.dueDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        const y = parseInt(isoMatch[1], 10);
+        const m = parseInt(isoMatch[2], 10) - 1;
+        const d = parseInt(isoMatch[3], 10);
+        if (y === year && m === monthIndex && d === dayNum) {
+          isMatch = true;
+        }
+      } else {
+        const parts = String(a.dueDate).trim().split(/\s+/);
+        if (parts.length >= 2 && parts[0].toLowerCase() === curMonthAbbr.toLowerCase() && parseInt(parts[1], 10) === dayNum) {
+          isMatch = true;
+        }
+      }
+
+      if (isMatch) {
+        const classScope = a.className || `${a.year || ''} • ${a.department || ''} • ${a.section || ''}`.replace(/^ • | • $/g, '') || 'Class Coursework';
         items.push({
           id: `assign-${a.id || idx}`,
           category: 'deadline',
@@ -723,10 +746,10 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
           timeSort: 23 * 60 + 59,
           badgeLabel: 'Deadline',
           badgeStyle: 'bg-[#F3D75E]/30 text-[#45380b] border-[#F3D75E]/60',
-          classInfo: a.className,
+          classInfo: classScope,
           location: 'Online Submission Portal',
           status: a.status || 'Active',
-          submissionInfo: `${a.submitted || 14}/20 Submissions`
+          submissionInfo: a.submitted !== undefined ? `${a.submitted} Submissions` : (a.submissionsCount !== undefined ? `${a.submissionsCount} Submissions` : 'Active Assignment')
         });
       }
     });

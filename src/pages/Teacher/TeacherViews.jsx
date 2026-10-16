@@ -1,6 +1,13 @@
-import { globalAssignments, addGlobalAssignment, subscribeToAssignments, globalSubmissions } from '../../data/academicModel';
 import { SimilarityCheckView } from './SimilarityCheckView';
 import { useState, useEffect } from 'react';
+import { 
+  uploadAssignmentPdf, 
+  getStudentAssignments, 
+  getAssignmentSubmissions, 
+  downloadSubmissionPdf, 
+  downloadAssignmentPdf,
+  getSectionStudents 
+} from '../../services/storageService.js';
 import { classes, students, assignments, announcements, teacherProfile, markPeriodAttendance } from './mockData';
 import { Icons } from './Icons';
 import { auth } from '../../firebase/config';
@@ -17,6 +24,235 @@ import {
   BREAK_PERIOD
 } from '../../services/attendanceService';
 import { subscribeClassTimetable, VALID_DAYS } from '../../services/timetableService.js';
+
+const CANONICAL_DEPARTMENT_MAP = {
+  'CSE AI': 'Computer Science',
+  'CSE': 'Computer Science',
+  'Computer Science': 'Computer Science',
+  'IT': 'Information Technology',
+  'Information Technology': 'Information Technology',
+  'ECE': 'Electronics & Communication',
+  'Electronics & Communication': 'Electronics & Communication',
+  'EE': 'Electrical Engineering',
+  'Electrical Engineering': 'Electrical Engineering',
+  'ME': 'Mechanical Engineering',
+  'Mechanical Engineering': 'Mechanical Engineering',
+  'CE': 'Civil Engineering',
+  'Civil Engineering': 'Civil Engineering',
+  'BT': 'Biotechnology',
+  'Biotechnology': 'Biotechnology',
+  'Management': 'Management'
+};
+
+const isMatchingDept = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  if (d1 === d2) return true;
+  const c1 = CANONICAL_DEPARTMENT_MAP[d1] || d1;
+  const c2 = CANONICAL_DEPARTMENT_MAP[d2] || d2;
+  return c1 === c2;
+};
+
+const isMatchingSec = (s1, s2) => {
+  if (!s1 || !s2) return false;
+  if (s1 === s2) return true;
+  const n1 = String(s1).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const n2 = String(s2).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (n1 === n2) return true;
+  const clean1 = n1.replace(/^(SECTION|SEC|CSE)/, '');
+  const clean2 = n2.replace(/^(SECTION|SEC|CSE)/, '');
+  if (clean1 && clean2 && clean1 === clean2) return true;
+  return n1.endsWith(n2) || n2.endsWith(n1);
+};
+
+export function formatFileSize(bytes) {
+  if (!bytes || isNaN(bytes)) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function useSectionStudents(br, yr, sec, institution) {
+  const [students, setStudents] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const reload = async () => {
+    if (!br || !yr || !sec || br === 'Unknown') {
+      setStudents([]);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await getSectionStudents({ department: br, year: yr, section: sec, institution });
+      if (res && Array.isArray(res.students)) {
+        setStudents(res.students);
+      } else {
+        setStudents([]);
+      }
+    } catch (err) {
+      console.warn('[useSectionStudents] Failed to load students via backend:', err.message);
+      try {
+        const directList = await fetchStudentsForSection({ institution, department: br, year: yr, section: sec });
+        if (Array.isArray(directList)) {
+          setStudents(directList);
+          return;
+        }
+      } catch {
+        // preserve backend error
+      }
+      setError(err.message || 'Failed to load students.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+  }, [br, yr, sec, institution]);
+
+  return { students, isLoading, error, reload };
+}
+
+export function StudentsViewSectionContent({ br, yr, sec, userProfile }) {
+  const { students, isLoading, error, reload } = useSectionStudents(br, yr, sec, userProfile?.institution);
+
+  if (isLoading) {
+    return (
+      <div className="py-6 text-center">
+        <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#171717] border-t-transparent mb-2"></div>
+        <p className="text-xs font-medium text-[#858174]">Loading students...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs font-medium flex items-center justify-between">
+        <span>{error}</span>
+        <button onClick={reload} className="underline font-bold hover:text-red-900 ml-2">Retry</button>
+      </div>
+    );
+  }
+
+  if (!students || students.length === 0) {
+    return (
+      <div className="py-6 text-center rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7]">
+        <p className="text-xs font-bold text-[#858174]">No students enrolled in this section.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 mt-2">
+      {students.map((st, idx) => (
+        <div key={st.id || st.uid || idx} className="flex items-center gap-4 p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
+          <span className="text-[#858174] font-bold w-6 text-right text-xs">{idx + 1}.</span>
+          <div className="w-8 h-8 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs flex-shrink-0">
+            {(st.name || 'S').charAt(0).toUpperCase()}
+          </div>
+          <div className="flex flex-col">
+             <span className="font-bold text-[#171717] text-sm">{st.name}</span>
+             <span className="text-[11px] font-medium text-[#858174]">{st.roll || st.enrollmentNo || st.studentId || st.email || ''}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function GradesSectionContent({ br, yr, sec, userProfile, marksData, gradesData, onMarksChange, onGradeChange }) {
+  const { students, isLoading, error, reload } = useSectionStudents(br, yr, sec, userProfile?.institution);
+
+  if (isLoading) {
+    return (
+      <div className="py-6 text-center">
+        <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#171717] border-t-transparent mb-2"></div>
+        <p className="text-xs font-medium text-[#858174]">Loading students...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs font-medium flex items-center justify-between">
+        <span>{error}</span>
+        <button onClick={reload} className="underline font-bold hover:text-red-900 ml-2">Retry</button>
+      </div>
+    );
+  }
+
+  if (!students || students.length === 0) {
+    return (
+      <div className="py-6 text-center rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7]">
+        <p className="text-xs font-bold text-[#858174]">No students enrolled in this section.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-[#858174] uppercase tracking-wider">
+        <div className="col-span-6">Student</div>
+        <div className="col-span-3 text-center">Marks</div>
+        <div className="col-span-3 text-center">Grade</div>
+      </div>
+
+      <div className="space-y-3">
+        {students.map((st, idx) => {
+          const sId = st.id || st.uid;
+          const mark = marksData[sId] || '';
+          const grade = gradesData[sId] || '';
+
+          return (
+            <div key={sId || idx} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
+              <div className="col-span-6 flex items-center gap-3">
+                <span className="text-[#858174] font-bold w-6 text-right hidden sm:block text-xs">{idx + 1}.</span>
+                <div className="w-8 h-8 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs flex-shrink-0">
+                  {(st.name || 'S').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <span className="font-bold text-[#171717] block truncate text-sm">{st.name}</span>
+                  <span className="text-[11px] font-medium text-[#858174]">{st.roll || st.enrollmentNo || st.studentId || st.email || ''}</span>
+                </div>
+              </div>
+              <div className="col-span-3 flex justify-start sm:justify-center">
+                <input 
+                  type="text" 
+                  placeholder="--" 
+                  value={mark}
+                  onChange={(e) => onMarksChange(sId, e.target.value)}
+                  className="w-16 bg-white border border-[#D8D1C3] rounded-lg px-2 py-1.5 text-center font-bold text-[#171717] text-sm focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all"
+                />
+              </div>
+              <div className="col-span-3 flex justify-start sm:justify-center">
+                <select 
+                  value={grade}
+                  onChange={(e) => onGradeChange(sId, e.target.value)}
+                  className="w-20 bg-white border border-[#D8D1C3] rounded-lg px-2 py-1.5 font-bold text-[#171717] text-sm focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all"
+                >
+                  <option value="">--</option>
+                  <option value="A+">A+</option>
+                  <option value="A">A</option>
+                  <option value="B+">B+</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="F">F</option>
+                </select>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-end pt-2">
+        <button className="bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-6 py-2 rounded-xl active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
+          Save Grades
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export const scheduleData = {
     Monday: [
@@ -304,23 +540,7 @@ export function StudentsView({ userProfile, allocations = [], isLoadingAllocatio
   });
 
   const renderContent = (br, yr, sec) => {
-    const sectionStudents = get20Students(br, yr, sec);
-    return (
-      <div className="space-y-3 mt-2">
-        {sectionStudents.map((st, idx) => (
-          <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
-            <span className="text-[#858174] font-bold w-6 text-right text-xs">{idx + 1}.</span>
-            <div className="w-8 h-8 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs">
-              {st.name.charAt(0)}
-            </div>
-            <div className="flex flex-col">
-               <span className="font-bold text-[#171717] text-sm">{st.name}</span>
-               <span className="text-[11px] font-medium text-[#858174]">{st.roll}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+    return <StudentsViewSectionContent br={br} yr={yr} sec={sec} userProfile={userProfile} />;
   };
 
   if (isLoadingAllocations) {
@@ -421,26 +641,128 @@ export function AssignmentsView({ group, userProfile, allocations = [] }) {
     return newState;
   });
 
-  const [createdAssignments, setCreatedAssignments] = useState({...globalAssignments});
-  React.useEffect(() => {
-    return subscribeToAssignments(() => {
-      setCreatedAssignments({...globalAssignments});
-    });
+  const [backendAssignments, setBackendAssignments] = useState([]);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
+  const [assignmentsError, setAssignmentsError] = useState(null);
+
+  const fetchAssignments = async () => {
+    setIsLoadingAssignments(true);
+    setAssignmentsError(null);
+    try {
+      const res = await getStudentAssignments();
+      if (res && res.success && Array.isArray(res.assignments)) {
+        setBackendAssignments(res.assignments);
+      } else if (res && Array.isArray(res.assignments)) {
+        setBackendAssignments(res.assignments);
+      } else {
+        setBackendAssignments([]);
+      }
+    } catch (err) {
+      console.warn('[AssignmentsView] Failed to load assignments:', err.message);
+      setAssignmentsError(err.message || 'Failed to load assignments.');
+    } finally {
+      setIsLoadingAssignments(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAssignments();
   }, []);
+
   const [isCreating, setIsCreating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadErrorCode, setUploadErrorCode] = useState(null);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
+
   const [viewingAssignment, setViewingAssignment] = useState(null);
   const [comparingPair, setComparingPair] = useState(null);
-  const [realSubmissions, setRealSubmissions] = useState([]);
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      if (viewingAssignment) {
-         setRealSubmissions(globalSubmissions[viewingAssignment.id] || []);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [viewingAssignment]);
+  const [assignmentSubmissions, setAssignmentSubmissions] = useState([]);
+  const [sectionStudents, setSectionStudents] = useState([]);
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
+  const [submissionsError, setSubmissionsError] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
+  const [downloadingAssignment, setDownloadingAssignment] = useState(false);
 
-  
+  const loadSubmissionsData = async () => {
+    if (!viewingAssignment || !viewingAssignment.id) return;
+    setIsLoadingSubmissions(true);
+    setSubmissionsError(null);
+    try {
+      const [subsRes, studentsRes] = await Promise.allSettled([
+        getAssignmentSubmissions(viewingAssignment.id),
+        getSectionStudents({
+          department: viewingAssignment.department || viewingAssignment.br,
+          year: viewingAssignment.year || viewingAssignment.yr,
+          section: viewingAssignment.section || viewingAssignment.sec,
+          institution: userProfile?.institution
+        })
+      ]);
+
+      if (subsRes.status === 'fulfilled' && subsRes.value?.success && Array.isArray(subsRes.value.submissions)) {
+        setAssignmentSubmissions(subsRes.value.submissions);
+      } else if (subsRes.status === 'rejected') {
+        console.warn('[AssignmentsView] Failed to load submissions:', subsRes.reason);
+        setSubmissionsError(subsRes.reason?.message || 'Failed to load submissions.');
+      } else {
+        setAssignmentSubmissions([]);
+      }
+
+      if (studentsRes.status === 'fulfilled' && studentsRes.value?.success && Array.isArray(studentsRes.value.students)) {
+        setSectionStudents(studentsRes.value.students);
+      } else {
+        setSectionStudents([]);
+      }
+    } catch (err) {
+      setSubmissionsError(err.message || 'Failed to load assignment details.');
+    } finally {
+      setIsLoadingSubmissions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewingAssignment) {
+      loadSubmissionsData();
+    } else {
+      setAssignmentSubmissions([]);
+      setSectionStudents([]);
+      setSubmissionsError(null);
+      setDownloadError(null);
+    }
+  }, [viewingAssignment?.id]);
+
+  const handleDownloadSubmission = async (sub) => {
+    if (!sub || !sub.id) return;
+    setDownloadingId(sub.id);
+    setDownloadError(null);
+    try {
+      const fileName = sub.originalFileName || sub.driveFileName || `${sub.studentName || 'Student'}_submission.pdf`;
+      await downloadSubmissionPdf(sub.id, fileName);
+    } catch (err) {
+      console.error('[AssignmentsView] Download submission error:', err);
+      setDownloadError(err.message || 'Failed to download student submission PDF.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleDownloadTeacherAssignment = async () => {
+    if (!viewingAssignment || !viewingAssignment.id) return;
+    setDownloadingAssignment(true);
+    setDownloadError(null);
+    try {
+      const fileName = viewingAssignment.fileName || viewingAssignment.driveFileName || `${viewingAssignment.title || 'assignment'}.pdf`;
+      await downloadAssignmentPdf(viewingAssignment.id, fileName);
+    } catch (err) {
+      console.error('[AssignmentsView] Download assignment error:', err);
+      setDownloadError(err.message || 'Failed to download original assignment PDF.');
+    } finally {
+      setDownloadingAssignment(false);
+    }
+  };
+
   const [creationContext, setCreationContext] = useState(null);
 
   const [newAssignment, setNewAssignment] = useState({
@@ -452,30 +774,138 @@ export function AssignmentsView({ group, userProfile, allocations = [] }) {
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setNewAssignment({...newAssignment, pdf: e.target.files[0]});
+      const selected = e.target.files[0];
+      const isPdf = (selected.type && selected.type === 'application/pdf') || (selected.name && selected.name.toLowerCase().endsWith('.pdf'));
+      if (!isPdf) {
+        setUploadError('Selected file must be a PDF document (.pdf).');
+        setUploadErrorCode('INVALID_MIME_TYPE');
+        return;
+      }
+      if (selected.size === 0) {
+        setUploadError('The selected PDF file is empty (0 bytes).');
+        setUploadErrorCode('EMPTY_FILE');
+        return;
+      }
+      if (selected.size > 10 * 1024 * 1024) {
+        setUploadError('The selected PDF file exceeds the 10MB limit.');
+        setUploadErrorCode('LIMIT_FILE_SIZE');
+        return;
+      }
+      setUploadError(null);
+      setUploadErrorCode(null);
+      setNewAssignment(prev => ({ ...prev, pdf: selected }));
     }
   };
 
-  const handleCreateAssignment = (e) => {
+  const handleCreateAssignment = async (e) => {
     e.preventDefault();
-    if (newAssignment.title && newAssignment.dueDate && creationContext) {
-      const sectionKey = `${creationContext.br}-${creationContext.yr}-${creationContext.sec}`;
-      const newAsg = {
-        id: `created-${Date.now()}`,
-        title: newAssignment.title,
-        dueDate: newAssignment.dueDate,
-        className: `${creationContext.yr} • ${creationContext.br} • ${creationContext.sec}`,
-        status: 'Active',
-        total: 20,
-        checkSimilarity: newAssignment.checkSimilarity
-      };
-      
-      addGlobalAssignment(sectionKey, newAsg);
-      
-      setIsCreating(false);
-      setNewAssignment({ title: '', dueDate: '', pdf: null });
-      setCreationContext(null);
+    if (!creationContext) return;
+
+    if (!newAssignment.title || !newAssignment.title.trim()) {
+      setUploadError('Assignment title is required.');
+      setUploadErrorCode('VALIDATION_FAILED');
+      return;
     }
+    if (!newAssignment.dueDate) {
+      setUploadError('Due date is required.');
+      setUploadErrorCode('VALIDATION_FAILED');
+      return;
+    }
+    if (!newAssignment.pdf) {
+      setUploadError('Please select a PDF document to upload.');
+      setUploadErrorCode('MISSING_FILE');
+      return;
+    }
+
+    const currentKey = idempotencyKey || `asg_idem_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    if (!idempotencyKey) {
+      setIdempotencyKey(currentKey);
+    }
+
+    setIsSubmitting(true);
+    setUploadError(null);
+    setUploadErrorCode(null);
+
+    const rawSec = creationContext.sec || '';
+    const cleanSec = rawSec.includes('·') ? rawSec.split('·')[0].trim() : rawSec;
+    const sectionKey = `${creationContext.br}-${creationContext.yr}-${creationContext.sec}`;
+
+    try {
+      const response = await uploadAssignmentPdf({
+        file: newAssignment.pdf,
+        title: newAssignment.title.trim(),
+        department: creationContext.br,
+        year: creationContext.yr,
+        section: cleanSec,
+        dueDate: newAssignment.dueDate,
+        idempotencyKey: currentKey
+      });
+
+      if (response && response.success && response.assignment) {
+        await fetchAssignments();
+        setUploadSuccessMessage('Assignment created and saved to Google Drive!');
+
+        setTimeout(() => {
+          setIsCreating(false);
+          setNewAssignment({ title: '', dueDate: '', pdf: null, checkSimilarity: false });
+          setCreationContext(null);
+          setIdempotencyKey(null);
+          setIsSubmitting(false);
+          setUploadSuccessMessage(null);
+        }, 800);
+      } else {
+        throw new Error('Unexpected response format from storage service.');
+      }
+    } catch (err) {
+      setIsSubmitting(false);
+      const code = err.code || 'UNKNOWN_ERROR';
+      setUploadErrorCode(code);
+
+      if (code === 'GOOGLE_DRIVE_DISCONNECTED') {
+        setUploadError('Google Drive is not connected. Connect your Google Drive in Settings to save assignments to cloud storage.');
+      } else if (code === 'FORBIDDEN_NOT_TEACHER' || code === 'FORBIDDEN_ALLOCATION_NOT_FOUND') {
+        setUploadError('You are not authorized to create assignments for this class allocation.');
+      } else if (code === 'LIMIT_FILE_SIZE') {
+        setUploadError('The selected file exceeds the 10MB limit.');
+      } else if (code === 'INVALID_PDF_SIGNATURE' || code === 'INVALID_MIME_TYPE') {
+        setUploadError('Invalid PDF file: Please select a valid PDF document.');
+      } else if (code === 'EMPTY_FILE') {
+        setUploadError('The selected PDF file is empty (0 bytes).');
+      } else if (code === 'GOOGLE_DRIVE_TIMEOUT' || code === 'TIMEOUT') {
+        setUploadError('Google Drive request timed out. You can retry with the same request without creating duplicate files.');
+      } else if (code === 'SERVER_UNAVAILABLE') {
+        setUploadError('Backend server is currently unavailable. Please verify the server is running.');
+      } else {
+        setUploadError(err.message || 'Failed to upload assignment.');
+      }
+    }
+  };
+
+  const handleSaveFallback = () => {
+    if (!creationContext || !newAssignment.title) return;
+    const fallbackAsg = {
+      id: `local-${Date.now()}`,
+      title: newAssignment.title,
+      dueDate: newAssignment.dueDate,
+      department: creationContext.br,
+      year: creationContext.yr,
+      section: creationContext.sec,
+      className: `${creationContext.yr} • ${creationContext.br} • ${creationContext.sec}`,
+      status: 'Active',
+      total: 20,
+      checkSimilarity: newAssignment.checkSimilarity,
+      storageProvider: 'local_draft',
+      fileName: newAssignment.pdf?.name || null,
+      fileSize: newAssignment.pdf?.size || null
+    };
+
+    setBackendAssignments(prev => [fallbackAsg, ...prev]);
+    setIsCreating(false);
+    setNewAssignment({ title: '', dueDate: '', pdf: null, checkSimilarity: false });
+    setCreationContext(null);
+    setIdempotencyKey(null);
+    setUploadError(null);
+    setUploadErrorCode(null);
   };
 
   
@@ -570,119 +1000,240 @@ export function AssignmentsView({ group, userProfile, allocations = [] }) {
       </div>
     );
   }
-if (viewingAssignment) {
-    const assignmentStudents = get20Students(viewingAssignment.br, viewingAssignment.yr, viewingAssignment.sec);
-    
-    const notSubmittedStudents = assignmentStudents.filter((st) => {
-      if (realSubmissions.find(s => s.id === st.id)) return false;
-      const seedStr = viewingAssignment.id + st.id;
-      let seed = 0;
-      for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
-      return seed % 2 === 0;
+  if (viewingAssignment) {
+    const scopeLabel = `${viewingAssignment.department || viewingAssignment.br || ''} • ${viewingAssignment.year || viewingAssignment.yr || ''} • ${viewingAssignment.section || viewingAssignment.sec || ''}`.replace(/^ • | • $/g, '');
+    const submittedStudentUids = new Set(assignmentSubmissions.map(s => s.studentUid));
+    const pendingStudents = sectionStudents.filter(st => {
+      const uid = st.uid || st.id;
+      return !submittedStudentUids.has(uid) && !submittedStudentUids.has(st.id);
     });
 
     return (
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => setViewingAssignment(null)} className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-4 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
+            <button 
+              onClick={() => { setViewingAssignment(null); setDownloadError(null); }} 
+              className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-4 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm"
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
               Back
             </button>
             <div>
               <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">{viewingAssignment.title}</h2>
-              <p className="text-sm font-medium text-[#858174] mt-1">{viewingAssignment.className} • Due: {viewingAssignment.dueDate}</p>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <p className="text-sm font-medium text-[#858174]">
+                  {scopeLabel} • Due: {viewingAssignment.dueDate || 'No date set'}
+                </p>
+                {viewingAssignment.storageProvider === 'google' || viewingAssignment.storageProvider === 'google_drive' || viewingAssignment.driveFileId ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#B7C9EA]/25 text-[#1b3a5b] border border-[#B7C9EA]/50">
+                    <svg className="w-3.5 h-3.5 text-[#1b3a5b]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+                    Saved in Google Drive {viewingAssignment.fileName ? `(${viewingAssignment.fileName})` : ''}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs mt-6">
-          <h3 className="text-lg font-bold text-[#171717] mb-4 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#A9BD78]"></span>
-            Submissions ({assignmentStudents.length - notSubmittedStudents.length})
-          </h3>
-          <div className="space-y-3">
-            {assignmentStudents.map(student => {
-              const seedStr = viewingAssignment.id + student.id;
-              let seed = 0;
-              for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
-              const hasSubmitted = (seed % 2 !== 0) || realSubmissions.find(s => s.id === student.id);
-
-              return (
-                <div key={student.id} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center font-bold text-xs">
-                      {student.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-[#171717] text-sm">{student.name}</p>
-                      <p className="text-xs font-medium text-[#858174]">{student.roll}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {hasSubmitted ? (
-                      <span className="px-3 py-1 bg-[#A9BD78]/25 text-[#273811] border border-[#A9BD78]/45 text-xs font-bold rounded-lg flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
-                        Submitted
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 bg-[#EFA9D1]/25 text-[#5e193c] border border-[#EFA9D1]/45 text-xs font-bold rounded-lg flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        Not Submitted
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="bg-white/80 rounded-[24px] border border-[#EFA9D1]/60 p-6 shadow-xs mt-6">
-          <h3 className="text-lg font-bold text-[#171717] mb-4 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#EFA9D1]"></span>
-            Pending Submissions ({notSubmittedStudents.length})
-          </h3>
-          <div className="space-y-3">
-            {notSubmittedStudents.map(student => (
-              <div key={`pending-${student.id}`} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#5e193c] border border-[#D8D1C3]/60 flex items-center justify-center font-bold text-xs">
-                    {student.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="font-bold text-[#171717] text-sm">{student.name}</p>
-                    <p className="text-xs font-medium text-[#858174]">{student.roll}</p>
-                  </div>
-                </div>
-      {viewingAssignment.checkSimilarity && (
-         <SimilarityCheckView 
-            assignment={viewingAssignment} 
-            submittedStudents={assignmentStudents.filter(st => {
-               if (realSubmissions.find(s => s.id === st.id)) return true;
-               const seedStr = viewingAssignment.id + st.id;
-               let seed = 0;
-               for(let i=0; i<seedStr.length; i++) seed += seedStr.charCodeAt(i);
-               return seed % 2 !== 0;
-            }).map(st => {
-               const real = realSubmissions.find(s => s.id === st.id);
-               if (real) return { ...st, fileUrl: real.fileUrl, originalName: real.originalName, isReal: true, extractedText: real.extractedText, similarityReport: real.similarityReport };
-               return st;
-            })}
-            onCompare={setComparingPair}
-         />
-      )}
-   
-                <div className="text-[#a12052] font-bold flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </div>
-              </div>
-            ))}
-            {notSubmittedStudents.length === 0 && (
-              <p className="text-sm text-[#858174] text-center py-4">All students have submitted this assignment.</p>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={loadSubmissionsData}
+              disabled={isLoadingSubmissions}
+              className="p-2.5 rounded-xl border border-[#D8D1C3] bg-white hover:bg-[#F5E5EE] text-[#171717] font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all shadow-xs"
+              title="Refresh submissions"
+            >
+              <svg className={`w-4 h-4 ${isLoadingSubmissions ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+            {(viewingAssignment.driveFileId || viewingAssignment.hasFile || viewingAssignment.id) && (
+              <button
+                onClick={handleDownloadTeacherAssignment}
+                disabled={downloadingAssignment}
+                className="px-4 py-2.5 rounded-xl border border-[#D8D1C3] bg-white hover:bg-[#F5E5EE] text-[#171717] font-bold text-xs flex items-center gap-2 active:scale-95 transition-all shadow-xs"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {downloadingAssignment ? 'Downloading...' : 'Assignment PDF'}
+              </button>
             )}
           </div>
         </div>
+
+        {downloadError && (
+          <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs font-medium flex items-center justify-between">
+            <span>{downloadError}</span>
+            <button onClick={() => setDownloadError(null)} className="font-bold underline ml-2">Dismiss</button>
+          </div>
+        )}
+
+        {submissionsError && (
+          <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs font-medium flex items-center justify-between">
+            <span>{submissionsError}</span>
+            <button onClick={loadSubmissionsData} className="font-bold underline ml-2">Retry</button>
+          </div>
+        )}
+
+        {/* Submissions Section */}
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-[#171717] flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#A9BD78]"></span>
+              Submissions ({assignmentSubmissions.length})
+            </h3>
+            {assignmentSubmissions.length > 0 && (
+              <span className="text-xs font-bold text-[#273811] bg-[#A9BD78]/25 border border-[#A9BD78]/45 px-3 py-1 rounded-full">
+                {assignmentSubmissions.length} Received
+              </span>
+            )}
+          </div>
+
+          {isLoadingSubmissions ? (
+            <div className="py-12 text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-[#171717] border-t-transparent mb-3"></div>
+              <p className="text-sm font-medium text-[#858174]">Loading student submissions...</p>
+            </div>
+          ) : assignmentSubmissions.length === 0 ? (
+            <div className="py-10 text-center rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7]">
+              <div className="w-12 h-12 rounded-2xl bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-[#858174]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h4 className="text-sm font-bold text-[#171717]">No Submissions Received Yet</h4>
+              <p className="text-xs font-medium text-[#858174] max-w-sm mx-auto mt-1">
+                Students have not submitted their coursework for this assignment yet. Submissions and student PDFs will appear here once uploaded.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {assignmentSubmissions.map((sub, idx) => {
+                const subDate = sub.submittedAt || sub.createdAt;
+                const formattedDate = subDate ? new Date(subDate).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : 'Submitted';
+
+                const fileName = sub.originalFileName || sub.driveFileName || 'submission.pdf';
+                const isDownloadingThis = downloadingId === sub.id;
+
+                return (
+                  <div key={sub.id || idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/30 transition-colors gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        {(sub.studentName || 'S').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-[#171717] text-sm">{sub.studentName || 'Student'}</p>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#A9BD78]/25 text-[#273811] border border-[#A9BD78]/45">
+                            {sub.status || 'Submitted'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-[#858174] mt-0.5">
+                          {sub.studentRoll ? `Roll: ${sub.studentRoll}` : (sub.studentUid ? `UID: ${sub.studentUid.slice(0, 8)}` : '')}
+                          {sub.studentRoll && sub.studentUid ? ` • ` : ''}
+                          Uploaded: {formattedDate}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-[#171717] font-medium">
+                          <svg className="w-3.5 h-3.5 text-[#858174] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="font-semibold text-[#171717] truncate max-w-xs">{fileName}</span>
+                          {sub.fileSizeBytes ? (
+                            <span className="text-[#858174]">({formatFileSize(sub.fileSizeBytes)})</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <button
+                        onClick={() => handleDownloadSubmission(sub)}
+                        disabled={isDownloadingThis}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#D8D1C3] bg-white hover:bg-[#F5E5EE] text-[#171717] font-bold text-xs active:scale-95 transition-all shadow-xs disabled:opacity-50"
+                        title={`Download ${fileName}`}
+                      >
+                        {isDownloadingThis ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-[#171717] border-t-transparent rounded-full animate-spin"></div>
+                            <span>Downloading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5 text-[#171717]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            <span>Download PDF</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Pending Submissions / Unsubmitted Students */}
+        {sectionStudents.length > 0 && (
+          <div className="bg-white/80 rounded-[24px] border border-[#EFA9D1]/60 p-6 shadow-xs mt-6">
+            <h3 className="text-lg font-bold text-[#171717] mb-4 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#EFA9D1]"></span>
+              Pending Submissions ({pendingStudents.length})
+            </h3>
+            {pendingStudents.length === 0 ? (
+              <p className="text-sm font-medium text-[#273811] bg-[#A9BD78]/15 border border-[#A9BD78]/30 rounded-xl p-4 text-center">
+                All enrolled students in this section have submitted this assignment.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingStudents.map((st, idx) => (
+                  <div key={st.id || st.uid || idx} className="flex items-center justify-between p-3.5 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#5e193c] border border-[#D8D1C3]/60 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                        {(st.name || 'S').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#171717] text-sm">{st.name}</p>
+                        <p className="text-xs font-medium text-[#858174]">
+                          {st.roll ? `Roll: ${st.roll}` : (st.email || '')}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 bg-[#EFA9D1]/25 text-[#5e193c] border border-[#EFA9D1]/45 text-xs font-bold rounded-lg flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      Not Submitted
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {viewingAssignment.checkSimilarity && assignmentSubmissions.length >= 2 && (
+          <SimilarityCheckView 
+            assignment={viewingAssignment} 
+            submittedStudents={assignmentSubmissions.map(s => ({
+              id: s.studentUid || s.id,
+              name: s.studentName,
+              roll: s.studentRoll || s.enrollmentNo || '',
+              fileUrl: `/api/submissions/${s.id}/file`,
+              originalName: s.originalFileName || s.driveFileName,
+              isReal: true,
+              extractedText: s.extractedText,
+              similarityReport: s.similarityReport
+            }))}
+            onCompare={setComparingPair}
+          />
+        )}
       </div>
     );
   }
@@ -693,25 +1244,83 @@ if (viewingAssignment) {
       <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Create Assignment for {selectedSection}</h2>
-          <button onClick={() => { setIsCreating(false); setCreationContext(null); }} className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-5 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
+          <button 
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => { 
+              setIsCreating(false); 
+              setCreationContext(null); 
+              setUploadError(null); 
+              setUploadErrorCode(null); 
+              setIdempotencyKey(null); 
+            }} 
+            className="flex items-center gap-2 bg-white border border-[#D8D1C3] text-[#171717] px-5 py-2.5 rounded-xl hover:bg-[#F5E5EE] active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm disabled:opacity-50"
+          >
             Cancel
           </button>
         </div>
         <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-8 shadow-xs">
+          {uploadError && (
+            <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm font-medium flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><line x1="12" y1="8" x2="12" y2="12" strokeWidth="2"/><line x1="12" y1="16" x2="12.01" y2="16" strokeWidth="2"/></svg>
+                <span>{uploadError}</span>
+              </div>
+              {(uploadErrorCode === 'GOOGLE_DRIVE_DISCONNECTED' || uploadErrorCode === 'SERVER_UNAVAILABLE') && (
+                <div className="flex items-center gap-3 mt-1 pt-2 border-t border-red-200/60">
+                  <button
+                    type="button"
+                    onClick={handleSaveFallback}
+                    className="text-xs font-bold bg-white text-[#171717] border border-[#D8D1C3] px-3.5 py-1.5 rounded-lg hover:bg-[#F5E5EE] transition-colors"
+                  >
+                    Save as Local Draft (Not Cloud-Backed)
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {uploadSuccessMessage && (
+            <div className="mb-6 p-4 rounded-xl border border-[#A9BD78]/60 bg-[#A9BD78]/20 text-[#273811] text-sm font-bold flex items-center gap-2 animate-fade-in">
+              <svg className="w-5 h-5 text-[#273811] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
+              <span>{uploadSuccessMessage}</span>
+            </div>
+          )}
+
           <form onSubmit={handleCreateAssignment} className="space-y-6">
             <div>
               <label className="block text-sm font-bold text-[#171717] mb-2">Assignment Title</label>
-              <input type="text" value={newAssignment.title} onChange={e => setNewAssignment({...newAssignment, title: e.target.value})} className="w-full bg-[#FDFBF7] border border-[#D8D1C3] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all font-medium text-[#171717]" placeholder="e.g. Binary Trees Implementation" />
+              <input 
+                type="text" 
+                value={newAssignment.title} 
+                onChange={e => setNewAssignment({...newAssignment, title: e.target.value})} 
+                disabled={isSubmitting}
+                className="w-full bg-[#FDFBF7] border border-[#D8D1C3] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all font-medium text-[#171717] disabled:opacity-50" 
+                placeholder="e.g. Binary Trees Implementation" 
+              />
             </div>
             <div>
               <label className="block text-sm font-bold text-[#171717] mb-2">Due Date</label>
-              <input type="date" value={newAssignment.dueDate} onChange={e => setNewAssignment({...newAssignment, dueDate: e.target.value})} className="w-full bg-[#FDFBF7] border border-[#D8D1C3] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all font-medium text-[#171717]" />
+              <input 
+                type="date" 
+                value={newAssignment.dueDate} 
+                onChange={e => setNewAssignment({...newAssignment, dueDate: e.target.value})} 
+                disabled={isSubmitting}
+                className="w-full bg-[#FDFBF7] border border-[#D8D1C3] rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all font-medium text-[#171717] disabled:opacity-50" 
+              />
             </div>
             <div>
               <label className="block text-sm font-bold text-[#171717] mb-2">Upload PDF Document</label>
               <div className="border-2 border-dashed border-[#D8D1C3] rounded-xl p-8 text-center hover:border-[#171717]/40 transition-colors bg-[#FDFBF7]">
-                <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" id="pdf-upload" />
-                <label htmlFor="pdf-upload" className="cursor-pointer flex flex-col items-center gap-3">
+                <input 
+                  type="file" 
+                  accept=".pdf,application/pdf" 
+                  onChange={handleFileChange} 
+                  disabled={isSubmitting}
+                  className="hidden" 
+                  id="pdf-upload" 
+                />
+                <label htmlFor="pdf-upload" className={`flex flex-col items-center gap-3 ${isSubmitting ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                   <div className="w-12 h-12 rounded-full bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
                   </div>
@@ -719,7 +1328,15 @@ if (viewingAssignment) {
                     <span className="font-bold text-[#171717] hover:underline transition-colors">Click to upload</span>
                     <span className="text-[#858174] font-medium"> or drag and drop</span>
                   </div>
-                  {newAssignment.pdf && <p className="text-sm font-bold text-[#171717] mt-2 bg-white px-3 py-1 rounded-lg border border-[#D8D1C3] shadow-xs">{newAssignment.pdf.name}</p>}
+                  {newAssignment.pdf ? (
+                    <div className="flex items-center gap-2 mt-2 bg-white px-3 py-1.5 rounded-lg border border-[#D8D1C3] shadow-xs">
+                      <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                      <span className="text-sm font-bold text-[#171717]">{newAssignment.pdf.name}</span>
+                      <span className="text-xs text-[#858174]">({(newAssignment.pdf.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#858174] mt-1">PDF document up to 10MB</p>
+                  )}
                 </label>
               </div>
             </div>
@@ -730,14 +1347,29 @@ if (viewingAssignment) {
                   type="checkbox" 
                   checked={newAssignment.checkSimilarity || false} 
                   onChange={(e) => setNewAssignment({...newAssignment, checkSimilarity: e.target.checked})}
+                  disabled={isSubmitting}
                   className="w-5 h-5 accent-[#171717] rounded" 
                 />
                 <span className="text-sm font-bold text-[#171717]">Check Similarity Status</span>
               </label>
             </div>
-            <div className="pt-4 flex justify-end">
-              <button type="submit" className="bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-8 py-3 rounded-xl active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm">
-                Publish Assignment
+            <div className="pt-4 flex justify-end gap-3">
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="bg-[#171717] hover:bg-[#2b2b2b] disabled:opacity-50 disabled:cursor-not-allowed text-[#F8F3E6] px-8 py-3 rounded-xl active:scale-95 transition-all duration-200 shadow-sm font-bold text-sm flex items-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    Saving to Google Drive...
+                  </>
+                ) : (
+                  uploadError ? 'Retry Upload' : 'Publish Assignment'
+                )}
               </button>
             </div>
           </form>
@@ -747,33 +1379,67 @@ if (viewingAssignment) {
   }
 
   const renderContent = (br, yr, sec) => {
-    const sectionKey = `${br}-${yr}-${sec}`;
-    const currentSectionAssignments = [
-       ...getAssignmentsForSection(br, yr, sec), 
-       ...(createdAssignments[sectionKey] || [])
-    ];
+    const sectionAssignments = backendAssignments.filter(a => {
+      const deptMatch = isMatchingDept(a.department, br);
+      const yearMatch = !a.year || String(a.year).trim().toLowerCase() === String(yr).trim().toLowerCase();
+      const secMatch = isMatchingSec(a.section, sec);
+      return deptMatch && yearMatch && secMatch;
+    });
     return (
       <div className="space-y-4">
-         <div className="flex justify-end mb-2">
+         <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold text-[#858174]">
+              {sectionAssignments.length} Assignment{sectionAssignments.length === 1 ? '' : 's'}
+            </span>
             <button 
-              onClick={() => { setIsCreating(true); setCreationContext({br, yr, sec}); }}
+              onClick={() => { 
+                setIsCreating(true); 
+                setCreationContext({br, yr, sec}); 
+                setUploadError(null);
+                setUploadErrorCode(null);
+                setUploadSuccessMessage(null);
+                setIdempotencyKey(`asg_idem_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+              }}
               className="flex items-center gap-2 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-3.5 py-1.5 rounded-xl active:scale-95 transition-all shadow-xs font-bold text-xs"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               Create Assignment
             </button>
          </div>
-         {currentSectionAssignments.length === 0 ? (
-           <p className="text-[#858174] font-bold text-sm text-center py-4">No assignments available.</p>
+         {isLoadingAssignments ? (
+           <div className="py-8 text-center bg-[#FDFBF7] rounded-xl border border-[#D8D1C3]/60">
+             <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#171717] border-t-transparent mb-2"></div>
+             <p className="text-xs font-medium text-[#858174]">Loading assignments...</p>
+           </div>
+         ) : assignmentsError ? (
+           <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs font-medium flex items-center justify-between">
+             <span>{assignmentsError}</span>
+             <button onClick={fetchAssignments} className="underline font-bold hover:text-red-900 ml-2">Retry</button>
+           </div>
+         ) : sectionAssignments.length === 0 ? (
+           <div className="py-8 text-center bg-[#FDFBF7] rounded-xl border border-[#D8D1C3]/60">
+             <p className="text-sm font-bold text-[#171717] mb-1">No assignments created yet</p>
+             <p className="text-xs font-medium text-[#858174]">Create your first assignment for {br} • {yr} • {sec} using the button above.</p>
+           </div>
          ) : (
            <div className="space-y-3">
-             {currentSectionAssignments.map(a => (
+             {sectionAssignments.map(a => (
                <div key={a.id} onClick={() => setViewingAssignment({ ...a, br, yr, sec })} className="flex items-center justify-between p-4 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] cursor-pointer group transition-all">
                   <div>
                     <h4 className="font-bold text-[#171717] transition-colors">{a.title}</h4>
-                    <p className="text-xs font-medium text-[#858174] mt-1">Due: {a.dueDate} • Total Marks: {a.total}</p>
+                    <p className="text-xs font-medium text-[#858174] mt-1">Due: {a.dueDate} • Total Marks: {a.total || 20}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
+                     {a.storageProvider === 'google_drive' ? (
+                       <span className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold border bg-[#B7C9EA]/25 text-[#1b3a5b] border-[#B7C9EA]/50 flex items-center gap-1" title="Stored in teacher's private Google Drive">
+                         <svg className="w-3 h-3 text-[#1b3a5b]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+                         Google Drive
+                       </span>
+                     ) : a.storageProvider === 'local_draft' ? (
+                       <span className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold border bg-[#F3D75E]/20 text-[#6B5900] border-[#F3D75E]/40" title="Memory only - not saved to cloud">
+                         Local Draft
+                       </span>
+                     ) : null}
                      <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${a.status === 'Active' ? 'bg-[#A9BD78]/25 text-[#273811] border-[#A9BD78]/45' : 'bg-white text-[#858174] border-[#D8D1C3]'}`}>{a.status}</span>
                      <svg className="w-5 h-5 text-[#858174] group-hover:text-[#171717] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
                   </div>
@@ -1372,66 +2038,17 @@ export function GradesView() {
   };
 
   const renderContent = (br, yr, sec) => {
-    const assignmentStudents = get20Students(br, yr, sec);
-    
     return (
-      <div className="space-y-4">
-         <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-[#858174] uppercase tracking-wider">
-            <div className="col-span-6">Student</div>
-            <div className="col-span-3 text-center">Marks</div>
-            <div className="col-span-3 text-center">Grade</div>
-         </div>
-
-         <div className="space-y-3">
-           {assignmentStudents.map((st, idx) => {
-              const mark = marksData[st.id] || '';
-              const grade = gradesData[st.id] || '';
-              
-              return (
-              <div key={st.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
-                <div className="col-span-6 flex items-center gap-3">
-                  <span className="text-[#858174] font-bold w-6 text-right hidden sm:block text-xs">{idx + 1}.</span>
-                  <div className="w-8 h-8 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs flex-shrink-0">
-                     {st.name.charAt(0)}
-                  </div>
-                  <div>
-                    <span className="font-bold text-[#171717] block truncate text-sm">{st.name}</span>
-                    <span className="text-[11px] font-medium text-[#858174]">{st.roll}</span>
-                  </div>
-                </div>
-                <div className="col-span-3 flex justify-start sm:justify-center">
-                   <input 
-                      type="text" 
-                      placeholder="--" 
-                      value={mark}
-                      onChange={(e) => handleMarksChange(st.id, e.target.value)}
-                      className="w-16 bg-white border border-[#D8D1C3] rounded-lg px-2 py-1.5 text-center font-bold text-[#171717] text-sm focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all"
-                   />
-                </div>
-                <div className="col-span-3 flex justify-start sm:justify-center">
-                   <select 
-                      value={grade}
-                      onChange={(e) => handleGradeChange(st.id, e.target.value)}
-                      className="w-20 bg-white border border-[#D8D1C3] rounded-lg px-2 py-1.5 font-bold text-[#171717] text-sm focus:outline-none focus:ring-1 focus:ring-[#171717] focus:border-[#171717] transition-all"
-                   >
-                     <option value="">--</option>
-                     <option value="A+">A+</option>
-                     <option value="A">A</option>
-                     <option value="B+">B+</option>
-                     <option value="B">B</option>
-                     <option value="C">C</option>
-                     <option value="F">F</option>
-                   </select>
-                </div>
-              </div>
-           )})}
-         </div>
-         <div className="flex justify-end pt-2">
-            <button className="bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-6 py-2 rounded-xl active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
-                Save Grades
-            </button>
-         </div>
-      </div>
+      <GradesSectionContent
+        br={br}
+        yr={yr}
+        sec={sec}
+        userProfile={userProfile}
+        marksData={marksData}
+        gradesData={gradesData}
+        onMarksChange={handleMarksChange}
+        onGradeChange={handleGradeChange}
+      />
     );
   };
 
@@ -1842,7 +2459,7 @@ export function StudentsListView({ group, userProfile, allocations = [] }) {
     );
   }
 
-  const sectionStudents = get85Students(br, yr, sec);
+  const { students: sectionStudents, isLoading, error, reload } = useSectionStudents(br, yr, sec, userProfile?.institution);
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 pb-10">
@@ -1854,22 +2471,47 @@ export function StudentsListView({ group, userProfile, allocations = [] }) {
       <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs">
         <div className="flex items-center justify-between mb-4">
            <h3 className="text-lg font-bold text-[#171717]">Enrolled Students</h3>
-           <span className="text-sm font-bold text-[#171717] bg-[#F5E5EE] border border-[#D8D1C3]/60 px-3 py-1 rounded-full">{sectionStudents.length} Total</span>
+           <span className="text-sm font-bold text-[#171717] bg-[#F5E5EE] border border-[#D8D1C3]/60 px-3 py-1 rounded-full">
+             {sectionStudents.length} Total
+           </span>
         </div>
-        <div className="space-y-3 mt-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-          {sectionStudents.map((st, idx) => (
-            <div key={st.id} className="flex items-center gap-4 p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
-              <span className="text-[#858174] font-bold w-8 text-right text-xs">{idx + 1}.</span>
-              <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs">
-                {st.name.charAt(0)}
-              </div>
-              <div className="flex flex-col">
-                 <span className="font-bold text-[#171717] text-sm">{st.name}</span>
-                 <span className="text-[11px] font-medium text-[#858174]">Roll No. {st.roll}</span>
-              </div>
+
+        {isLoading ? (
+          <div className="py-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-[#171717] border-t-transparent mb-3"></div>
+            <p className="text-sm font-medium text-[#858174]">Loading enrolled students...</p>
+          </div>
+        ) : error ? (
+          <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm font-medium flex items-center justify-between">
+            <span>{error}</span>
+            <button onClick={reload} className="underline font-bold hover:text-red-900 ml-2">Retry</button>
+          </div>
+        ) : sectionStudents.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center mx-auto mb-3">
+              <Icons.Students />
             </div>
-          ))}
-        </div>
+            <p className="text-sm font-bold text-[#171717]">No students enrolled in this section.</p>
+            <p className="text-xs font-medium text-[#858174] mt-1">Students registered for this department, year, and section will appear here.</p>
+          </div>
+        ) : (
+          <div className="space-y-3 mt-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            {sectionStudents.map((st, idx) => (
+              <div key={st.id || st.uid || idx} className="flex items-center gap-4 p-3 rounded-xl border border-[#D8D1C3]/60 bg-[#FDFBF7] hover:bg-[#F5E5EE]/50 hover:border-[#D8D1C3] transition-all">
+                <span className="text-[#858174] font-bold w-8 text-right text-xs">{idx + 1}.</span>
+                <div className="w-9 h-9 rounded-full bg-[#F5E5EE] text-[#171717] font-bold border border-[#D8D1C3]/60 flex items-center justify-center text-xs flex-shrink-0">
+                  {(st.name || 'S').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col">
+                   <span className="font-bold text-[#171717] text-sm">{st.name}</span>
+                   <span className="text-[11px] font-medium text-[#858174]">
+                     {st.roll ? `Roll No. ${st.roll}` : (st.enrollmentNo ? `Enrollment: ${st.enrollmentNo}` : (st.email || ''))}
+                   </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

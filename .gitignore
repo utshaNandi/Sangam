@@ -26,3 +26,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Uploads
+uploads/
+uploads/**
+
+# Service account credentials and private keys
+*serviceAccountKey*.json
+*service-account*.json
+*firebase-adminsdk*.json
+credentials.json
+client_secret*.json
+
+# Temporary scratch scripts
+temp_*.js
+

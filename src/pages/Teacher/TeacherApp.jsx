@@ -12,6 +12,7 @@ import {
   ProfileView
 } from './TeacherViews';
 import AcademicSpacesView from './AcademicSpacesView';
+import SettingsView from './SettingsView';
 import { auth } from '../../firebase/config';
 import { subscribeTeacherAllocations } from '../../services/attendanceService';
 
@@ -27,6 +28,18 @@ export default function TeacherApp({ userProfile, onLogout }) {
   const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
   const institution = userProfile?.institution || '';
   const teacherName = userProfile?.name || teacherProfile.name;
+
+  // If returning from cloud storage OAuth callback, switch active tab to Settings
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('storage_status')) {
+        setActiveTab('Settings');
+      }
+    } catch {
+      // Ignore URL parsing errors
+    }
+  }, []);
 
   useEffect(() => {
     if (!teacherUid) {
@@ -150,6 +163,8 @@ export default function TeacherApp({ userProfile, onLogout }) {
             isLoadingAllocations={isLoadingAllocations} 
           />
         );
+      case 'Settings':
+        return <SettingsView userProfile={userProfile} />;
       default: 
         return <div className="p-8 text-[#858174]">View under construction</div>;
     }

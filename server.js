@@ -4,10 +4,63 @@ import cors from 'cors';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import { getFirebaseAdmin } from './server/config/firebaseAdmin.js';
+import { verifyFirebaseToken } from './server/middleware/authMiddleware.js';
+import { validateKey } from './server/services/encryptionService.js';
+import storageRoutes, { assignmentRoutes, submissionRoutes, studentRoutes } from './server/routes/storageRoutes.js';
+
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// Validate encryption key on startup (logs warning in dev if not set, validates if provided)
+if (process.env.TOKEN_ENCRYPTION_KEY) {
+  try {
+    validateKey(process.env.TOKEN_ENCRYPTION_KEY);
+    console.log('[Security] TOKEN_ENCRYPTION_KEY validated (AES-256-GCM ready).');
+  } catch (err) {
+    console.error('[Security Warning] Invalid TOKEN_ENCRYPTION_KEY:', err.message);
+  }
+} else {
+  console.warn('[Security Warning] TOKEN_ENCRYPTION_KEY not set. OAuth token encryption will fail until configured.');
+}
+
+// Minimal, secure CORS configuration preserving local development and configured frontend origins
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+const configuredOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : (process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim()] : []);
+
+export const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigins])];
+
+export const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests without Origin header (curl, mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS error: Origin '${origin}' is not authorized.`), false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-Idempotency-Key',
+    'x-idempotency-key'
+  ]
+};
+
+app.use(cors(corsOptions));
+app.use(express.json());
 
 // Configure multer for file uploads
 const upload = multer({ dest: 'uploads/' });
@@ -142,8 +195,52 @@ app.post('/api/similarity', upload.fields([{ name: 'fileA', maxCount: 1 }, { nam
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Similarity backend running on port ${PORT}`);
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    authConfigured: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS || (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL)),
+    encryptionConfigured: Boolean(process.env.TOKEN_ENCRYPTION_KEY)
+  });
 });
+
+// Authenticated session verification endpoint (Protected by verifyFirebaseToken)
+app.get('/api/auth/verify', verifyFirebaseToken, (req, res) => {
+  res.json({
+    success: true,
+    uid: req.userId,
+    email: req.userEmail
+  });
+});
+
+// Cloud Storage OAuth and management routes
+app.use('/api/storage', storageRoutes);
+app.use('/api/assignments', assignmentRoutes);
+app.use('/api/submissions', submissionRoutes);
+app.use('/api/students', studentRoutes);
+
+// Generic CORS and server error handler
+app.use((err, req, res, next) => {
+  if (err && err.message && err.message.includes('CORS error')) {
+    return res.status(403).json({
+      success: false,
+      error: err.message
+    });
+  }
+  next(err);
+});
+
+const PORT = process.env.PORT || 3001;
+
+let serverInstance = null;
+const isDirectExecution = process.argv[1] && (process.argv[1].endsWith('server.js') || process.argv[1].endsWith('server.mjs'));
+if (isDirectExecution && process.env.NODE_ENV !== 'test') {
+  serverInstance = app.listen(PORT, () => {
+    console.log(`Similarity backend running on port ${PORT}`);
+  });
+}
+
+export { app, serverInstance };
+export default app;
 

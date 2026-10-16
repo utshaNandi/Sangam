@@ -588,5 +588,31 @@ service cloud.firestore {
       allow list: if false;
       allow write: if false;
     }
+
+    // ===============================================================
+    // Collection: faculty_storage_integrations (Server-Only Integration Metadata)
+    // ===============================================================
+    // Document ID: {facultyUid} (matches Firebase Auth UID of the teacher)
+    // Fields:
+    //   - facultyUid: string (required, immutable)
+    //   - provider: string ('google' | 'onedrive')
+    //   - accountEmail: string (email of the connected Google/Microsoft account)
+    //   - accountName: string (optional, display name on the provider)
+    //   - status: string ('connected' | 'disconnected' | 'action_required' | 'error')
+    //   - encryptedAccessToken: string (AES-256-GCM cipher)
+    //   - encryptedRefreshToken: string (AES-256-GCM cipher)
+    //   - iv: string (hex-encoded initialization vector)
+    //   - authTag: string (hex-encoded GCM authentication tag)
+    //   - scope: string (space-delimited granted OAuth scopes)
+    //   - tokenExpiresAt: string | number (expiry timestamp)
+    //   - connectedAt: string (ISO-8601 timestamp)
+    //   - updatedAt: string (ISO-8601 timestamp)
+    //   - lastError: string (optional, diagnostics when status is error)
+    //
+    // Strictly inaccessible to client SDKs. Read and write operations are reserved
+    // exclusively for the trusted backend via the Firebase Admin SDK.
+    match /faculty_storage_integrations/{facultyUid} {
+      allow read, write: if false;
+    }
   }
 }
