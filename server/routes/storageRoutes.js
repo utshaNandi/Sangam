@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import multer from 'multer';
@@ -53,7 +54,7 @@ router.get('/google/auth-url', verifyFirebaseToken, async (req, res) => {
  */
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:5173');
 
   // 1. Handle user cancellation or provider denial
   if (error) {
@@ -286,9 +287,15 @@ router.post('/disconnect', verifyFirebaseToken, async (req, res) => {
  * Temporary upload directory and multer configuration for assignment PDFs.
  * Enforces configurable file size limit (default 15MB) and single-file constraint.
  */
-const ASSIGNMENTS_TEMP_DIR = path.join(process.cwd(), 'uploads', 'assignments');
-if (!fs.existsSync(ASSIGNMENTS_TEMP_DIR)) {
-  fs.mkdirSync(ASSIGNMENTS_TEMP_DIR, { recursive: true });
+const ASSIGNMENTS_TEMP_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'uploads', 'assignments')
+  : path.join(process.cwd(), 'uploads', 'assignments');
+try {
+  if (!fs.existsSync(ASSIGNMENTS_TEMP_DIR)) {
+    fs.mkdirSync(ASSIGNMENTS_TEMP_DIR, { recursive: true });
+  }
+} catch {
+  // Gracefully handle read-only environments
 }
 
 export const MAX_ASSIGNMENT_FILE_SIZE = parseInt(
@@ -457,13 +464,15 @@ export async function handleUploadAssignment(req, res) {
   }
 }
 
-export const SUBMISSIONS_TEMP_DIR = path.resolve(process.cwd(), 'uploads/submissions');
-if (!fs.existsSync(SUBMISSIONS_TEMP_DIR)) {
-  try {
+export const SUBMISSIONS_TEMP_DIR = process.env.VERCEL
+  ? path.resolve(os.tmpdir(), 'uploads/submissions')
+  : path.resolve(process.cwd(), 'uploads/submissions');
+try {
+  if (!fs.existsSync(SUBMISSIONS_TEMP_DIR)) {
     fs.mkdirSync(SUBMISSIONS_TEMP_DIR, { recursive: true });
-  } catch {
-    // Ignore if exists
   }
+} catch {
+  // Gracefully handle read-only environments
 }
 
 export const MAX_SUBMISSION_FILE_SIZE = parseInt(

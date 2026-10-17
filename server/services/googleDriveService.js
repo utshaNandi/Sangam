@@ -238,7 +238,7 @@ export class GoogleDriveService {
   constructor(config = {}) {
     this.clientId = config.clientId || process.env.GOOGLE_CLIENT_ID;
     this.clientSecret = config.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
-    this.redirectUri = config.redirectUri || process.env.GOOGLE_REDIRECT_URI;
+    this.redirectUri = config.redirectUri || process.env.GOOGLE_REDIRECT_URI || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api/storage/google/callback` : undefined);
     this.customDb = config.customDb || null;
     this.customOAuthClient = config.customOAuthClient || null;
     this.customDriveApi = config.customDriveApi || null;
@@ -259,7 +259,7 @@ export class GoogleDriveService {
 
     const clientId = this.clientId || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = this.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = this.redirectUri || process.env.GOOGLE_REDIRECT_URI;
+    const redirectUri = this.redirectUri || process.env.GOOGLE_REDIRECT_URI || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api/storage/google/callback` : undefined);
 
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error(

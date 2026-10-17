@@ -6,10 +6,15 @@ import { auth } from '../firebase/config.js';
  * In a production reverse-proxy environment, VITE_API_BASE_URL can be set to '' or the production origin.
  */
 export function getApiBaseUrl() {
-  const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '';
-  if (envUrl) {
-    return envUrl.replace(/\/$/, '');
+  const envUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL);
+  if (typeof envUrl === 'string' && envUrl.trim() !== '') {
+    return envUrl.trim().replace(/\/$/, '');
   }
+  // In production browser environments without explicit VITE_API_BASE_URL, default to same-origin relative URLs ('')
+  if (typeof import.meta !== 'undefined' && import.meta.env?.PROD) {
+    return '';
+  }
+  // In local development or test environments, default to http://localhost:3001
   return 'http://localhost:3001';
 }
 

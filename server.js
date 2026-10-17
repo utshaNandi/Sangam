@@ -3,6 +3,8 @@ import multer from 'multer';
 import cors from 'cors';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'fs';
+import os from 'node:os';
+import path from 'node:path';
 import dotenv from 'dotenv';
 import { getFirebaseAdmin } from './server/config/firebaseAdmin.js';
 import { verifyFirebaseToken } from './server/middleware/authMiddleware.js';
@@ -37,6 +39,13 @@ const configuredOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
   : (process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim()] : []);
 
+if (process.env.VERCEL_URL) {
+  configuredOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+  configuredOrigins.push(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+}
+
 export const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...configuredOrigins])];
 
 export const corsOptions = {
@@ -60,15 +69,24 @@ export const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+
 app.use(express.json());
 
-// Configure multer for file uploads
-const upload = multer({ dest: 'uploads/' });
+// Configure multer for file uploads with serverless-safe fallback directory
+const uploadsDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'uploads')
+  : path.join(process.cwd(), 'uploads');
 
-// Ensure uploads dir exists
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch {
+  // Gracefully handle read-only filesystems
 }
+
+const upload = multer({ dest: uploadsDir });
 
 // Modular Similarity Engine Class
 class SimilarityEngine {

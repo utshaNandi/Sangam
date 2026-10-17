@@ -46,3 +46,6 @@ client_secret*.json
 # Temporary scratch scripts
 temp_*.js
 
+
+.vercel
+
