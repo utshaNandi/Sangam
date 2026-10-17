@@ -902,3 +902,5 @@ export function AcademicManagementView({ onNavigate }) {
     </div>
   );
 }
+
+export { DirectorAnnouncementsView } from './DirectorAnnouncementsView';

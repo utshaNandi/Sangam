@@ -2,7 +2,8 @@ import { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Icons } from '../Teacher/Icons';
 import StudentCharacter from '../../components/student/StudentCharacter';
-import { assignments, announcements } from '../Teacher/mockData';
+import { assignments } from '../Teacher/mockData';
+import { fetchAnnouncements } from '../../services/announcementService.js';
 import { 
   subscribeStudentAttendance, 
   transformRecordsToPeriodData, 
@@ -127,14 +128,56 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
   const section = userProfile?.section?.trim() || '';
   const studentId = userProfile?.uid || '';
 
-  // 1. Announcements: match by section if assigned, otherwise preserve demo announcements without falsely claiming section match
-  const matchedAnnouncements = section
-    ? announcements.filter(an => an.scopePath && (an.scopePath.includes(section) || section.includes(an.scopePath.split('/').pop() || '')))
-    : announcements;
-  const studentAnnouncements = matchedAnnouncements.length > 0 ? matchedAnnouncements : announcements;
-  const announcementCount = studentAnnouncements.length;
-  const latestAnnouncement = studentAnnouncements.length > 0 ? studentAnnouncements[0] : null;
-  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(latestAnnouncement !== null);
+  // 1. Live Announcements: fetched from authenticated API
+  const [liveAnnouncements, setLiveAnnouncements] = useState([]);
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(true);
+  const [announcementError, setAnnouncementError] = useState(null);
+  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadAnnouncements = async () => {
+      if (!userProfile?.uid) {
+        if (isMounted) {
+          setLiveAnnouncements([]);
+          setIsLoadingAnnouncements(false);
+        }
+        return;
+      }
+
+      setIsLoadingAnnouncements(true);
+      setAnnouncementError(null);
+      try {
+        const data = await fetchAnnouncements({ page: 1, limit: 10 });
+        if (isMounted) {
+          const list = Array.isArray(data?.announcements) ? data.announcements : [];
+          setLiveAnnouncements(list);
+          if (list.length > 0) {
+            setShowAnnouncementPopup(true);
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.warn('[StudentDashboard] Failed to fetch announcements:', err.message);
+          setAnnouncementError(err.message || 'Failed to load announcements');
+          setLiveAnnouncements([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingAnnouncements(false);
+        }
+      }
+    };
+
+    loadAnnouncements();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userProfile?.uid]);
+
+  const announcementCount = liveAnnouncements.length;
+  const latestAnnouncement = liveAnnouncements.length > 0 ? liveAnnouncements[0] : null;
 
   // 2. Pending Assignments: match by section if assigned, otherwise preserve demo assignments
   const matchedAssignments = section
@@ -401,7 +444,7 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
           </div>
           <p className="text-xs text-slate-600 mb-3 line-clamp-2 leading-relaxed">{latestAnnouncement.content}</p>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            FROM: {latestAnnouncement.author || 'ADMINISTRATION'}
+            FROM: {latestAnnouncement.authorName || latestAnnouncement.author || (latestAnnouncement.authorRole === 'director' ? 'Director' : 'Administration')}
           </div>
         </div>,
         document.body

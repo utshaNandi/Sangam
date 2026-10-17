@@ -8,7 +8,8 @@ import {
   downloadAssignmentPdf,
   getSectionStudents 
 } from '../../services/storageService.js';
-import { classes, students, assignments, announcements, teacherProfile, markPeriodAttendance } from './mockData';
+import { fetchAnnouncements, postAnnouncement } from '../../services/announcementService.js';
+import { classes, students, assignments, teacherProfile, markPeriodAttendance } from './mockData';
 import { Icons } from './Icons';
 import { auth } from '../../firebase/config';
 import { 
@@ -2055,27 +2056,297 @@ export function GradesView() {
   return <TreeHierarchy title="Grades & Marks" tree={tree} branches={branches} renderContent={renderContent} expandedNodes={expandedNodes} toggleNode={toggleNode} />;
 }
 
-export function AnnouncementsView() {
+export function AnnouncementsView({ userProfile, allocations = [], isLoadingAllocations = false }) {
+  const [announcementList, setAnnouncementList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Form states
+  const [isPostingOpen, setIsPostingOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [postError, setPostError] = useState(null);
+  const [postSuccess, setPostSuccess] = useState(null);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [selectedAllocIndex, setSelectedAllocIndex] = useState(0);
+  const [priority, setPriority] = useState('normal');
+
+  // Filter valid, authorized allocations
+  const validAllocations = Array.isArray(allocations)
+    ? allocations.filter(a => a.authorized !== false && a.department && a.year && a.section)
+    : [];
+
+  const loadAnnouncements = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchAnnouncements({ page: 1, limit: 50 });
+      setAnnouncementList(Array.isArray(data?.announcements) ? data.announcements : []);
+    } catch (err) {
+      console.warn('[AnnouncementsView] Error loading announcements:', err.message);
+      setError(err.message || 'Failed to load announcements.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [userProfile?.uid]);
+
+  const handlePost = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setPostError(null);
+    setPostSuccess(null);
+
+    if (validAllocations.length === 0) {
+      setPostError('You do not have any authorized class allocations to post to. Please contact your Director.');
+      return;
+    }
+
+    const cleanTitle = title.trim();
+    if (!cleanTitle) {
+      setPostError('Please enter an announcement title.');
+      return;
+    }
+    if (cleanTitle.length > 200) {
+      setPostError('Title must be 200 characters or less.');
+      return;
+    }
+
+    const cleanContent = content.trim();
+    if (!cleanContent) {
+      setPostError('Please enter announcement content.');
+      return;
+    }
+    if (cleanContent.length > 5000) {
+      setPostError('Content must be 5000 characters or less.');
+      return;
+    }
+
+    const targetAlloc = validAllocations[selectedAllocIndex] || validAllocations[0];
+    if (!targetAlloc) {
+      setPostError('Invalid target section selected.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await postAnnouncement({
+        title: cleanTitle,
+        content: cleanContent,
+        scopeType: 'section',
+        department: targetAlloc.department,
+        year: targetAlloc.year,
+        section: targetAlloc.section,
+        priority
+      });
+
+      setPostSuccess('Announcement published successfully!');
+      setTitle('');
+      setContent('');
+      setIsPostingOpen(false);
+      await loadAnnouncements();
+    } catch (err) {
+      console.error('[AnnouncementsView] Post failed:', err.message);
+      setPostError(err.message || 'Failed to publish announcement.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-hero-fade-up relative z-10" style={{ animationDuration: '400ms' }}>
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Announcements</h2>
-        <button className="flex items-center gap-2 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-5 py-2.5 rounded-xl active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm">
-          <Icons.Plus /> Post Announcement
+        <div>
+          <h2 className="text-2xl font-extrabold text-[#171717] tracking-tight">Announcements</h2>
+          <p className="text-xs font-semibold text-[#858174] mt-0.5">Official notices for your institution and assigned class sections</p>
+        </div>
+        <button
+          onClick={() => {
+            setIsPostingOpen(!isPostingOpen);
+            setPostError(null);
+            setPostSuccess(null);
+          }}
+          className="flex items-center gap-2 bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] px-5 py-2.5 rounded-xl active:scale-95 transition-all duration-200 shadow-xs font-bold text-sm cursor-pointer"
+        >
+          <Icons.Plus /> {isPostingOpen ? 'Close Form' : 'Post Announcement'}
         </button>
       </div>
-      <div className="grid gap-4">
-        {announcements.map(a => (
-          <div key={a.id} className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs hover:border-[#171717]/30 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 group cursor-pointer">
-             <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-[#171717] text-lg transition-colors">{a.title}</h3>
-                <span className="text-[11px] font-bold text-[#171717] bg-[#F5E5EE] border border-[#D8D1C3]/60 px-2.5 py-1 rounded-lg uppercase tracking-wider">{a.date}</span>
-             </div>
-             <p className="text-sm text-[#858174] mb-4 leading-relaxed font-medium transition-colors">{a.content}</p>
-             <span className="text-xs font-bold text-[#1b2b48] bg-[#B7C9EA]/25 border border-[#B7C9EA]/50 px-3 py-1 rounded-lg inline-block">Class: {classes.find(c => c.id === a.classId)?.subject || 'All Classes'}</span>
+
+      {/* Post Success Banner */}
+      {postSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-semibold flex items-center justify-between animate-hero-fade-up">
+          <span>{postSuccess}</span>
+          <button onClick={() => setPostSuccess(null)} className="text-emerald-700 hover:text-emerald-900 text-xs font-bold cursor-pointer">✕</button>
+        </div>
+      )}
+
+      {/* Post Announcement Form */}
+      {isPostingOpen && (
+        <div className="bg-[#F8F3E6] border border-[#D8D1C3] rounded-[24px] p-6 shadow-xs animate-hero-fade-up">
+          <h3 className="text-base font-extrabold text-[#171717] mb-4">Post Section Announcement</h3>
+
+          {postError && (
+            <div className="p-3.5 mb-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold">
+              {postError}
+            </div>
+          )}
+
+          {validAllocations.length === 0 ? (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium">
+              You do not have any authorized class allocations. Faculty may only publish announcements to their authorized sections. Please contact your Director.
+            </div>
+          ) : (
+            <form onSubmit={handlePost} className="space-y-4">
+              {validAllocations.length === 1 ? (
+                <div className="text-xs font-bold text-[#858174] bg-white/70 border border-[#D8D1C3]/70 px-4 py-2.5 rounded-xl">
+                  Target Section: <span className="text-[#171717]">{validAllocations[0].department} • {validAllocations[0].year} • {validAllocations[0].section}{validAllocations[0].subject ? ` (${validAllocations[0].subject})` : ''}</span>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-[#171717] mb-1.5">Target Section</label>
+                  <select
+                    value={selectedAllocIndex}
+                    onChange={(e) => setSelectedAllocIndex(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 bg-white border border-[#D8D1C3] rounded-xl text-xs font-semibold text-[#171717] focus:outline-none focus:border-[#171717] transition-all"
+                  >
+                    {validAllocations.map((alloc, idx) => (
+                      <option key={`${alloc.department}_${alloc.year}_${alloc.section}_${idx}`} value={idx}>
+                        {alloc.department} • {alloc.year} • {alloc.section}{alloc.subject ? ` (${alloc.subject})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-[#171717] mb-1.5">Announcement Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Midterm Syllabus & Lab Schedule"
+                  maxLength={200}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-[#D8D1C3] rounded-xl focus:outline-none focus:border-[#171717] text-xs font-semibold text-[#171717] transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-[#171717]">Priority:</span>
+                <button
+                  type="button"
+                  onClick={() => setPriority('normal')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${priority === 'normal' ? 'bg-[#171717] text-white shadow-xs' : 'bg-white border border-[#D8D1C3] text-[#858174]'}`}
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPriority('urgent')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${priority === 'urgent' ? 'bg-red-600 text-white shadow-xs' : 'bg-white border border-[#D8D1C3] text-[#858174]'}`}
+                >
+                  Urgent
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#171717] mb-1.5">Announcement Body</label>
+                <textarea
+                  placeholder="Write the full announcement message here..."
+                  rows={4}
+                  maxLength={5000}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-[#D8D1C3] rounded-xl focus:outline-none focus:border-[#171717] text-xs font-medium text-[#171717] transition-all resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPostingOpen(false);
+                    setPostError(null);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-[#858174] font-bold hover:bg-[#F5E5EE] transition-colors text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-[#171717] hover:bg-[#2b2b2b] text-[#F8F3E6] font-bold shadow-xs transition-all text-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Publishing...' : 'Publish Announcement'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Announcements List Container */}
+      {isLoading ? (
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center text-[#858174] font-medium text-sm shadow-xs">
+          Loading announcements...
+        </div>
+      ) : error ? (
+        <div className="bg-red-50/80 border border-red-200 rounded-[24px] p-6 text-red-700 flex justify-between items-center text-sm font-medium shadow-xs">
+          <span>{error}</span>
+          <button
+            onClick={loadAnnouncements}
+            className="px-4 py-2 bg-red-700 text-white rounded-xl font-bold text-xs hover:bg-red-800 transition-all cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      ) : announcementList.length === 0 ? (
+        <div className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[#F5E5EE] text-[#171717] border border-[#D8D1C3]/60 flex items-center justify-center mx-auto mb-4">
+            <Icons.Announcements />
           </div>
-        ))}
-      </div>
+          <h3 className="text-xl font-bold text-[#171717] mb-2">No Announcements Yet</h3>
+          <p className="text-sm font-medium text-[#858174] max-w-md mx-auto">
+            There are currently no announcements for your institution or assigned class sections.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {announcementList.map(a => (
+            <div key={a.id} className="bg-white/80 rounded-[24px] border border-[#D8D1C3] p-6 shadow-xs hover:border-[#171717]/30 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 group">
+              <div className="flex justify-between items-start mb-3 gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-[#171717] text-lg transition-colors">{a.title}</h3>
+                  {a.priority === 'urgent' && (
+                    <span className="text-[10px] font-extrabold text-white bg-red-600 px-2 py-0.5 rounded-full uppercase tracking-wider">Urgent</span>
+                  )}
+                </div>
+                <span className="text-[11px] font-bold text-[#171717] bg-[#F5E5EE] border border-[#D8D1C3]/60 px-2.5 py-1 rounded-lg uppercase tracking-wider whitespace-nowrap">
+                  {a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : (a.date || 'Recent')}
+                </span>
+              </div>
+              <p className="text-sm text-[#858174] mb-4 leading-relaxed font-medium transition-colors whitespace-pre-line">{a.content}</p>
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-[#D8D1C3]/40">
+                <span className="text-xs font-bold text-[#1b2b48] bg-[#B7C9EA]/25 border border-[#B7C9EA]/50 px-3 py-1 rounded-lg inline-block">
+                  {a.scopeType === 'institution'
+                    ? 'Institution-wide'
+                    : a.scopeType === 'branch'
+                    ? `Branch: ${a.department}`
+                    : a.scopeType === 'year'
+                    ? `Year: ${a.department || ''} • ${a.year || ''}`
+                    : `Class: ${a.department || ''} • ${a.year || ''} • ${a.section || ''}`.replace(/^Class:\s*•\s*/, 'Class: ')}
+                </span>
+                {a.authorName && (
+                  <span className="text-xs font-medium text-[#858174]">
+                    By {a.authorName}{a.authorRole ? ` (${a.authorRole.charAt(0).toUpperCase() + a.authorRole.slice(1)})` : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

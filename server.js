@@ -11,6 +11,7 @@ import { getFirebaseAdmin } from './server/config/firebaseAdmin.js';
 import { verifyFirebaseToken } from './server/middleware/authMiddleware.js';
 import { validateKey } from './server/services/encryptionService.js';
 import storageRoutes, { assignmentRoutes, submissionRoutes, studentRoutes } from './server/routes/storageRoutes.js';
+import announcementRoutes from './server/routes/announcementRoutes.js';
 
 if (fs.existsSync('.env.local')) {
   dotenv.config({ path: '.env.local' });
@@ -240,6 +241,7 @@ app.use('/api/storage', storageRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 // Generic CORS and server error handler
 app.use((err, req, res, next) => {

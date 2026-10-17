@@ -614,5 +614,14 @@ service cloud.firestore {
     match /faculty_storage_integrations/{facultyUid} {
       allow read, write: if false;
     }
+
+    // ===============================================================
+    // Collection: announcements (Server-Only Backend Enforced)
+    // ===============================================================
+    // Direct client access is strictly denied. All announcement operations
+    // are routed through authenticated backend endpoints with server-side authorization.
+    match /announcements/{announcementId} {
+      allow read, write: if false;
+    }
   }
 }

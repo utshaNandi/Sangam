@@ -6,6 +6,7 @@ import { PeopleView, AcademicManagementView } from './DirectorViews';
 import DirectorAcademicSpacesView from './DirectorAcademicSpacesView';
 import DirectorDashboard from './DirectorDashboard';
 import DirectorTimetableView from './DirectorTimetableView';
+import DirectorAnnouncementsView from './DirectorAnnouncementsView';
 
 export default function DirectorApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -49,6 +50,7 @@ export default function DirectorApp({ userProfile, onLogout }) {
       case 'Timetable':
         return <DirectorTimetableView userProfile={userProfile} />;
       case 'Announcements':
+        return <DirectorAnnouncementsView userProfile={userProfile} />;
       case 'Attendance':
       case 'Performance':
       case 'Reports & Analytics':
