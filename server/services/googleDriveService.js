@@ -259,7 +259,15 @@ export class GoogleDriveService {
 
     const clientId = this.clientId || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = this.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = this.redirectUri || process.env.GOOGLE_REDIRECT_URI || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api/storage/google/callback` : undefined);
+    let redirectUri = this.redirectUri || process.env.GOOGLE_REDIRECT_URI;
+    if (process.env.VERCEL) {
+      const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || 'esangam.vercel.app';
+      if (!redirectUri || redirectUri.includes('localhost') || redirectUri.includes('127.0.0.1')) {
+        redirectUri = `https://${prodHost}/api/storage/google/callback`;
+      }
+    } else if (!redirectUri && process.env.VERCEL_URL) {
+      redirectUri = `https://${process.env.VERCEL_URL}/api/storage/google/callback`;
+    }
 
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error(

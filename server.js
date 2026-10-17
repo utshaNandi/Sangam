@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
@@ -11,7 +12,9 @@ import { verifyFirebaseToken } from './server/middleware/authMiddleware.js';
 import { validateKey } from './server/services/encryptionService.js';
 import storageRoutes, { assignmentRoutes, submissionRoutes, studentRoutes } from './server/routes/storageRoutes.js';
 
-dotenv.config();
+if (fs.existsSync('.env.local')) {
+  dotenv.config({ path: '.env.local' });
+}
 
 const app = express();
 
@@ -218,7 +221,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    authConfigured: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS || (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL)),
+    authConfigured: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS || (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)),
     encryptionConfigured: Boolean(process.env.TOKEN_ENCRYPTION_KEY)
   });
 });

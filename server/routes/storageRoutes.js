@@ -54,7 +54,13 @@ router.get('/google/auth-url', verifyFirebaseToken, async (req, res) => {
  */
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  const frontendUrl = process.env.FRONTEND_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:5173');
+  let frontendUrl = process.env.FRONTEND_URL;
+  if (!frontendUrl && process.env.VERCEL) {
+    const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || 'esangam.vercel.app';
+    frontendUrl = `https://${prodHost}`;
+  } else if (!frontendUrl) {
+    frontendUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:5173';
+  }
 
   // 1. Handle user cancellation or provider denial
   if (error) {

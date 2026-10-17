@@ -50,7 +50,23 @@ export function createAuthMiddleware(customAuthService = null) {
     try {
       const auth = customAuthService || activeCustomAuthService || getAdminAuth();
       // Verify token with checkRevoked = true to reject revoked tokens immediately
-      const decodedToken = await auth.verifyIdToken(idToken, true);
+      let decodedToken;
+      try {
+        decodedToken = await auth.verifyIdToken(idToken, true);
+      } catch (checkRevokedErr) {
+        // In local environments without full service account credentials, checking revocation via
+        // Identity Toolkit API fails. Fall back to standard cryptographic signature & claims verification.
+        if (
+          checkRevokedErr.message &&
+          (checkRevokedErr.message.includes('Could not load the default credentials') ||
+           checkRevokedErr.message.includes('Unable to detect a Project Id') ||
+           checkRevokedErr.code === 'app/invalid-credential')
+        ) {
+          decodedToken = await auth.verifyIdToken(idToken, false);
+        } else {
+          throw checkRevokedErr;
+        }
+      }
 
       // 4. Attach verified, cryptographically proven identity to the request
       req.user = decodedToken;
