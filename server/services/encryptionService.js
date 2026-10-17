@@ -32,7 +32,10 @@ export function validateKey(rawKey) {
     throw new Error('TOKEN_ENCRYPTION_KEY must be a string or Buffer.');
   }
 
-  const trimmed = rawKey.trim();
+  let trimmed = rawKey.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
 
   // 1. Check for 64-character hexadecimal string
   if (trimmed.length === 64 && /^[0-9a-fA-F]{64}$/.test(trimmed)) {
@@ -140,7 +143,20 @@ export function decrypt(payload, keyOverride = null) {
     throw new Error('Invalid payload: encryptedData, iv, and authTag must all be provided.');
   }
 
-  const key = keyOverride ? validateKey(keyOverride) : getMasterKey();
+  const primaryKey = keyOverride ? validateKey(keyOverride) : getMasterKey();
+  const keysToTry = [primaryKey];
+
+  if (!keyOverride && process.env.FALLBACK_ENCRYPTION_KEYS) {
+    const rawFallbacks = process.env.FALLBACK_ENCRYPTION_KEYS.split(',').map((k) => k.trim()).filter(Boolean);
+    for (const rawFb of rawFallbacks) {
+      try {
+        keysToTry.push(validateKey(rawFb));
+      } catch {
+        // ignore malformed fallback key entries
+      }
+    }
+  }
+
   const ivBuf = Buffer.from(iv, 'hex');
   const authTagBuf = Buffer.from(authTag, 'hex');
   const encryptedBuf = Buffer.from(encryptedData, 'hex');
@@ -153,18 +169,22 @@ export function decrypt(payload, keyOverride = null) {
     throw new Error(`Invalid authentication tag length: expected ${TAG_LENGTH_BYTES} bytes, got ${authTagBuf.length} bytes.`);
   }
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, ivBuf);
-  decipher.setAuthTag(authTagBuf);
-
-  try {
-    const decrypted = Buffer.concat([
-      decipher.update(encryptedBuf),
-      decipher.final()
-    ]);
-    return decrypted.toString('utf8');
-  } catch (error) {
-    throw new Error(`Decryption failed: authentication tag mismatch or corrupted ciphertext (${error.message}).`);
+  let lastError = null;
+  for (const key of keysToTry) {
+    try {
+      const decipher = crypto.createDecipheriv(ALGORITHM, key, ivBuf);
+      decipher.setAuthTag(authTagBuf);
+      const decrypted = Buffer.concat([
+        decipher.update(encryptedBuf),
+        decipher.final()
+      ]);
+      return decrypted.toString('utf8');
+    } catch (error) {
+      lastError = error;
+    }
   }
+
+  throw new Error(`Decryption failed: authentication tag mismatch or corrupted ciphertext (${lastError ? lastError.message : 'invalid key'}).`);
 }
 
 /**

@@ -1353,110 +1353,121 @@ export class GoogleDriveService {
       }, { merge: true });
     }
 
-    // 5. Verify Google Drive Integration & Root Coursework Folder
-    const integration = await this.getIntegration(teacherUid);
-    if (!integration || integration.status !== 'connected') {
-      const err = new Error('Google Drive is not connected. Please connect your Google Drive account in Settings before uploading coursework.');
-      err.statusCode = 424;
-      err.code = 'DRIVE_NOT_CONNECTED';
-      throw err;
-    }
-
-    const folder = await this.getOrCreateCourseworkFolder(teacherUid, encryptionKey);
-    const validAccessToken = await this.getValidAccessToken(teacherUid, encryptionKey);
-
-    // 6. Perform Private Upload to Google Drive (if not already uploaded in prior attempt)
     let driveFileId = existingDriveFileId;
     let driveFileName = existingDriveFileName;
 
-    if (!driveFileId) {
-      const sanitizedBase = (originalFileName || title)
-        .replace(/[^a-zA-Z0-9._-]/g, '_')
-        .replace(/\.pdf$/i, '');
-      const safeUploadName = `Assignment_${sanitizedBase.slice(0, 40)}_${Date.now()}.pdf`;
+    try {
+      // 5. Verify Google Drive Integration & Root Coursework Folder
+      const integration = await this.getIntegration(teacherUid);
+      if (!integration || integration.status !== 'connected') {
+        const err = new Error('Google Drive is not connected. Please connect your Google Drive account in Settings before uploading coursework.');
+        err.statusCode = 424;
+        err.code = 'DRIVE_NOT_CONNECTED';
+        throw err;
+      }
 
-      const uploadResult = await this.uploadFileToFolder(
-        folder.id,
-        safeUploadName,
-        'application/pdf',
-        fileBuffer,
-        validAccessToken,
-        { description: description || `Assignment: ${title} (${department} ${year} ${section})` }
-      );
+      const folder = await this.getOrCreateCourseworkFolder(teacherUid, encryptionKey);
+      const validAccessToken = await this.getValidAccessToken(teacherUid, encryptionKey);
 
-      driveFileId = uploadResult.id;
-      driveFileName = uploadResult.name || safeUploadName;
+      // 6. Perform Private Upload to Google Drive (if not already uploaded in prior attempt)
+      if (!driveFileId) {
+        const sanitizedBase = (originalFileName || title)
+          .replace(/[^a-zA-Z0-9._-]/g, '_')
+          .replace(/\.pdf$/i, '');
+        const safeUploadName = `Assignment_${sanitizedBase.slice(0, 40)}_${Date.now()}.pdf`;
 
-      // Update idempotency tracker with the newly acquired Drive file ID
+        const uploadResult = await this.uploadFileToFolder(
+          folder.id,
+          safeUploadName,
+          'application/pdf',
+          fileBuffer,
+          validAccessToken,
+          { description: description || `Assignment: ${title} (${department} ${year} ${section})` }
+        );
+
+        driveFileId = uploadResult.id;
+        driveFileName = uploadResult.name || safeUploadName;
+
+        // Update idempotency tracker with the newly acquired Drive file ID
+        if (idempotencyDocRef) {
+          try {
+            await idempotencyDocRef.set({
+              driveFileId,
+              driveFileName,
+              updatedAt: Date.now()
+            }, { merge: true });
+          } catch {
+            // Continue to persist assignment
+          }
+        }
+      }
+
+      // 7. Persist Assignment Document in Firestore
+      const assignmentId = `asg_${crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '_' + crypto.randomBytes(4).toString('hex'))}`;
+      const nowIso = new Date().toISOString();
+
+      const assignmentRecord = {
+        id: assignmentId,
+        teacherUid,
+        teacherName: userData.name || (teacherEmail ? teacherEmail.split('@')[0] : 'Faculty'),
+        teacherEmail: teacherEmail || userData.email || '',
+        institution,
+        department,
+        year,
+        section,
+        subject: subject || (allocCheck.allocation && allocCheck.allocation.subject) || '',
+        title,
+        description,
+        dueDate,
+        checkSimilarity,
+        storageProvider: 'google',
+        driveFileId,
+        driveFileName,
+        fileSizeBytes: fileSize || fileBuffer.length,
+        mimeType: 'application/pdf',
+        idempotencyKey: safeKey,
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      try {
+        await db.collection('assignments').doc(assignmentId).set(assignmentRecord);
+      } catch (dbErr) {
+        console.error('[GoogleDriveService] Failed to persist assignment to Firestore:', dbErr.message);
+        const err = new Error(`Failed to record assignment in database: ${dbErr.message}`);
+        err.statusCode = 500;
+        err.driveFileId = driveFileId; // Recorded for recovery/diagnostics
+        throw err;
+      }
+
+      // 8. Finalize Idempotency Record
       if (idempotencyDocRef) {
         try {
           await idempotencyDocRef.set({
-            driveFileId,
-            driveFileName,
-            updatedAt: Date.now()
+            status: 'completed',
+            assignmentId,
+            assignment: assignmentRecord,
+            completedAt: Date.now()
           }, { merge: true });
         } catch {
-          // Continue to persist assignment
+          // Non-blocking: assignment is already saved
         }
       }
-    }
 
-    // 7. Persist Assignment Document in Firestore
-    const assignmentId = `asg_${crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '_' + crypto.randomBytes(4).toString('hex'))}`;
-    const nowIso = new Date().toISOString();
-
-    const assignmentRecord = {
-      id: assignmentId,
-      teacherUid,
-      teacherName: userData.name || (teacherEmail ? teacherEmail.split('@')[0] : 'Faculty'),
-      teacherEmail: teacherEmail || userData.email || '',
-      institution,
-      department,
-      year,
-      section,
-      subject: subject || (allocCheck.allocation && allocCheck.allocation.subject) || '',
-      title,
-      description,
-      dueDate,
-      checkSimilarity,
-      storageProvider: 'google',
-      driveFileId,
-      driveFileName,
-      fileSizeBytes: fileSize || fileBuffer.length,
-      mimeType: 'application/pdf',
-      idempotencyKey: safeKey,
-      createdAt: nowIso,
-      updatedAt: nowIso
-    };
-
-    try {
-      await db.collection('assignments').doc(assignmentId).set(assignmentRecord);
-    } catch (dbErr) {
-      console.error('[GoogleDriveService] Failed to persist assignment to Firestore:', dbErr.message);
-      const err = new Error(`Failed to record assignment in database: ${dbErr.message}`);
-      err.statusCode = 500;
-      err.driveFileId = driveFileId; // Recorded for recovery/diagnostics
-      throw err;
-    }
-
-    // 8. Finalize Idempotency Record
-    if (idempotencyDocRef) {
-      try {
-        await idempotencyDocRef.set({
-          status: 'completed',
-          assignmentId,
-          assignment: assignmentRecord,
-          completedAt: Date.now()
-        }, { merge: true });
-      } catch {
-        // Non-blocking: assignment is already saved
+      return {
+        assignment: assignmentRecord,
+        isReplay: false
+      };
+    } catch (uploadErr) {
+      if (idempotencyDocRef && !driveFileId) {
+        try {
+          await idempotencyDocRef.delete();
+        } catch {
+          // Non-blocking cleanup
+        }
       }
+      throw uploadErr;
     }
-
-    return {
-      assignment: assignmentRecord,
-      isReplay: false
-    };
   }
 
   /**
@@ -1685,101 +1696,112 @@ export class GoogleDriveService {
       }
     }
 
-    // 7. Acquire Teacher Folder & Valid Access Token
-    const folder = await this.getOrCreateCourseworkFolder(teacherUid, encryptionKey);
-    const validAccessToken = await this.getValidAccessToken(teacherUid, encryptionKey);
-
-    // 8. Upload PDF to Teacher's Google Drive (or reuse existing ID if crashed after upload before DB write)
     let driveFileId = existingDriveFileId;
     let driveFileName = existingDriveFileName;
 
-    if (!driveFileId) {
-      const sanitizedStudent = (studentData.name || studentUid).replace(/[^a-zA-Z0-9._-]/g, '_');
-      const sanitizedTitle = (assignment.title || 'Assignment').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const studentRoll = studentData.roll || studentData.section || studentUid.slice(0, 8).toUpperCase();
-      const safeUploadName = `Submission_${studentRoll}_${sanitizedStudent.slice(0, 30)}_${sanitizedTitle.slice(0, 30)}_${Date.now()}.pdf`;
+    try {
+      // 7. Acquire Teacher Folder & Valid Access Token
+      const folder = await this.getOrCreateCourseworkFolder(teacherUid, encryptionKey);
+      const validAccessToken = await this.getValidAccessToken(teacherUid, encryptionKey);
 
-      const uploadResult = await this.uploadFileToFolder(
-        folder.id,
-        safeUploadName,
-        'application/pdf',
-        fileBuffer,
-        validAccessToken,
-        { description: `Student submission: ${assignment.title} by ${studentData.name || studentUid}` }
-      );
+      // 8. Upload PDF to Teacher's Google Drive (or reuse existing ID if crashed after upload before DB write)
+      if (!driveFileId) {
+        const sanitizedStudent = (studentData.name || studentUid).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const sanitizedTitle = (assignment.title || 'Assignment').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const studentRoll = studentData.roll || studentData.section || studentUid.slice(0, 8).toUpperCase();
+        const safeUploadName = `Submission_${studentRoll}_${sanitizedStudent.slice(0, 30)}_${sanitizedTitle.slice(0, 30)}_${Date.now()}.pdf`;
 
-      driveFileId = uploadResult.id;
-      driveFileName = uploadResult.name || safeUploadName;
+        const uploadResult = await this.uploadFileToFolder(
+          folder.id,
+          safeUploadName,
+          'application/pdf',
+          fileBuffer,
+          validAccessToken,
+          { description: `Student submission: ${assignment.title} by ${studentData.name || studentUid}` }
+        );
 
+        driveFileId = uploadResult.id;
+        driveFileName = uploadResult.name || safeUploadName;
+
+        if (idempotencyDocRef) {
+          try {
+            await idempotencyDocRef.set({
+              driveFileId,
+              driveFileName,
+              updatedAt: Date.now()
+            }, { merge: true });
+          } catch {
+            // Non-blocking
+          }
+        }
+      }
+
+      // 9. Persist Submission Document in Firestore (deterministic doc ID per assignment and student replaces prior submission)
+      const submissionId = `${assignmentId}_${studentUid}`;
+      const nowIso = new Date().toISOString();
+
+      const submissionRecord = {
+        id: submissionId,
+        assignmentId,
+        assignmentTitle: assignment.title || '',
+        studentUid,
+        studentName: studentData.name || (studentEmail ? studentEmail.split('@')[0] : 'Student'),
+        studentEmail: studentEmail || studentData.email || '',
+        studentRoll: studentData.roll || studentData.section || studentUid.slice(0, 8).toUpperCase(),
+        teacherUid,
+        institution: assignment.institution || studentData.institution || '',
+        department: assignment.department || studentData.department || '',
+        year: assignment.year || studentData.year || '',
+        section: assignment.section || studentData.section || '',
+        storageProvider: 'google_drive',
+        driveFileId,
+        fileName: driveFileName,
+        originalFileName: originalFileName || 'submission.pdf',
+        fileSizeBytes: fileSize || fileBuffer.length,
+        mimeType: 'application/pdf',
+        idempotencyKey: safeKey,
+        submittedAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      try {
+        await db.collection('submissions').doc(submissionId).set(submissionRecord);
+      } catch (dbErr) {
+        console.error('[GoogleDriveService] Failed to persist submission to Firestore:', dbErr.message);
+        const err = new Error(`Failed to record submission in database: ${dbErr.message}`);
+        err.statusCode = 500;
+        err.driveFileId = driveFileId;
+        throw err;
+      }
+
+      // 10. Finalize Idempotency Record
       if (idempotencyDocRef) {
         try {
           await idempotencyDocRef.set({
-            driveFileId,
-            driveFileName,
-            updatedAt: Date.now()
+            status: 'completed',
+            submissionId,
+            submission: submissionRecord,
+            completedAt: Date.now()
           }, { merge: true });
         } catch {
           // Non-blocking
         }
       }
-    }
 
-    // 9. Persist Submission Document in Firestore (deterministic doc ID per assignment and student replaces prior submission)
-    const submissionId = `${assignmentId}_${studentUid}`;
-    const nowIso = new Date().toISOString();
-
-    const submissionRecord = {
-      id: submissionId,
-      assignmentId,
-      assignmentTitle: assignment.title || '',
-      studentUid,
-      studentName: studentData.name || (studentEmail ? studentEmail.split('@')[0] : 'Student'),
-      studentEmail: studentEmail || studentData.email || '',
-      studentRoll: studentData.roll || studentData.section || studentUid.slice(0, 8).toUpperCase(),
-      teacherUid,
-      institution: assignment.institution || studentData.institution || '',
-      department: assignment.department || studentData.department || '',
-      year: assignment.year || studentData.year || '',
-      section: assignment.section || studentData.section || '',
-      storageProvider: 'google_drive',
-      driveFileId,
-      fileName: driveFileName,
-      originalFileName: originalFileName || 'submission.pdf',
-      fileSizeBytes: fileSize || fileBuffer.length,
-      mimeType: 'application/pdf',
-      idempotencyKey: safeKey,
-      submittedAt: nowIso,
-      updatedAt: nowIso
-    };
-
-    try {
-      await db.collection('submissions').doc(submissionId).set(submissionRecord);
-    } catch (dbErr) {
-      console.error('[GoogleDriveService] Failed to persist submission to Firestore:', dbErr.message);
-      const err = new Error(`Failed to record submission in database: ${dbErr.message}`);
-      err.statusCode = 500;
-      err.driveFileId = driveFileId;
-      throw err;
-    }
-
-    // 10. Finalize Idempotency Record
-    if (idempotencyDocRef) {
-      try {
-        await idempotencyDocRef.set({
-          status: 'completed',
-          submissionId,
-          submission: submissionRecord,
-          completedAt: Date.now()
-        }, { merge: true });
-      } catch {
-        // Non-blocking
+      return {
+        submission: submissionRecord,
+        isReplay: false
+      };
+    } catch (submitErr) {
+      if (idempotencyDocRef && !driveFileId) {
+        try {
+          await idempotencyDocRef.delete();
+        } catch {
+          // Non-blocking cleanup
+        }
       }
+      throw submitErr;
     }
-
-    return {
-      submission: submissionRecord,
-      isReplay: false
-    };
   }
 
   /**
