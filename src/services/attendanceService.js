@@ -55,6 +55,31 @@ export function getTodayDateString(date = new Date()) {
 }
 
 /**
+ * Safely parses a YYYY-MM-DD date string into a local Date object set to local midnight (00:00:00).
+ * Avoids UTC timezone conversion skew across non-UTC regions (such as India UTC+05:30).
+ */
+export function parseLocalDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return new Date();
+  const parts = dateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  const fallback = new Date(dateStr);
+  fallback.setHours(0, 0, 0, 0);
+  return fallback;
+}
+
+/**
+ * Returns a date formatted as YYYY-MM-DD in local time.
+ * Alias for getTodayDateString.
+ */
+export function formatLocalDate(date = new Date()) {
+  return getTodayDateString(date);
+}
+
+/**
  * Fetches active, approved students from Firestore matching teacher's department.
  * Further filters by institution, year and section if specified.
  */
@@ -128,7 +153,34 @@ export async function fetchStudentsForSection({ institution, department, year, s
     }
   });
 
-  return students.sort((a, b) => a.name.localeCompare(b.name));
+  return deduplicateStudentRoster(students);
+}
+
+/**
+ * Deduplicates an array of student roster entries by email and UID,
+ * ensuring no duplicate active students appear on attendance rosters.
+ *
+ * @param {Array<Object>} students
+ * @returns {Array<Object>}
+ */
+export function deduplicateStudentRoster(students = []) {
+  if (!Array.isArray(students)) return [];
+  const uniqueStudents = [];
+  const seenEmails = new Set();
+  const seenUids = new Set();
+
+  for (const st of students) {
+    const email = (st.email || '').trim().toLowerCase();
+    const uid = (st.uid || st.id || '').trim();
+    if ((email && seenEmails.has(email)) || (uid && seenUids.has(uid))) {
+      continue;
+    }
+    if (email) seenEmails.add(email);
+    if (uid) seenUids.add(uid);
+    uniqueStudents.push(st);
+  }
+
+  return uniqueStudents.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
 
 /**
@@ -138,8 +190,18 @@ export async function fetchStudentsForSection({ institution, department, year, s
  * chunk writes are rolled back if a later chunk fails.
  */
 export async function savePeriodAttendance({ sessionInfo, studentStatuses, teacherUid }, dbInstance = db) {
-  const { institution, department, year, section, date, period } = sessionInfo;
-  const sessionId = generateSessionId(sessionInfo);
+  const { institution, department, year, section, date, period } = sessionInfo || {};
+  const periodNumber = Number(period);
+
+  // Early validation guard: strictly reject break period (Period 5) and any non-teaching period
+  if (!sessionInfo || !TEACHING_PERIODS.includes(periodNumber)) {
+    if (periodNumber === BREAK_PERIOD) {
+      throw new Error(`Cannot record attendance for Period ${BREAK_PERIOD}: Period ${BREAK_PERIOD} is reserved as lunch/break and cannot have attendance records.`);
+    }
+    throw new Error(`Invalid teaching period: "${period}". Period must be one of [${TEACHING_PERIODS.join(', ')}].`);
+  }
+
+  const sessionId = generateSessionId({ ...sessionInfo, period: periodNumber });
   const markedAt = new Date().toISOString();
 
   if (!teacherUid) {
@@ -345,8 +407,18 @@ export async function saveSingleStudentAttendance({
   teacherUid,
   allStudentStatuses 
 }, dbInstance = db) {
-  const { institution, department, year, section, date, period } = sessionInfo;
-  const sessionId = generateSessionId(sessionInfo);
+  const { institution, department, year, section, date, period } = sessionInfo || {};
+  const periodNumber = Number(period);
+
+  // Early validation guard: strictly reject break period (Period 5) and any non-teaching period
+  if (!sessionInfo || !TEACHING_PERIODS.includes(periodNumber)) {
+    if (periodNumber === BREAK_PERIOD) {
+      throw new Error(`Cannot record attendance for Period ${BREAK_PERIOD}: Period ${BREAK_PERIOD} is reserved as lunch/break and cannot have attendance records.`);
+    }
+    throw new Error(`Invalid teaching period: "${period}". Period must be one of [${TEACHING_PERIODS.join(', ')}].`);
+  }
+
+  const sessionId = generateSessionId({ ...sessionInfo, period: periodNumber });
   const recordId = `${sessionId}_${studentUid}`;
   const recordRef = doc(dbInstance, 'attendance_records', recordId);
   const sessionRef = doc(dbInstance, 'attendance_sessions', sessionId);
@@ -496,54 +568,134 @@ export function subscribeStudentAttendance(studentUid, onUpdate, onError) {
 }
 
 /**
+ * Canonical period configuration for Sangam academic schedules.
+ * There are 9 periods in total, but Period 5 is reserved as Lunch / Break.
+ * Only the 8 teaching periods count toward daily and semester attendance.
+ */
+export const TEACHING_PERIODS = [1, 2, 3, 4, 6, 7, 8, 9];
+export const BREAK_PERIOD = 5;
+
+/**
+ * Computes the canonical whole-day attendance status for a single day's periods.
+ * 
+ * Rules:
+ * 1. If ANY teaching period is marked 'Absent', returns 'Absent' immediately, even if other periods are unmarked.
+ * 2. Returns 'Present' ONLY when ALL 8 teaching periods are explicitly marked 'Present'.
+ * 3. If at least one teaching period is marked, none are 'Absent', and fewer than 8 are 'Present', returns 'Pending'.
+ * 4. If no teaching periods are marked, returns 'Unrecorded'.
+ * 5. Period 5 (break) is completely ignored and never evaluated.
+ * 
+ * @param {Object} periodsForDate - Map of period numbers (or string period keys) to status ('Present' | 'Absent')
+ * @returns {'Present' | 'Absent' | 'Pending' | 'Unrecorded'}
+ */
+export function getDayAttendanceStatus(periodsForDate = {}) {
+  if (!periodsForDate || typeof periodsForDate !== 'object') {
+    return 'Unrecorded';
+  }
+
+  let presentCount = 0;
+  let markedCount = 0;
+
+  for (const p of TEACHING_PERIODS) {
+    const status = periodsForDate[p] !== undefined ? periodsForDate[p] : periodsForDate[String(p)];
+    if (status === 'Absent') {
+      return 'Absent';
+    }
+    if (status === 'Present') {
+      presentCount++;
+      markedCount++;
+    } else if (status) {
+      markedCount++;
+    }
+  }
+
+  if (presentCount === TEACHING_PERIODS.length) {
+    return 'Present';
+  }
+
+  if (markedCount > 0) {
+    return 'Pending';
+  }
+
+  return 'Unrecorded';
+}
+
+/**
  * Transforms an array of attendance records into the periodData format:
  * { "YYYY-MM-DD": { 1: "Present", 2: "Absent", ... } }
+ *
+ * Deduplication & Ordering:
+ * Sorts records by markedAt ascending so the latest marked record for a period wins,
+ * preventing duplicate records from inflating attendance or presenting conflicting states.
  */
 export function transformRecordsToPeriodData(records = []) {
   const periodData = {};
-  records.forEach(rec => {
-    if (!rec.date || !rec.period) return;
+  if (!Array.isArray(records)) return periodData;
+
+  const sorted = [...records].sort((a, b) => {
+    const tA = a?.markedAt ? new Date(a.markedAt).getTime() : 0;
+    const tB = b?.markedAt ? new Date(b.markedAt).getTime() : 0;
+    return tA - tB;
+  });
+
+  sorted.forEach(rec => {
+    if (!rec || !rec.date || rec.period === undefined || rec.period === null) return;
+    const periodNum = Number(rec.period);
+    if (isNaN(periodNum)) return;
     if (!periodData[rec.date]) {
       periodData[rec.date] = {};
     }
-    periodData[rec.date][rec.period] = rec.status;
+    periodData[rec.date][periodNum] = rec.status;
   });
   return periodData;
 }
 
 /**
- * Computes semester attendance metrics from periodData.
+ * Computes semester attendance metrics from periodData using canonical daily status.
+ *
+ * Rules:
+ * - 'Present': increment both conducted days and attended days.
+ * - 'Absent': increment conducted days only.
+ * - 'Pending' & 'Incomplete' & 'Unrecorded': increment neither (excluded from completed-day attendance totals & percentage).
+ * - Percentage = Math.round((attended / conducted) * 100) if conducted > 0, else 0.
+ * - Does not count the same date more than once.
+ * - Preserves existing return fields ({ percentage, attended, total }) and adds pendingDays.
+ *
+ * @param {Object} periodData - Map of dates to period maps: { "YYYY-MM-DD": { 1: "Present", ... } }
+ * @param {Object} [options] - Optional settings (e.g. { includeFuture: true })
+ * @returns {{ percentage: number, attended: number, total: number, pendingDays: number }}
  */
-export function calculateAttendanceMetrics(periodData = {}) {
+export function calculateAttendanceMetrics(periodData = {}, options = {}) {
   let totalConducted = 0;
   let totalAttended = 0;
+  let pendingDays = 0;
+
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
 
-  Object.keys(periodData).forEach(dateStr => {
-    const dateObj = new Date(dateStr);
-    dateObj.setHours(0, 0, 0, 0);
-    if (dateObj > todayDate) return;
+  const uniqueDates = [...new Set(Object.keys(periodData || {}))];
+
+  uniqueDates.forEach(dateStr => {
+    if (!dateStr) return;
+
+    const dateObj = parseLocalDate(dateStr);
+    if (!isNaN(dateObj.getTime())) {
+      if (!options?.includeFuture && dateObj > todayDate) return;
+      if (options?.startDate && dateObj < options.startDate) return;
+      if (options?.endDate && dateObj > options.endDate) return;
+      if (typeof options?.filter === 'function' && !options.filter(dateObj, dateStr)) return;
+    }
 
     const periods = periodData[dateStr] || {};
-    let hasAbsent = false;
-    let hasRecorded = false;
+    const status = getDayAttendanceStatus(periods);
 
-    [1, 2, 3, 4, 6, 7, 8, 9].forEach(p => {
-      const status = periods[p];
-      if (status === 'Absent') {
-        hasAbsent = true;
-        hasRecorded = true;
-      } else if (status === 'Present') {
-        hasRecorded = true;
-      }
-    });
-
-    if (hasRecorded) {
+    if (status === 'Present') {
       totalConducted++;
-      if (!hasAbsent) {
-        totalAttended++;
-      }
+      totalAttended++;
+    } else if (status === 'Absent') {
+      totalConducted++;
+    } else if (status === 'Pending' || status === 'Incomplete') {
+      pendingDays++;
     }
   });
 
@@ -551,7 +703,8 @@ export function calculateAttendanceMetrics(periodData = {}) {
   return {
     percentage,
     attended: totalAttended,
-    total: totalConducted
+    total: totalConducted,
+    pendingDays
   };
 }
 

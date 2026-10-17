@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import { teacherProfile } from './mockData';
 import DashboardHome from './DashboardHome';
-import { 
-  ClassesView, 
-  StudentsView, 
-  AttendanceView, 
-  GradesView, 
-  AnnouncementsView, 
+import {
+  ClassesView,
+  StudentsView,
+  AttendanceView,
+  GradesView,
+  AnnouncementsView,
   ScheduleView,
   ProfileView
 } from './TeacherViews';
 import AcademicSpacesView from './AcademicSpacesView';
+import StudentListSectionView from './StudentListSectionView';
 import { auth } from '../../firebase/config';
 import { subscribeTeacherAllocations } from '../../services/attendanceService';
 
@@ -23,6 +24,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
   const [activeFilterChip, setActiveFilterChip] = useState('All');
   const [allocations, setAllocations] = useState([]);
   const [isLoadingAllocations, setIsLoadingAllocations] = useState(true);
+  const [fullscreenStudentGroup, setFullscreenStudentGroup] = useState(null);
 
   const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
   const institution = userProfile?.institution || '';
@@ -58,7 +60,6 @@ export default function TeacherApp({ userProfile, onLogout }) {
   const generalNavItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
     { id: 'Schedule', label: 'Schedule', icon: <Icons.Schedule /> },
-    { id: 'Academic Spaces', label: 'Academic Spaces', icon: <Icons.Hierarchy /> },
     { id: 'My Classes', label: 'My Classes', icon: <Icons.Classes /> },
   ];
 
@@ -76,81 +77,83 @@ export default function TeacherApp({ userProfile, onLogout }) {
   ];
 
   const renderContent = () => {
-    switch(activeTab) {
-      case 'Dashboard': 
+    switch (activeTab) {
+      case 'Dashboard':
         return (
-          <DashboardHome 
-            onNavigate={setActiveTab} 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <DashboardHome
+            onNavigate={setActiveTab}
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
+            onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
           />
         );
-      case 'Academic Spaces': 
+      case 'Academic Spaces':
         return (
-          <AcademicSpacesView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <AcademicSpacesView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
+            onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
           />
         );
-      case 'My Classes': 
+      case 'My Classes':
         return (
-          <ClassesView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <ClassesView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      case 'Students': 
+      case 'Students':
         return (
-          <StudentsView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <StudentsView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      case 'Attendance': 
+      case 'Attendance':
         return (
-          <AttendanceView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <AttendanceView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      case 'Grades': 
+      case 'Grades':
         return (
-          <GradesView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <GradesView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      case 'Announcements': 
+      case 'Announcements':
         return (
-          <AnnouncementsView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <AnnouncementsView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      case 'Schedule': 
+      case 'Schedule':
         return (
-          <ScheduleView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <ScheduleView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      case 'Profile': 
+      case 'Profile':
         return (
-          <ProfileView 
-            userProfile={userProfile} 
-            allocations={allocations} 
-            isLoadingAllocations={isLoadingAllocations} 
+          <ProfileView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
           />
         );
-      default: 
+      default:
         return <div className="p-8 text-[#858174]">View under construction</div>;
     }
   };
@@ -162,42 +165,52 @@ export default function TeacherApp({ userProfile, onLogout }) {
   };
 
   return (
-    <div 
-      className="flex h-screen h-[100dvh] bg-[#F8F3E6] font-sans text-[#171717] overflow-hidden selection:bg-[#F5E5EE] selection:text-[#171717]"
-      style={{
-        '--theme-primary': '#171717',
-        '--theme-bg': '#F5E5EE',
-        '--color-ivory': '#F8F3E6',
-        '--color-charcoal': '#171717',
-        '--color-muted': '#858174',
-        '--color-pink': '#EFA9D1',
-        '--color-yellow': '#F3D75E',
-        '--color-green': '#A9BD78',
-        '--color-blue': '#B7C9EA',
-        '--color-border': '#D8D1C3',
-        '--color-hover': '#F5E5EE'
-      }}
-    >
-      
+    <>
+      {fullscreenStudentGroup && (
+        <div className="fixed inset-0 z-[9999] bg-[#F8F3E6] overflow-y-auto animate-fade-in">
+          <StudentListSectionView
+            group={fullscreenStudentGroup}
+            onBack={() => setFullscreenStudentGroup(null)}
+            userProfile={userProfile}
+            allocations={allocations}
+          />
+        </div>
+      )}
+
+      <div
+        className={`flex h-screen h-[100dvh] bg-[#F8F3E6] font-sans text-[#171717] overflow-hidden selection:bg-[#F5E5EE] selection:text-[#171717] ${fullscreenStudentGroup ? 'hidden' : ''}`}
+        style={{
+          '--theme-primary': '#171717',
+          '--theme-bg': '#F5E5EE',
+          '--color-ivory': '#F8F3E6',
+          '--color-charcoal': '#171717',
+          '--color-muted': '#858174',
+          '--color-pink': '#EFA9D1',
+          '--color-yellow': '#F3D75E',
+          '--color-green': '#A9BD78',
+          '--color-blue': '#B7C9EA',
+          '--color-border': '#D8D1C3',
+          '--color-hover': '#F5E5EE'
+        }}
+      >
+
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-[#171717]/40 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Premium Charcoal Sidebar matching reference image */}
-      <aside className={`fixed inset-y-0 left-0 z-50 bg-[#171717] text-white flex flex-col transform transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:translate-x-0 lg:static ${
-        isMobileMenuOpen ? 'translate-x-0 shadow-2xl w-64' : '-translate-x-full'
-      } ${
-        isSidebarCollapsed ? 'lg:w-[82px]' : 'lg:w-[240px]'
-      } m-0 lg:m-3.5 lg:rounded-[28px] overflow-hidden lg:overflow-visible flex-shrink-0 border border-[#171717] relative`}>
-        
+      <aside className={`fixed inset-y-0 left-0 z-50 bg-[#171717] text-white flex flex-col transform transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:translate-x-0 lg:static ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl w-64' : '-translate-x-full'
+        } ${isSidebarCollapsed ? 'lg:w-[82px]' : 'lg:w-[240px]'
+        } m-0 lg:m-3.5 lg:rounded-[28px] overflow-hidden lg:overflow-visible flex-shrink-0 border border-[#171717] relative`}>
+
         {/* Brand Header */}
         <div className={`p-6 flex items-center h-[82px] select-none relative ${isSidebarCollapsed ? 'justify-center px-2' : 'justify-between'}`}>
           {isSidebarCollapsed ? (
-            <div 
+            <div
               onClick={() => setIsSidebarCollapsed(false)}
               className="flex items-center justify-center cursor-pointer group"
               title="Expand sidebar"
@@ -216,7 +229,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
                 </h2>
               </div>
 
-              <button 
+              <button
                 type="button"
                 className="hidden lg:flex w-7 h-7 rounded-lg bg-white/[0.06] hover:bg-white/[0.14] text-white/70 hover:text-white items-center justify-center transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40"
                 onClick={() => setIsSidebarCollapsed(true)}
@@ -231,9 +244,9 @@ export default function TeacherApp({ userProfile, onLogout }) {
           )}
 
           {/* Mobile close menu button */}
-          <button 
+          <button
             type="button"
-            className="lg:hidden text-white/60 hover:text-white transition-colors" 
+            className="lg:hidden text-white/60 hover:text-white transition-colors"
             onClick={() => setIsMobileMenuOpen(false)}
             aria-label="Close menu"
           >
@@ -243,7 +256,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
         {/* Persistent, discoverable Expand Control at the Edge of Sidebar */}
         {isSidebarCollapsed && (
-          <button 
+          <button
             type="button"
             className="hidden lg:flex absolute -right-3.5 top-7 z-50 w-7 h-7 rounded-full bg-[#171717] border border-white/20 hover:border-white/40 hover:bg-[#262626] text-white/80 hover:text-white shadow-md items-center justify-center transition-all duration-150 cursor-pointer group active:scale-95 focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40"
             onClick={() => setIsSidebarCollapsed(false)}
@@ -257,10 +270,9 @@ export default function TeacherApp({ userProfile, onLogout }) {
         )}
 
         {/* Navigation Sections */}
-        <nav className={`flex-1 py-2 px-3 text-[13px] ${
-          isSidebarCollapsed ? 'overflow-visible space-y-1' : 'overflow-y-auto space-y-6 scrollbar-hide'
-        }`}>
-          
+        <nav className={`flex-1 py-2 px-3 text-[13px] ${isSidebarCollapsed ? 'overflow-visible space-y-1' : 'overflow-y-auto space-y-6 scrollbar-hide'
+          }`}>
+
           {/* General Section */}
           <div>
             {!isSidebarCollapsed && (
@@ -277,30 +289,26 @@ export default function TeacherApp({ userProfile, onLogout }) {
                     type="button"
                     onClick={() => handleNavClick(item.id)}
                     aria-label={item.label}
-                    className={`relative group flex items-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[#171717] cursor-pointer select-none ${
-                      isSidebarCollapsed 
-                        ? 'w-11 h-11 mx-auto justify-center rounded-xl' 
+                    className={`relative group flex items-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[#171717] cursor-pointer select-none ${isSidebarCollapsed
+                        ? 'w-11 h-11 mx-auto justify-center rounded-xl'
                         : 'w-full h-10 px-3 justify-start gap-3 rounded-xl'
-                    } ${
-                      isActive 
-                        ? 'bg-white/[0.08] text-white font-medium' 
+                      } ${isActive
+                        ? 'bg-white/[0.08] text-white font-medium'
                         : 'text-white/60 hover:bg-white/[0.05] hover:text-white'
-                    }`}
+                      }`}
                   >
                     {/* Restrained Accent Indicator */}
                     {isActive && (
-                      <span 
-                        aria-hidden="true" 
-                        className={`absolute left-1 w-[3px] rounded-full bg-[#EFA9D1] transition-all duration-150 ${
-                          isSidebarCollapsed ? 'top-2.5 bottom-2.5' : 'top-2 bottom-2'
-                        }`} 
+                      <span
+                        aria-hidden="true"
+                        className={`absolute left-1 w-[3px] rounded-full bg-[#EFA9D1] transition-all duration-150 ${isSidebarCollapsed ? 'top-2.5 bottom-2.5' : 'top-2 bottom-2'
+                          }`}
                       />
                     )}
 
                     {/* Icon */}
-                    <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${
-                      isActive ? 'text-[#EFA9D1]' : 'text-current'
-                    }`}>
+                    <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${isActive ? 'text-[#EFA9D1]' : 'text-current'
+                      }`}>
                       {item.icon}
                     </span>
 
@@ -313,7 +321,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
                     {/* Collapsed Tooltip */}
                     {isSidebarCollapsed && (
-                      <div 
+                      <div
                         role="tooltip"
                         className="absolute left-full ml-3 px-2.5 py-1 bg-[#262626] text-white text-[11px] font-medium rounded-lg shadow-lg border border-white/10 whitespace-nowrap z-50 pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 ease-out"
                       >
@@ -347,30 +355,26 @@ export default function TeacherApp({ userProfile, onLogout }) {
                     type="button"
                     onClick={() => handleNavClick(item.id)}
                     aria-label={item.label}
-                    className={`relative group flex items-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[#171717] cursor-pointer select-none ${
-                      isSidebarCollapsed 
-                        ? 'w-11 h-11 mx-auto justify-center rounded-xl' 
+                    className={`relative group flex items-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[#171717] cursor-pointer select-none ${isSidebarCollapsed
+                        ? 'w-11 h-11 mx-auto justify-center rounded-xl'
                         : 'w-full h-10 px-3 justify-start gap-3 rounded-xl'
-                    } ${
-                      isActive 
-                        ? 'bg-white/[0.08] text-white font-medium' 
+                      } ${isActive
+                        ? 'bg-white/[0.08] text-white font-medium'
                         : 'text-white/60 hover:bg-white/[0.05] hover:text-white'
-                    }`}
+                      }`}
                   >
                     {/* Restrained Accent Indicator */}
                     {isActive && (
-                      <span 
-                        aria-hidden="true" 
-                        className={`absolute left-1 w-[3px] rounded-full bg-[#EFA9D1] transition-all duration-150 ${
-                          isSidebarCollapsed ? 'top-2.5 bottom-2.5' : 'top-2 bottom-2'
-                        }`} 
+                      <span
+                        aria-hidden="true"
+                        className={`absolute left-1 w-[3px] rounded-full bg-[#EFA9D1] transition-all duration-150 ${isSidebarCollapsed ? 'top-2.5 bottom-2.5' : 'top-2 bottom-2'
+                          }`}
                       />
                     )}
 
                     {/* Icon */}
-                    <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${
-                      isActive ? 'text-[#EFA9D1]' : 'text-current'
-                    }`}>
+                    <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${isActive ? 'text-[#EFA9D1]' : 'text-current'
+                      }`}>
                       {item.icon}
                     </span>
 
@@ -383,7 +387,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
                     {/* Collapsed Tooltip */}
                     {isSidebarCollapsed && (
-                      <div 
+                      <div
                         role="tooltip"
                         className="absolute left-full ml-3 px-2.5 py-1 bg-[#262626] text-white text-[11px] font-medium rounded-lg shadow-lg border border-white/10 whitespace-nowrap z-50 pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 ease-out"
                       >
@@ -398,9 +402,8 @@ export default function TeacherApp({ userProfile, onLogout }) {
         </nav>
 
         {/* Bottom Actions */}
-        <div className={`p-3 border-t border-white/10 space-y-1 text-[13px] relative ${
-          isSidebarCollapsed ? 'px-2' : 'px-3'
-        }`}>
+        <div className={`p-3 border-t border-white/10 space-y-1 text-[13px] relative ${isSidebarCollapsed ? 'px-2' : 'px-3'
+          }`}>
           {bottomNavItems.map(item => {
             const isActive = activeTab === item.id;
             return (
@@ -409,30 +412,26 @@ export default function TeacherApp({ userProfile, onLogout }) {
                 type="button"
                 onClick={() => handleNavClick(item.id, item.onClick)}
                 aria-label={item.label}
-                className={`relative group flex items-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[#171717] cursor-pointer select-none ${
-                  isSidebarCollapsed 
-                    ? 'w-11 h-11 mx-auto justify-center rounded-xl' 
+                className={`relative group flex items-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1.5 focus-visible:ring-white/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[#171717] cursor-pointer select-none ${isSidebarCollapsed
+                    ? 'w-11 h-11 mx-auto justify-center rounded-xl'
                     : 'w-full h-10 px-3 justify-start gap-3 rounded-xl'
-                } ${
-                  isActive 
-                    ? 'bg-white/[0.08] text-white font-medium' 
+                  } ${isActive
+                    ? 'bg-white/[0.08] text-white font-medium'
                     : 'text-white/50 hover:bg-white/[0.05] hover:text-white'
-                }`}
+                  }`}
               >
                 {/* Restrained Accent Indicator */}
                 {isActive && (
-                  <span 
-                    aria-hidden="true" 
-                    className={`absolute left-1 w-[3px] rounded-full bg-[#EFA9D1] transition-all duration-150 ${
-                      isSidebarCollapsed ? 'top-2.5 bottom-2.5' : 'top-2 bottom-2'
-                    }`} 
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-1 w-[3px] rounded-full bg-[#EFA9D1] transition-all duration-150 ${isSidebarCollapsed ? 'top-2.5 bottom-2.5' : 'top-2 bottom-2'
+                      }`}
                   />
                 )}
 
                 {/* Icon */}
-                <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${
-                  isActive ? 'text-[#EFA9D1]' : 'text-white/50 group-hover:text-white'
-                }`}>
+                <span className={`w-5 h-5 flex items-center justify-center flex-shrink-0 transition-colors duration-150 ${isActive ? 'text-[#EFA9D1]' : 'text-white/50 group-hover:text-white'
+                  }`}>
                   {item.icon}
                 </span>
 
@@ -445,7 +444,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
                 {/* Collapsed Tooltip */}
                 {isSidebarCollapsed && (
-                  <div 
+                  <div
                     role="tooltip"
                     className="absolute left-full ml-3 px-2.5 py-1 bg-[#262626] text-white text-[11px] font-medium rounded-lg shadow-lg border border-white/10 whitespace-nowrap z-50 pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 ease-out"
                   >
@@ -460,12 +459,12 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
       {/* Main Viewport */}
       <main className="flex-1 flex flex-col h-screen h-[100dvh] overflow-hidden bg-[#F8F3E6] relative">
-        
+
         {/* Top Header Bar: Cleaned up on Teacher Dashboard to reclaim space and eliminate top-right clutter */}
         {activeTab === 'Dashboard' ? (
           /* Mobile-only menu toggle for dashboard */
           <div className="lg:hidden px-6 py-3 flex items-center justify-between border-b border-[#D8D1C3]/40 bg-[#F8F3E6]">
-            <button 
+            <button
               className="text-[#171717] p-2 -ml-2 rounded-xl hover:bg-[#F5E5EE] transition-all"
               onClick={() => setIsMobileMenuOpen(true)}
               aria-label="Open mobile menu"
@@ -475,9 +474,9 @@ export default function TeacherApp({ userProfile, onLogout }) {
           </div>
         ) : (
           <header className="px-6 lg:px-10 py-5 flex items-center justify-between gap-4 z-40 bg-[#F8F3E6]/95 backdrop-blur-md border-b border-[#D8D1C3]/50 sticky top-0">
-            
+
             {/* Mobile menu button */}
-            <button 
+            <button
               className="lg:hidden text-[#171717] p-2 -ml-2 rounded-xl hover:bg-[#F5E5EE] transition-all"
               onClick={() => setIsMobileMenuOpen(true)}
             >
@@ -490,7 +489,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
                 <span className="w-6 h-6 rounded-full bg-[#EFA9D1]/30 text-[#171717] flex items-center justify-center flex-shrink-0 text-xs">
                   🔍
                 </span>
-                <input 
+                <input
                   type="text"
                   placeholder="Search classes, assignments, students..."
                   value={searchQuery}
@@ -503,11 +502,10 @@ export default function TeacherApp({ userProfile, onLogout }) {
                     <button
                       key={filter}
                       onClick={() => setActiveFilterChip(activeFilterChip === filter ? 'All' : filter)}
-                      className={`px-2 py-0.5 rounded-full border transition-all text-[10px] font-semibold ${
-                        activeFilterChip === filter 
-                          ? 'bg-[#171717] text-white border-[#171717]' 
+                      className={`px-2 py-0.5 rounded-full border transition-all text-[10px] font-semibold ${activeFilterChip === filter
+                          ? 'bg-[#171717] text-white border-[#171717]'
                           : 'bg-white border-[#D8D1C3] text-[#858174] hover:border-[#171717]/40 hover:text-[#171717]'
-                      }`}
+                        }`}
                     >
                       {filter}
                     </button>
@@ -518,7 +516,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
             {/* Right Header Controls (Notif, Settings, Profile Avatar) */}
             <div className="flex items-center gap-3">
-              <button 
+              <button
                 onClick={() => setActiveTab('Announcements')}
                 className="w-9 h-9 rounded-full bg-white border border-[#D8D1C3] flex items-center justify-center text-[#171717] hover:bg-[#F5E5EE] transition-all relative group shadow-sm active:scale-95"
                 title="Announcements & Notices"
@@ -527,7 +525,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
                 <Icons.Announcements />
               </button>
 
-              <button 
+              <button
                 onClick={() => setActiveTab('Settings')}
                 className="w-9 h-9 rounded-full bg-white border border-[#D8D1C3] flex items-center justify-center text-[#171717] hover:bg-[#F5E5EE] transition-all shadow-sm active:scale-95 hidden sm:flex"
                 title="Settings"
@@ -535,7 +533,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
                 <Icons.Settings />
               </button>
 
-              <div 
+              <div
                 onClick={() => setActiveTab('Profile')}
                 className="flex items-center gap-2 pl-2 cursor-pointer group"
               >
@@ -559,5 +557,6 @@ export default function TeacherApp({ userProfile, onLogout }) {
         </div>
       </main>
     </div>
+    </>
   );
 }

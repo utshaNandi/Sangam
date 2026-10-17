@@ -113,6 +113,7 @@ export const addStudyMaterial = (mat) => {
   studyMaterials.unshift(mat);
 };
 
+
 const generateMockPeriodAttendance = () => {
   const data = {};
   const today = new Date();
@@ -215,39 +216,51 @@ export const calculateSemesterAttendance = (studentId) => {
   const periodData = globalPeriodAttendance[studentId] || {};
   let totalConductedClasses = 0;
   let totalPresentClasses = 0;
+  let pendingDays = 0;
   const todayDate = new Date();
-  todayDate.setHours(0,0,0,0);
+  todayDate.setHours(0, 0, 0, 0);
+
+  const TEACHING_PERIODS = [1, 2, 3, 4, 6, 7, 8, 9];
 
   Object.keys(periodData).forEach(dateStr => {
-    const dateObj = new Date(dateStr);
-    dateObj.setHours(0,0,0,0);
+    const parts = dateStr.split('-');
+    const dateObj = (parts.length === 3 && parts[0].length === 4)
+      ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+      : new Date(dateStr);
+    dateObj.setHours(0, 0, 0, 0);
     if (dateObj > todayDate) return;
 
-    const periods = periodData[dateStr];
+    const periods = periodData[dateStr] || {};
+    let presentCount = 0;
     let hasAbsent = false;
-    let hasRecorded = false;
+    let markedCount = 0;
 
-    [1,2,3,4,6,7,8,9].forEach(p => {
-      const status = periods[p];
+    for (const p of TEACHING_PERIODS) {
+      const status = periods[p] !== undefined ? periods[p] : periods[String(p)];
       if (status === 'Absent') {
         hasAbsent = true;
-        hasRecorded = true;
-      } else if (status === 'Present') {
-        hasRecorded = true;
+        break;
       }
-    });
+      if (status === 'Present') {
+        presentCount++;
+        markedCount++;
+      } else if (status) {
+        markedCount++;
+      }
+    }
 
-    // Each day with recorded attendance counts as 1 conducted class
-    if (hasRecorded) {
+    if (hasAbsent) {
       totalConductedClasses++;
-      if (!hasAbsent) {
-        totalPresentClasses++;
-      }
+    } else if (presentCount === TEACHING_PERIODS.length) {
+      totalConductedClasses++;
+      totalPresentClasses++;
+    } else if (markedCount > 0) {
+      pendingDays++;
     }
   });
 
   const percentage = totalConductedClasses > 0 ? Math.round((totalPresentClasses / totalConductedClasses) * 100) : 0;
-  return { percentage, attended: totalPresentClasses, total: totalConductedClasses };
+  return { percentage, attended: totalPresentClasses, total: totalConductedClasses, pendingDays };
 };
 
 export const markPeriodAttendance = (studentId, status) => {

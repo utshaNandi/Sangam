@@ -263,7 +263,7 @@ service cloud.firestore {
              data.year is string && data.year.size() > 0 && data.year.size() <= 50 &&
              data.section is string && data.section.size() > 0 && data.section.size() <= 50 &&
              data.date is string && data.date.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") &&
-             (data.period is int || data.period is number) && data.period >= 1 && data.period <= 9 &&
+             (data.period is int || data.period is number) && data.period in [1, 2, 3, 4, 6, 7, 8, 9] &&
              data.studentUid is string && data.studentUid.size() > 0 && data.studentUid.size() <= 128 &&
              data.status in ['Present', 'Absent'] &&
              data.markedBy is string && data.markedBy == request.auth.uid &&
@@ -286,7 +286,7 @@ service cloud.firestore {
              data.year is string && data.year.size() > 0 && data.year.size() <= 50 &&
              data.section is string && data.section.size() > 0 && data.section.size() <= 50 &&
              data.date is string && data.date.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") &&
-             (data.period is int || data.period is number) && data.period >= 1 && data.period <= 9 &&
+             (data.period is int || data.period is number) && data.period in [1, 2, 3, 4, 6, 7, 8, 9] &&
              data.markedBy is string && data.markedBy == request.auth.uid &&
              data.markedAt is string &&
              (data.presentCount is int || data.presentCount is number) && data.presentCount >= 0 &&

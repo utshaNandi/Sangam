@@ -24,7 +24,6 @@ export default function StudentApp({ userProfile, onLogout }) {
 
   const navItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
-    { id: 'Academic Space', label: 'Academic Space', icon: <Icons.Classes /> },
     { id: 'Schedule', label: 'Schedule', icon: <Icons.Schedule /> },
     { id: 'Grades', label: 'Grades', icon: <Icons.Grades /> },
     { id: 'Attendance', label: 'Attendance', icon: <Icons.Attendance /> },

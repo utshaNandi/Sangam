@@ -63,8 +63,7 @@ export const getTreeForRole = (role, email) => {
   let allowedData = globalAcademicData;
   let permissions = ["View"];
 
-  const normalizedRole = (role || '').toLowerCase().trim();
-  if (normalizedRole === 'director') {
+  if (role === 'director') {
     permissions = ["View", "Announce", "Manage"];
   } else if (role === 'faculty') {
     // Hardcoding Dr. Sarah Jenkins for demo purposes, matching mockData.js

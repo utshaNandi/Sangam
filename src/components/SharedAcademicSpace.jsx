@@ -139,7 +139,7 @@ export default function SharedAcademicSpace({ role, onNavigateGroup }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Academic Space</h2>
         <span className="text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-          {(role || '').toLowerCase().trim() === 'director' ? 'Director View' : 'Teacher View'}
+          {role === 'director' ? 'Director View' : 'Teacher View'}
         </span>
       </div>
       

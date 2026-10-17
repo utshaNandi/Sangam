@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Icons } from '../Teacher/Icons';
 import { 
   subscribeStudentAttendance, 
   transformRecordsToPeriodData, 
-  calculateAttendanceMetrics 
+  calculateAttendanceMetrics,
+  getDayAttendanceStatus,
+  getTodayDateString,
+  TEACHING_PERIODS
 } from '../../services/attendanceService';
 
 export default function StudentAttendance({ userProfile }) {
@@ -11,15 +14,12 @@ export default function StudentAttendance({ userProfile }) {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
 
   useEffect(() => {
-    if (!studentId) {
-      setAttendanceRecords([]);
-      return;
-    }
+    if (!studentId) return;
 
     const unsubscribe = subscribeStudentAttendance(
       studentId,
       (records) => {
-        setAttendanceRecords(records);
+        setAttendanceRecords(records || []);
       },
       (err) => {
         console.error('Error fetching live attendance:', err);
@@ -36,62 +36,49 @@ export default function StudentAttendance({ userProfile }) {
   const hasAttendanceRecords = attendanceRecords.length > 0 && Object.keys(periodData).length > 0;
 
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
 
   const dayOfWeek = today.getDay();
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const thisMonday = new Date(today);
   thisMonday.setDate(today.getDate() - daysSinceMonday);
+  thisMonday.setHours(0, 0, 0, 0);
+
+  const thisSunday = new Date(thisMonday);
+  thisSunday.setDate(thisMonday.getDate() + 6);
+  thisSunday.setHours(23, 59, 59, 999);
 
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  monthStart.setHours(0, 0, 0, 0);
 
-  let weekDaysHeld = 0;
-  let weekDaysAttended = 0;
-  let monthDaysHeld = 0;
-  let monthDaysAttended = 0;
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  monthEnd.setHours(23, 59, 59, 999);
 
+  // Centralized calculations for Week, Month, and Semester using canonical daily attendance rules
+  const { 
+    percentage: weekPercent, 
+    attended: weekDaysAttended, 
+    total: weekDaysHeld,
+    pendingDays: weekPendingDays
+  } = calculateAttendanceMetrics(periodData, { startDate: thisMonday, endDate: thisSunday });
 
-  Object.keys(periodData).forEach(dateStr => {
-    const dateObj = new Date(dateStr);
-    dateObj.setHours(0,0,0,0);
+  const { 
+    percentage: monthPercent, 
+    attended: monthDaysAttended, 
+    total: monthDaysHeld,
+    pendingDays: monthPendingDays
+  } = calculateAttendanceMetrics(periodData, { startDate: monthStart, endDate: monthEnd });
 
-    if (dateObj.getDay() === 0 || dateObj.getDay() === 6) return;
-
-    const periods = periodData[dateStr];
-      let hasAbsent = false;
-      let hasRecorded = false;
-
-      [1,2,3,4,6,7,8,9].forEach(p => {
-      const status = periods[p];
-        if (status === 'Absent') {
-          hasAbsent = true;
-          hasRecorded = true;
-        } else if (status === 'Present') {
-          hasRecorded = true;
-        }
-    });
-
-    if (hasRecorded) {
-
-      if (dateObj >= monthStart) {
-        monthDaysHeld++;
-        if (!hasAbsent) monthDaysAttended++;
-      }
-
-      if (dateObj >= thisMonday) {
-        weekDaysHeld++;
-        if (!hasAbsent) weekDaysAttended++;
-      }
-    }
-  });
-
-  // Calculate percentages from persisted data
-  const { percentage: semesterPercentage, attended: semesterClassesAttended, total: semesterClassesHeld } = calculateAttendanceMetrics(periodData);
-
-  const weekPercent = weekDaysHeld > 0 ? Math.round((weekDaysAttended / weekDaysHeld) * 100) : 0;
-  const monthPercent = monthDaysHeld > 0 ? Math.round((monthDaysAttended / monthDaysHeld) * 100) : 0;
+  const { 
+    percentage: semesterPercentage, 
+    attended: semesterClassesAttended, 
+    total: semesterClassesHeld,
+    pendingDays: semesterPendingDays
+  } = calculateAttendanceMetrics(periodData);
 
   const isBelowThreshold = semesterClassesHeld > 0 && semesterPercentage < 75;
+  const [dismissedWarning, setDismissedWarning] = useState(false);
+  const showWarning = isBelowThreshold && !dismissedWarning;
 
   let analysisText = hasAttendanceRecords
     ? "Not enough data to provide an attendance analysis."
@@ -104,18 +91,18 @@ export default function StudentAttendance({ userProfile }) {
     } else {
       analysisText = "";
     }
+  } else if (hasAttendanceRecords && semesterClassesHeld === 0 && semesterPendingDays > 0) {
+    analysisText = "Attendance is pending completion for current scheduled day(s). Completed daily attendance will be analyzed once all 8 teaching periods are submitted.";
   }
-  const [showWarning, setShowWarning] = useState(isBelowThreshold);
 
   useEffect(() => {
-    if (isBelowThreshold) {
-      setShowWarning(true);
+    if (isBelowThreshold && !dismissedWarning) {
       const timer = setTimeout(() => {
-        setShowWarning(false);
+        setDismissedWarning(true);
       }, 15000);
       return () => clearTimeout(timer);
     }
-  }, [isBelowThreshold]);
+  }, [isBelowThreshold, dismissedWarning]);
 
   const [selectedWeek, setSelectedWeek] = useState('current');
 
@@ -124,7 +111,13 @@ export default function StudentAttendance({ userProfile }) {
     const start = new Date(thisMonday);
     if (!isCurrent) start.setDate(start.getDate() - 7);
 
-    for (let i = 0; i < 5; i++) {
+    // Monday through Friday (5 days). If Saturday has attendance in periodData, include Saturday as well (6 days).
+    const saturdayDate = new Date(start);
+    saturdayDate.setDate(saturdayDate.getDate() + 5);
+    const hasSaturday = Boolean(periodData[getTodayDateString(saturdayDate)]);
+    const totalDays = hasSaturday ? 6 : 5;
+
+    for (let i = 0; i < totalDays; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
       if (isCurrent && d > today) continue;
@@ -171,25 +164,28 @@ export default function StudentAttendance({ userProfile }) {
 
       {/* Analysis Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <AnalysisCard
-              title="This Week"
-            percentage={weekPercent}
-            attended={weekDaysAttended}
-            total={weekDaysHeld}
-          />
+        <AnalysisCard
+          title="This Week"
+          percentage={weekPercent}
+          attended={weekDaysAttended}
+          total={weekDaysHeld}
+          pendingDays={weekPendingDays}
+        />
         <AnalysisCard
           title="This Month"
           percentage={monthPercent}
           attended={monthDaysAttended}
           total={monthDaysHeld}
+          pendingDays={monthPendingDays}
         />
         <AnalysisCard
-            title="This Semester (Till Now)"
-            percentage={semesterPercentage}
-            attended={semesterClassesAttended}
-            total={semesterClassesHeld}
-            isMain={true}
-          />
+          title="This Semester (Till Now)"
+          percentage={semesterPercentage}
+          attended={semesterClassesAttended}
+          total={semesterClassesHeld}
+          pendingDays={semesterPendingDays}
+          isMain={true}
+        />
       </div>
 
       {/* Period-wise Grid */}
@@ -217,39 +213,86 @@ export default function StudentAttendance({ userProfile }) {
             <thead>
               <tr className="border-b-2 border-slate-100">
                 <th className="py-3 px-4 font-bold text-slate-500 text-sm">Day</th>
-                {[1,2,3,4,5,6,7,8,9].map(p => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(p => (
                   <th key={p} className="py-3 px-2 text-center font-bold text-slate-500 text-sm">P{p}</th>
                 ))}
+                <th className="py-3 px-4 text-center font-bold text-slate-500 text-sm">Daily Status</th>
               </tr>
             </thead>
             <tbody>
               {hasAttendanceRecords ? (
                 gridDates.map(dateObj => {
-                  const dateStr = dateObj.toISOString().split('T')[0];
+                  const dateStr = getTodayDateString(dateObj);
                   const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
                   const periods = periodData[dateStr] || {};
+                  const dayStatus = getDayAttendanceStatus(periods);
+                  const markedTeachingCount = TEACHING_PERIODS.filter(
+                    p => periods[p] !== undefined || periods[String(p)] !== undefined
+                  ).length;
+
+                  let statusBadge = (
+                    <span className="text-slate-300 font-bold text-base">—</span>
+                  );
+
+                  if (dayStatus === 'Present') {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Present
+                      </span>
+                    );
+                  } else if (dayStatus === 'Absent') {
+                    statusBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        Absent
+                      </span>
+                    );
+                  } else if (dayStatus === 'Pending' || dayStatus === 'Incomplete') {
+                    statusBadge = (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-xs"
+                        title={`${markedTeachingCount} of ${TEACHING_PERIODS.length} teaching periods marked`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Pending ({markedTeachingCount}/{TEACHING_PERIODS.length} marked)
+                      </span>
+                    );
+                  }
 
                   return (
                     <tr key={dateStr} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
-                      <td className="py-4 px-4 font-bold text-slate-700 group-hover:text-theme-primary transition-colors">{dayName}</td>
-                      {[1,2,3,4,5,6,7,8,9].map(p => {
+                      <td className="py-4 px-4 font-bold text-slate-700 group-hover:text-theme-primary transition-colors">
+                        <div className="flex flex-col">
+                          <span>{dayName}</span>
+                          <span className="text-xs font-normal text-slate-400">{dateStr}</span>
+                        </div>
+                      </td>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(p => {
                         if (p === 5) {
-                          return <td key={p} className="py-4 px-2 text-center text-slate-400 font-bold text-[10px] tracking-wider uppercase">Break</td>;
+                          return (
+                            <td key={p} className="py-4 px-2 text-center text-slate-400 font-bold text-[10px] tracking-wider uppercase">
+                              Break
+                            </td>
+                          );
                         }
 
-                        const status = periods[p];
+                        const status = periods[p] !== undefined ? periods[p] : periods[String(p)];
                         let icon = <span className="text-slate-300 font-bold">—</span>;
                         if (status === 'Present') icon = <span className="text-emerald-500 font-bold">✓</span>;
                         if (status === 'Absent') icon = <span className="text-rose-500 font-bold">✗</span>;
 
                         return <td key={p} className="py-4 px-2 text-center text-lg">{icon}</td>;
                       })}
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        {statusBadge}
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400 font-medium">
+                  <td colSpan={11} className="py-12 text-center text-slate-400 font-medium">
                     Attendance records are not available yet.
                   </td>
                 </tr>
@@ -262,11 +305,17 @@ export default function StudentAttendance({ userProfile }) {
   );
 }
 
-function AnalysisCard({ title, percentage, attended, total, isMain }) {
+function AnalysisCard({ title, percentage, attended, total, pendingDays = 0, isMain }) {
   const [isHovered, setIsHovered] = useState(false);
-  const hasData = total > 0;
+  const hasCompleted = total > 0;
+  const hasPending = pendingDays > 0;
 
-  const colorClass = !hasData ? 'text-slate-400' : (percentage >= 75 ? 'text-emerald-500' : 'text-rose-500');
+  let colorClass = 'text-slate-400';
+  if (hasCompleted) {
+    colorClass = percentage >= 75 ? 'text-emerald-500' : 'text-rose-500';
+  } else if (hasPending) {
+    colorClass = 'text-amber-500';
+  }
 
   return (
     <div
@@ -274,37 +323,74 @@ function AnalysisCard({ title, percentage, attended, total, isMain }) {
       onMouseLeave={() => setIsHovered(false)}
       className={`bg-white rounded-[20px] border shadow-[0_2px_20px_rgba(0,0,0,0.02)] p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${isMain ? 'border-theme-primary/30 ring-1 ring-theme-primary/10 cursor-default' : 'border-slate-100'}`}
     >
-      <h3 className="text-slate-500 font-bold text-xs uppercase tracking-wider mb-3">{title}</h3>
-      <div className="relative h-[36px] flex items-end">
-        {!hasData ? (
-          <span className={`absolute bottom-0 left-0 text-2xl font-bold ${colorClass}`}>
-            No data
-          </span>
-        ) : isMain ? (
-          <>
-            <span className={`absolute bottom-0 left-0 text-3xl font-extrabold ${colorClass} transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-              {percentage}%
-            </span>
-            <span className={`absolute bottom-0 left-0 text-3xl font-extrabold ${colorClass} transition-opacity duration-300 ${isHovered ? 'opacity-0' : 'opacity-100'}`}>
-              {attended} / {total}
-            </span>
-          </>
-        ) : (
-          <span className={`absolute bottom-0 left-0 text-3xl font-extrabold ${colorClass}`}>
-            {attended} / {total}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="text-slate-500 font-bold text-xs uppercase tracking-wider">{title}</h3>
+        {hasPending && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+            {pendingDays} pending
           </span>
         )}
       </div>
-      {!hasData ? (
-        <div className="w-full h-1.5 mt-4"></div>
-      ) : (
-        <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+
+      <div className="relative min-h-[40px] flex flex-col justify-end">
+        {!hasCompleted && !hasPending ? (
+          <span className="text-2xl font-bold text-slate-400">
+            No records
+          </span>
+        ) : isMain ? (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className={`text-3xl font-extrabold ${colorClass} transition-opacity duration-300 ${isHovered && hasCompleted ? 'opacity-0' : 'opacity-100'}`}>
+                {hasCompleted ? `${percentage}%` : '0%'}
+              </span>
+              <span className="text-xs font-semibold text-slate-500">
+                {attended} / {total} completed days
+              </span>
+            </div>
+            {isHovered && hasCompleted && (
+              <span className={`absolute bottom-0 left-0 text-3xl font-extrabold ${colorClass} transition-opacity duration-300`}>
+                {attended} / {total}
+              </span>
+            )}
+          </>
+        ) : (
+          <div className="flex items-baseline gap-2">
+            <span className={`text-3xl font-extrabold ${colorClass}`}>
+              {attended} / {total}
+            </span>
+            <span className="text-xs font-semibold text-slate-400">
+              completed days
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+        {hasCompleted ? (
           <div
             className={`h-full rounded-full transition-all duration-1000 ${percentage >= 75 ? 'bg-emerald-500' : 'bg-rose-500'}`}
             style={{ width: `${percentage}%` }}
           />
-        </div>
-      )}
+        ) : hasPending ? (
+          <div
+            className="h-full rounded-full bg-amber-400/60 transition-all duration-1000"
+            style={{ width: '100%' }}
+            title="Scheduled day pending completion"
+          />
+        ) : (
+          <div className="w-full h-full" />
+        )}
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+        <span>Completed: {attended}/{total}</span>
+        {hasPending ? (
+          <span className="text-amber-600 font-semibold">{pendingDays} day in progress</span>
+        ) : (
+          <span>{hasCompleted ? `${percentage}% achieved` : 'No days held'}</span>
+        )}
+      </div>
     </div>
   );
 }

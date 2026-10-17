@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import InteractiveBook from '../components/InteractiveBook';
-import { getMockProfile, createMockFirebaseUser } from '../data/mockAuthProfiles';
 
 export default function WelcomeScreen({ onStartTransition }) {
   const [selectedRole, setSelectedRole] = useState(null);
@@ -13,22 +12,19 @@ export default function WelcomeScreen({ onStartTransition }) {
     setSelectedRole(role);
   };
 
-  const handleAuthSuccess = (role, user, actualRole, profile) => {
+  const handleAuthSuccess = (role, user, actualRole) => {
     const refs = { student: studentBookRef, faculty: facultyBookRef, director: directorBookRef };
     const ref = refs[role];
     if (!ref?.current) return;
     const rect = ref.current.getBoundingClientRect();
     const colors = { student: '#DFB980', faculty: '#538C8C', director: '#D67756' };
-    const resolvedRole = (actualRole || role).toLowerCase().trim();
-    const resolvedProfile = profile || getMockProfile(resolvedRole);
     
     onStartTransition({ 
       bookColor: colors[role], 
       startRect: rect, 
       bookNode: ref.current, 
-      role: resolvedRole,
-      user: user || createMockFirebaseUser(resolvedProfile),
-      profile: resolvedProfile
+      role: actualRole || role,
+      user
     });
   };
 
@@ -148,7 +144,7 @@ export default function WelcomeScreen({ onStartTransition }) {
               className="bottom-3.5 left-[120px] animate-book-land [animation-delay:340ms]"
               isSelected={selectedRole === 'student'}
               onClick={() => handleRoleSelect('student')}
-              onFormSubmit={(user, actualRole, profile) => handleAuthSuccess('student', user, actualRole, profile)}
+              onFormSubmit={(user, actualRole) => handleAuthSuccess('student', user, actualRole)}
               role="student"
               bookRef={studentBookRef}
               label="Student"
@@ -166,7 +162,7 @@ export default function WelcomeScreen({ onStartTransition }) {
               className="bottom-3.5 left-[153px] animate-book-land [animation-delay:420ms]"
               isSelected={selectedRole === 'faculty'}
               onClick={() => handleRoleSelect('faculty')}
-              onFormSubmit={(user, actualRole, profile) => handleAuthSuccess('faculty', user, actualRole, profile)}
+              onFormSubmit={(user, actualRole) => handleAuthSuccess('faculty', user, actualRole)}
               role="faculty"
               bookRef={facultyBookRef}
               label="Faculty"
@@ -204,7 +200,7 @@ export default function WelcomeScreen({ onStartTransition }) {
               innerClassName="rotate-[15deg]"
               isSelected={selectedRole === 'director'}
               onClick={() => handleRoleSelect('director')}
-              onFormSubmit={(user, actualRole, profile) => handleAuthSuccess('director', user, actualRole, profile)}
+              onFormSubmit={(user, actualRole) => handleAuthSuccess('director', user, actualRole)}
               role="director"
               bookRef={directorBookRef}
               label="Director"
