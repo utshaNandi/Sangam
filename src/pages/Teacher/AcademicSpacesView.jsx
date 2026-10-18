@@ -1,16 +1,26 @@
 import { useState, useMemo } from 'react';
 import { Icons } from './Icons';
 import { AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
+import StudentListSectionView from './StudentListSectionView';
 import { buildAcademicHierarchyTree } from '../../services/attendanceService';
 import { announcements as sharedAnnouncements, addAnnouncement, studyMaterials as sharedStudyMaterials, addStudyMaterial } from './mockData';
 
 export const buildTree = buildAcademicHierarchyTree;
 
-export default function AcademicSpacesView({ userProfile, allocations = [], isLoadingAllocations = false, embedded = false, onNavigate }) {
+export default function AcademicSpacesView({ userProfile, allocations = [], isLoadingAllocations = false, embedded = false, onNavigate, onOpenStudentList }) {
   // Strictly rely on real allocations passed from backend
   const effectiveAllocations = Array.isArray(allocations) ? allocations : [];
   const tree = buildAcademicHierarchyTree(effectiveAllocations, userProfile?.institution || 'UEMK');
   const [selectedGroup, setSelectedGroup] = useState(null);
+
+  const handleSelectGroup = (group) => {
+    if (group?.isStudents && onOpenStudentList) {
+      onOpenStudentList(group);
+    } else {
+      setSelectedGroup(group);
+    }
+  };
+
   const [expandedPaths, setExpandedPaths] = useState(() => {
     if (embedded) {
       // By default in embedded canvas, expand the primary department so the hierarchy is immediately visible
@@ -135,6 +145,19 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
     : activePath;
 
   if (selectedGroup) {
+    if (selectedGroup.isStudents) {
+      return (
+        <div className="fixed inset-0 z-[9999] bg-[#F8F3E6] overflow-y-auto animate-fade-in">
+          <StudentListSectionView
+            group={selectedGroup}
+            onBack={() => setSelectedGroup(null)}
+            userProfile={userProfile}
+            allocations={effectiveAllocations}
+          />
+        </div>
+      );
+    }
+
     if (embedded) {
       return (
         <div className="h-full flex flex-col overflow-hidden animate-fade-in p-3 sm:p-4">
@@ -151,8 +174,6 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
               <AssignmentsView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
             ) : selectedGroup.isStudyMaterial ? (
               <StudyMaterialView group={selectedGroup} userProfile={userProfile} embedded={true} />
-            ) : selectedGroup.isStudents ? (
-              <StudentsListView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
             ) : selectedGroup.isAttendance ? (
               <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
             ) : (
@@ -170,8 +191,6 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
           <AssignmentsView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
         ) : selectedGroup.isStudyMaterial ? (
           <StudyMaterialView group={selectedGroup} userProfile={userProfile} embedded={false} />
-        ) : selectedGroup.isStudents ? (
-          <StudentsListView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
         ) : selectedGroup.isAttendance ? (
           <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
         ) : (
@@ -291,7 +310,7 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
                           name={dept}
                           years={years}
                           path={[inst]}
-                          onSelectGroup={setSelectedGroup}
+                          onSelectGroup={handleSelectGroup}
                           expandedPaths={expandedPaths}
                           toggleExpand={toggleExpand}
                           embedded={true}
@@ -333,7 +352,7 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
               key={inst}
               name={inst}
               departments={depts}
-              onSelectGroup={setSelectedGroup}
+              onSelectGroup={handleSelectGroup}
               expandedPaths={expandedPaths}
               toggleExpand={toggleExpand}
               setActivePath={setActivePath}
@@ -1038,8 +1057,8 @@ function OfficialGroupView({ group, embedded = false }) {
 function StudyMaterialView({ group, userProfile, embedded = false }) {
   const scopePath = group.path.join('/');
   const isYearWide = group.scope?.includes('Common') || group.path.length === 3;
-  const scopeLabel = isYearWide 
-    ? `${group.path.slice(1).join(' • ')} (Shared Across Year)` 
+  const scopeLabel = isYearWide
+    ? `${group.path.slice(1).join(' • ')} (Shared Across Year)`
     : `${group.path.slice(1).join(' • ')} (Section Specific)`;
 
   const [materials, setMaterials] = useState(() => {
@@ -1068,7 +1087,7 @@ function StudyMaterialView({ group, userProfile, embedded = false }) {
     if (!newTitle.trim()) return;
 
     const fileExt = selectedFile ? selectedFile.name.split('.').pop().toUpperCase() : 'PDF';
-    const fileSizeStr = selectedFile 
+    const fileSizeStr = selectedFile
       ? (selectedFile.size > 1024 * 1024 ? (selectedFile.size / (1024 * 1024)).toFixed(1) + ' MB' : Math.round(selectedFile.size / 1024) + ' KB')
       : '1.4 MB';
 
@@ -1209,11 +1228,10 @@ function StudyMaterialView({ group, userProfile, embedded = false }) {
               key={cat}
               type="button"
               onClick={() => setActiveCategory(cat)}
-              className={`text-[10px] px-2.5 py-0.5 rounded-full transition-colors font-normal whitespace-nowrap cursor-pointer ${
-                activeCategory === cat
-                  ? 'bg-[#171717] text-white'
-                  : 'bg-white/70 text-[#858174] hover:text-[#171717] border border-[#D8D1C3]/60'
-              }`}
+              className={`text-[10px] px-2.5 py-0.5 rounded-full transition-colors font-normal whitespace-nowrap cursor-pointer ${activeCategory === cat
+                ? 'bg-[#171717] text-white'
+                : 'bg-white/70 text-[#858174] hover:text-[#171717] border border-[#D8D1C3]/60'
+                }`}
             >
               {cat}
             </button>

@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Icons } from './Icons';
-import { get20Students } from './TeacherViews';
-import { getStudentAssignments } from '../../services/storageService.js';
+import { get20Students, getAssignmentsForSection } from './TeacherViews';
 import { teacherProfile } from './mockData';
 import InteractiveDotCanvas from './InteractiveDotCanvas';
 import AcademicSpacesView from './AcademicSpacesView';
+import AnnouncementsPanel from './AnnouncementsPanel';
 import { fetchClassTimetable } from '../../services/timetableService.js';
 
 // Maintainable Institute Holidays configuration
@@ -35,16 +35,6 @@ export const INSTITUTE_FACULTY_EVENTS = [
     authority: "Director's Office",
     venue: 'Conference Hall A',
     status: 'Scheduled'
-  },
-  {
-    id: 'dir-task-1',
-    date: '2026-10-16',
-    title: 'Continuous Assessment Marks Submission (Mid-Term)',
-    time: '05:00 PM Deadline',
-    type: 'Director Task',
-    authority: "Director's Office",
-    venue: 'Academic Management Portal',
-    status: 'Pending Submission'
   },
   {
     id: 'inst-workshop-1',
@@ -82,7 +72,7 @@ const monthNames = ["January", "February", "March", "April", "May", "June", "Jul
 const monthAbbrs = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dayNamesFull = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export default function DashboardHome({ onNavigate, userProfile, allocations = [], isLoadingAllocations = false }) {
+export default function DashboardHome({ onNavigate, userProfile, allocations = [], isLoadingAllocations = false, onOpenStudentList }) {
   const effectiveAllocations = useMemo(() => {
     if (Array.isArray(allocations) && allocations.length > 0) {
       return allocations;
@@ -128,36 +118,41 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
   const avgAttendance = totalStudents > 0 ? (totalAttendance / totalStudents).toFixed(1) + '%' : '0%';
   const presentCount = Math.round((parseFloat(avgAttendance) / 100) * totalStudents);
 
-  // Real Assignments fetched from backend
-  const [realAssignments, setRealAssignments] = useState([]);
-
-  useEffect(() => {
-    let isMounted = true;
-    getStudentAssignments().then(res => {
-      if (isMounted) {
-        if (res && Array.isArray(res.assignments)) {
-          setRealAssignments(res.assignments);
-        } else {
-          setRealAssignments([]);
-        }
-      }
-    }).catch(err => {
-      if (isMounted) {
-        console.warn('[DashboardHome] Failed to load assignments:', err.message);
-        setRealAssignments([]);
+  // Calculate Assignments
+  let pendingAssignmentsCount = 0;
+  let totalSubmitted = 0;
+  const allAssignments = [];
+  allSections.forEach(sec => {
+    const sectionAssignments = getAssignmentsForSection(sec.branch, sec.year, sec.section);
+    sectionAssignments.forEach(a => {
+      allAssignments.push(a);
+      if (a.status === 'Active') {
+        pendingAssignmentsCount++;
       }
     });
-    return () => { isMounted = false; };
-  }, [userProfile?.uid]);
-
-  // Derived allAssignments safely accessible across all memo hooks and renderers
-  const allAssignments = useMemo(() => {
-    return Array.isArray(realAssignments) ? realAssignments : [];
-  }, [realAssignments]);
-
-  const pendingAssignmentsCount = useMemo(() => {
-    return allAssignments.filter(a => a.status === 'Active' || !a.status).length;
-  }, [allAssignments]);
+  });
+  const recentAssignments = allAssignments.slice(0, 3);
+  recentAssignments.forEach(a => {
+    const parts = (a.className || '').split(' • ');
+    if (parts.length === 3) {
+      const yr = parts[0];
+      const br = parts[1];
+      const sc = parts[2];
+      const studentsForAssignment = get20Students(br, yr, sc);
+      let sub = 0;
+      studentsForAssignment.forEach(student => {
+        const seedStr = a.id + student.id;
+        let seed = 0;
+        for (let i = 0; i < seedStr.length; i++) seed += seedStr.charCodeAt(i);
+        if (seed % 2 !== 0) sub++;
+      });
+      a.submitted = sub;
+      totalSubmitted += sub;
+    } else {
+      a.submitted = 14;
+      totalSubmitted += 14;
+    }
+  });
 
   // All allocated class timetable slots across the full week from Firestore
   const [allocatedClassSlots, setAllocatedClassSlots] = useState([]);
@@ -377,18 +372,7 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
     let hasDeadline = false;
     allAssignments.forEach(a => {
       if (!a.dueDate) return;
-      const isoMatch = String(a.dueDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (isoMatch) {
-        const y = parseInt(isoMatch[1], 10);
-        const m = parseInt(isoMatch[2], 10) - 1;
-        const d = parseInt(isoMatch[3], 10);
-        if (y === year && m === monthIndex && d === dayNum) {
-          assignmentsCount++;
-          hasDeadline = true;
-          return;
-        }
-      }
-      const parts = String(a.dueDate).trim().split(/\s+/);
+      const parts = a.dueDate.trim().split(/\s+/);
       if (parts.length >= 2 && parts[0].toLowerCase() === curMonthAbbr.toLowerCase() && parseInt(parts[1], 10) === dayNum) {
         assignmentsCount++;
         hasDeadline = true;
@@ -453,6 +437,15 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
     };
   };
 
+  const formatMinutesToTime = (mins) => {
+    if (!mins && mins !== 0) return '';
+    let h = Math.floor(mins / 60);
+    const m = String(mins % 60).padStart(2, '0');
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${String(h).padStart(2, '0')}:${m} ${ampm}`;
+  };
+
   const resolveRoom = (p) => {
     if (p.room) return p.room;
     if (p.type === 'Lab') return 'Computing Lab 2';
@@ -486,6 +479,8 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
       liveTodayClasses.forEach((p, idx) => {
         const { startMin, endMin } = parseTimeRange(p.time);
         const startTimeClean = p.time.split(' - ')[0]?.trim() || '';
+        const rawEnd = p.time.split(' - ')[1]?.trim();
+        const endTimeClean = rawEnd || formatMinutesToTime(endMin || (startMin + 45));
         const timeRangeCompact = p.time.replace(' - ', ' – ');
         const room = resolveRoom(p);
         const section = p.classInfo || 'Section A';
@@ -496,6 +491,7 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
           section,
           time: p.time,
           startTimeClean,
+          endTimeClean,
           timeRangeCompact,
           startMin,
           endMin: endMin || (startMin + 45)
@@ -508,6 +504,8 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
       if (ev.date === todayDateKey) {
         const { startMin, endMin } = parseTimeRange(ev.time);
         const startTimeClean = ev.time.split(' - ')[0]?.trim() || '';
+        const rawEnd = ev.time.split(' - ')[1]?.trim();
+        const endTimeClean = rawEnd || formatMinutesToTime(endMin || (startMin + 45));
         const timeRangeCompact = ev.time.replace(' - ', ' – ');
         rawList.push({
           id: `event-${ev.id}`,
@@ -516,6 +514,7 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
           section: ev.authority || ev.type || 'Faculty Council',
           time: ev.time,
           startTimeClean,
+          endTimeClean,
           timeRangeCompact,
           startMin,
           endMin: endMin || (startMin + 45)
@@ -599,7 +598,7 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
   const activeIndicatorPercent = useMemo(() => {
     const activeItem = todayTimelineActivities.find(a => a.isCurrent);
     if (!activeItem) return 50;
-    return Math.max(30, Math.min(65, activeItem.progress || 50));
+    return Math.max(15, Math.min(85, activeItem.progress || 50));
   }, [todayTimelineActivities]);
 
   // Live countdown to class end time & dynamic progress calculation
@@ -720,24 +719,8 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
     const curMonthAbbr = monthAbbrs[monthIndex];
     allAssignments.forEach((a, idx) => {
       if (!a.dueDate) return;
-      let isMatch = false;
-      const isoMatch = String(a.dueDate).match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (isoMatch) {
-        const y = parseInt(isoMatch[1], 10);
-        const m = parseInt(isoMatch[2], 10) - 1;
-        const d = parseInt(isoMatch[3], 10);
-        if (y === year && m === monthIndex && d === dayNum) {
-          isMatch = true;
-        }
-      } else {
-        const parts = String(a.dueDate).trim().split(/\s+/);
-        if (parts.length >= 2 && parts[0].toLowerCase() === curMonthAbbr.toLowerCase() && parseInt(parts[1], 10) === dayNum) {
-          isMatch = true;
-        }
-      }
-
-      if (isMatch) {
-        const classScope = a.className || `${a.year || ''} • ${a.department || ''} • ${a.section || ''}`.replace(/^ • | • $/g, '') || 'Class Coursework';
+      const parts = a.dueDate.trim().split(/\s+/);
+      if (parts.length >= 2 && parts[0].toLowerCase() === curMonthAbbr.toLowerCase() && parseInt(parts[1], 10) === dayNum) {
         items.push({
           id: `assign-${a.id || idx}`,
           category: 'deadline',
@@ -746,10 +729,10 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
           timeSort: 23 * 60 + 59,
           badgeLabel: 'Deadline',
           badgeStyle: 'bg-[#F3D75E]/30 text-[#45380b] border-[#F3D75E]/60',
-          classInfo: classScope,
+          classInfo: a.className,
           location: 'Online Submission Portal',
           status: a.status || 'Active',
-          submissionInfo: a.submitted !== undefined ? `${a.submitted} Submissions` : (a.submissionsCount !== undefined ? `${a.submissionsCount} Submissions` : 'Active Assignment')
+          submissionInfo: `${a.submitted || 14}/20 Submissions`
         });
       }
     });
@@ -796,7 +779,7 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 lg:gap-8 items-start">
 
         {/* Left Column: Greeting Section & Minimal Interactive Dot Canvas */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="lg:col-span-8 space-y-4">
 
           {/* 1. Header Greeting Section */}
           <div className="pt-0.5">
@@ -810,16 +793,20 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
 
           {/* 2. Interactive Dot Canvas with Embedded Academic Spaces Branching Tree */}
           <div className="w-full">
-            <InteractiveDotCanvas className="h-[390px] sm:h-[410px] lg:h-[430px]">
+            <InteractiveDotCanvas className="h-[290px] sm:h-[305px] lg:h-[320px]">
               <AcademicSpacesView
                 embedded={true}
                 userProfile={userProfile}
                 allocations={effectiveAllocations}
                 isLoadingAllocations={isLoadingAllocations}
                 onNavigate={onNavigate}
+                onOpenStudentList={onOpenStudentList}
               />
             </InteractiveDotCanvas>
           </div>
+
+          {/* 3. Premium Interactive Announcements Panel */}
+          <AnnouncementsPanel userProfile={userProfile} onNavigate={onNavigate} />
 
         </div>
 
@@ -951,181 +938,196 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
                 </div>
               </div>
 
-              {/* Apple/Intelly-Inspired Daily Timeline (Two Columns: Time | Today's Timeline with Active Card & Dashed Indicator) */}
+              {/* Apple/Intelly-Inspired Daily Timeline (Time Column with Centered Line | Today's Timeline with Active Card & Dashed Indicator) */}
               <div className="pt-3 border-t border-[#D8D1C3]/40 space-y-2">
-                {/* Column Headers matching Reference */}
+                {/* Column Headers */}
                 <div className="flex items-center justify-between text-[10px] font-bold text-[#858174] uppercase tracking-wider px-1">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-12 sm:w-14 shrink-0 text-center">Time</span>
-                    <span className="pl-3">Today&apos;s timeline</span>
+                  <div className="flex items-center">
+                    <span className="w-14 sm:w-16 shrink-0 text-center">Time</span>
+                    <span className="pl-2.5 sm:pl-3">Today&apos;s timeline</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-[#858174] normal-case bg-white border border-[#D8D1C3] px-2 py-0.5 rounded-full shadow-2xs">
+                  <span className="text-[10px] font-bold text-white normal-case bg-[#171717] px-2.5 py-0.5 rounded-full shadow-2xs">
                     All ▾
                   </span>
                 </div>
 
-                {/* Timeline Activities List (Clean, individually separated session tiles) */}
-                <div className="space-y-2 pt-1 relative">
-                  {/* Barely visible vertical time guide running directly through the centers of the time labels */}
-                  <div
-                    className="absolute left-[24px] sm:left-[28px] top-1 bottom-3 w-px bg-[#D8D1C3]/35 pointer-events-none z-0"
-                    aria-hidden="true"
-                  />
-
+                {/* Timeline Activities List */}
+                <div className="pt-2.5 pb-2 relative">
                   {todayTimelineActivities.length > 0 ? (
-                    todayTimelineActivities.map((item) => {
-                      if (item.isCurrent) {
+                    <div className="relative flex flex-col z-10">
+                      {todayTimelineActivities.map((item, index) => {
+                        const duration = Math.max(30, item.endMin - item.startMin);
+                        const isLast = index === todayTimelineActivities.length - 1;
+                        const nextItem = todayTimelineActivities[index + 1];
+                        const hasGapAfter = nextItem && nextItem.startMin > item.endMin;
+
+                        // Precise, compact height based on scheduled duration without excessive vertical gaps
+                        const slotHeight = item.isCurrent
+                          ? Math.max(84, Math.round(duration * 1.6))
+                          : Math.max(52, Math.round(duration * 1.15));
+
                         return (
-                          <div key={item.id} className="relative py-1 my-0.5">
-                            {/* Current time horizontal indicator: Dashed line passing through vertical center of pink time label & marker */}
+                          <div key={item.id} className="relative flex flex-col">
+                            {/* Class Event Interval: Time Column (with Centered Timeline Axis) | Event Card */}
                             <div
-                              className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
-                              style={{ top: `${activeIndicatorPercent}%`, transform: 'translateY(-50%)' }}
+                              className="relative flex items-stretch"
+                              style={{ minHeight: `${slotHeight}px` }}
                             >
-                              {/* Left Time Column with centered pink time label */}
-                              <div className="w-12 sm:w-14 shrink-0 flex items-center justify-center relative">
-                                {/* Dashed line passing behind pink pill through its exact vertical center */}
-                                <div className="absolute inset-x-0 h-px flex items-center z-0">
-                                  <svg className="w-full h-px overflow-visible" preserveAspectRatio="none">
-                                    <line
-                                      x1="0"
-                                      y1="0"
-                                      x2="100%"
-                                      y2="0"
-                                      stroke="#171717"
-                                      strokeOpacity="0.25"
-                                      strokeWidth="1"
-                                      strokeDasharray="5 5"
-                                      vectorEffect="non-scaling-stroke"
-                                    />
-                                  </svg>
-                                </div>
-                                <span className="relative z-10 px-2 py-0.5 rounded-full bg-[#EFA9D1] text-[#171717] text-[10px] font-extrabold tabular-nums animate-label-breathe shadow-xs tracking-tight">
-                                  {activeCurrentTimeLabel}
-                                </span>
-                              </div>
+                              {/* Left Column: Time Axis (Start/End Timestamps + Centered Vertical Line on the exact same axis) */}
+                              <div className="w-14 sm:w-16 shrink-0 relative select-none">
+                                {/* Vertical timeline line centered on the time axis, starting below start time and ending above end time */}
+                                <div
+                                  className="absolute left-1/2 -translate-x-1/2 w-px bg-[#D8D1C3]/80 pointer-events-none"
+                                  style={{ top: '10px', bottom: '10px' }}
+                                  aria-hidden="true"
+                                />
 
-                              {/* Center Node: small static circular marker (NO breathing on the marker) */}
-                              <div className="w-3 shrink-0 flex items-center justify-center relative z-10">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#171717] shrink-0" />
-                              </div>
-
-                              {/* Right: Natural thin dashed line continuing across active session area */}
-                              <div className="flex-1 flex items-center pl-0.5">
-                                <svg className="w-full h-px overflow-visible" preserveAspectRatio="none">
-                                  <line
-                                    x1="0"
-                                    y1="0"
-                                    x2="100%"
-                                    y2="0"
-                                    stroke="#171717"
-                                    strokeOpacity="0.25"
-                                    strokeWidth="1"
-                                    strokeDasharray="5 5"
-                                    vectorEffect="non-scaling-stroke"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
-
-                            {/* Active Row Content */}
-                            <div className="flex items-start gap-2.5">
-                              {/* Scheduled Start Time */}
-                              <div className="w-12 sm:w-14 shrink-0 flex items-center justify-center pt-3">
-                                <span className="relative z-10 px-1 py-0.5 bg-[#F8F3E6] text-[11px] font-bold text-[#171717] tabular-nums leading-none">
+                                {/* Start Timestamp centered on the timeline axis */}
+                                <span className={`absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 text-[11px] tabular-nums font-semibold leading-none text-center whitespace-nowrap px-1 bg-[#F8F3E6] ${item.isCurrent
+                                  ? 'font-bold text-[#171717]'
+                                  : item.isPast
+                                    ? 'text-[#858174]/70'
+                                    : 'text-[#171717]'
+                                  }`}>
                                   {item.startTimeClean}
                                 </span>
+
+                                {/* End Timestamp centered on the timeline axis (if last activity or preceding a break) */}
+                                {(isLast || hasGapAfter) && (
+                                  <span className="absolute bottom-0 translate-y-1/2 left-1/2 -translate-x-1/2 text-[11px] tabular-nums font-semibold leading-none text-[#858174] text-center whitespace-nowrap px-1 bg-[#F8F3E6]">
+                                    {item.endTimeClean}
+                                  </span>
+                                )}
                               </div>
 
-                              {/* Center Spacer */}
-                              <div className="w-3 shrink-0 flex items-center justify-center pt-3.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#171717]/40 shrink-0" />
+                              {/* Right Column: Event Card positioned to the right of the centered timeline axis */}
+                              <div className="flex-1 min-w-0 pl-2.5 sm:pl-3 py-1 flex flex-col justify-stretch">
+                                {item.isCurrent ? (
+                                  /* Active Session Card with soft warm neutral background */
+                                  <div className="bg-[#E6DFD2] hover:bg-[#E2DAD0] border border-[#CFC6B6]/80 hover:border-[#BDB3A1] rounded-2xl p-2.5 shadow-xs hover:shadow-sm transition-colors duration-150 h-full flex flex-col justify-between">
+                                    <div>
+                                      <div className="flex items-baseline justify-between gap-1.5">
+                                        <h4 className="text-xs font-extrabold text-[#171717] tracking-tight leading-snug truncate">
+                                          {item.title}
+                                        </h4>
+                                        <span className="text-[10px] font-semibold text-[#858174] tabular-nums shrink-0">
+                                          {item.timeRangeCompact}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#858174] mt-0.5 truncate">
+                                        <span>{item.room}</span>
+                                        <span>•</span>
+                                        <span>{item.section}</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Live countdown to class end & progress bar */}
+                                    <div className="mt-1.5 pt-1.5 border-t border-[#CFC6B6]/60">
+                                      <div className="flex items-center justify-between text-[10px] text-[#858174] mb-1">
+                                        <span className="font-semibold text-[#171717]">In Progress</span>
+                                        <span className="tabular-nums font-bold text-[#171717]">{activeCountdownInfo.countdownText}</span>
+                                      </div>
+                                      <div className="w-full bg-[#171717]/10 h-1 rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full bg-[#171717] rounded-full transition-all duration-500"
+                                          style={{ width: `${activeCountdownInfo.progressPercent}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* Inactive Session Card (Past or Upcoming) with soft warm neutral background */
+                                  <div className={`rounded-2xl p-2.5 transition-colors duration-150 h-full flex flex-col justify-center ${item.isPast
+                                    ? 'bg-[#EEE8DE]/70 hover:bg-[#E8E2D7]/80 border border-[#DDD6C8]/50 opacity-60 shadow-2xs hover:shadow-xs'
+                                    : 'bg-[#EEE8DE] hover:bg-[#E8E2D7] border border-[#DDD6C8]/70 shadow-2xs hover:shadow-xs'
+                                    }`}>
+                                    <div className="flex items-baseline justify-between gap-1.5">
+                                      <span className={`text-xs truncate tracking-tight ${item.isPast ? 'font-medium text-[#858174]' : 'font-bold text-[#171717]'
+                                        }`}>
+                                        {item.title}
+                                      </span>
+                                      <span className={`text-[10px] tabular-nums shrink-0 ${item.isPast ? 'text-[#858174]/70' : 'text-[#858174]'
+                                        }`}>
+                                        {item.timeRangeCompact}
+                                      </span>
+                                    </div>
+
+                                    <div className={`flex items-center gap-1.5 text-[11px] mt-0.5 truncate ${item.isPast ? 'text-[#858174]/60' : 'text-[#858174]'
+                                      }`}>
+                                      <span>{item.room}</span>
+                                      <span>•</span>
+                                      <span>{item.section}</span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
-                              {/* Active Session Box: highlighted-card treatment with subtle border & background */}
-                              <div className="flex-1 min-w-0 bg-[#FAF7F0] border border-[#171717]/20 rounded-2xl p-3 shadow-2xs relative z-10 transition-all">
-                                {/* First line: Subject name, prominently displayed + scheduled start & end times */}
-                                <div className="flex items-baseline justify-between gap-2">
-                                  <h4 className="text-sm font-extrabold text-[#171717] tracking-tight leading-snug truncate">
-                                    {item.title}
-                                  </h4>
-                                  <span className="text-[10px] font-semibold text-[#858174] tabular-nums shrink-0">
-                                    {item.timeRangeCompact}
+                              {/* Live Current-Time Indicator (Pink pill on time axis + dashed line directly from pill across card, NO dots) */}
+                              {item.isCurrent && (
+                                <div
+                                  className="absolute left-0 right-0 flex items-center pointer-events-none z-20"
+                                  style={{
+                                    top: `${Math.max(10, Math.min(90, activeCountdownInfo.progressPercent || item.progress || 50))}%`,
+                                    transform: 'translateY(-50%)'
+                                  }}
+                                >
+                                  {/* Pink pill centered on the timeline axis */}
+                                  <div className="w-14 sm:w-16 shrink-0 relative flex items-center justify-center">
+                                    <span className="px-1.5 py-0.5 rounded-full bg-[#EFA9D1] text-[#171717] text-[10px] font-extrabold tabular-nums animate-label-breathe shadow-xs tracking-tight relative z-10">
+                                      {activeCurrentTimeLabel}
+                                    </span>
+                                    {/* Dashed line extension originating at the timeline line axis behind pill */}
+                                    <div className="absolute left-1/2 right-0 h-px flex items-center overflow-hidden pointer-events-none">
+                                      <div className="w-full h-px border-t border-dashed border-[#171717]/35" />
+                                    </div>
+                                  </div>
+
+                                  {/* Clean horizontal dashed line extending across event card */}
+                                  <div className="flex-1 flex items-center">
+                                    <svg className="w-full h-px overflow-visible" preserveAspectRatio="none">
+                                      <line
+                                        x1="0"
+                                        y1="0"
+                                        x2="100%"
+                                        y2="0"
+                                        stroke="#171717"
+                                        strokeOpacity="0.35"
+                                        strokeWidth="1.2"
+                                        strokeDasharray="4 4"
+                                        vectorEffect="non-scaling-stroke"
+                                      />
+                                    </svg>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Scheduled Break Between Classes (Proportional to duration, continuous line on the time axis) */}
+                            {hasGapAfter && (
+                              <div
+                                className="relative flex items-center"
+                                style={{
+                                  minHeight: `${Math.max(18, Math.min(40, Math.round((nextItem.startMin - item.endMin) * 0.9)))}px`
+                                }}
+                              >
+                                <div className="w-14 sm:w-16 shrink-0 relative self-stretch">
+                                  <div
+                                    className="absolute left-1/2 -translate-x-1/2 top-1 bottom-1 w-px bg-[#D8D1C3]/80"
+                                    aria-hidden="true"
+                                  />
+                                </div>
+                                <div className="flex-1 pl-2.5 sm:pl-3 flex items-center py-0.5">
+                                  <span className="text-[10px] font-medium text-[#858174]/75 italic">
+                                    Break ({nextItem.startMin - item.endMin} min)
                                   </span>
                                 </div>
-
-                                {/* Second line: Room number or room name */}
-                                <p className="text-xs font-semibold text-[#858174] mt-1">
-                                  {item.room}
-                                </p>
-
-                                {/* Third line: Section name */}
-                                <p className="text-[11px] font-medium text-[#858174]/80 mt-0.5">
-                                  {item.section}
-                                </p>
-
-                                {/* Live countdown to class end & progress bar */}
-                                <div className="mt-2.5 pt-2 border-t border-[#D8D1C3]/40">
-                                  <div className="flex items-center justify-between text-[10px] text-[#858174] mb-1">
-                                    <span className="font-semibold text-[#171717]">In Progress</span>
-                                    <span className="tabular-nums font-bold text-[#171717]">{activeCountdownInfo.countdownText}</span>
-                                  </div>
-                                  <div className="w-full bg-[#171717]/10 h-1 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-[#171717] rounded-full transition-all duration-500"
-                                      style={{ width: `${activeCountdownInfo.progressPercent}%` }}
-                                    />
-                                  </div>
-                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
                         );
-                      }
-
-                      {/* Inactive Session Entry: Completed or Upcoming inside its own rounded box (NO connecting vertical lines) */ }
-                      return (
-                        <div key={item.id} className="flex items-center gap-2.5">
-                          {/* Left Column: Time label aligned horizontally with its corresponding session */}
-                          <div className="w-12 sm:w-14 shrink-0 flex items-center justify-center">
-                            <span className={`relative z-10 px-1 py-0.5 bg-[#F8F3E6] text-[11px] tabular-nums leading-none ${item.isPast ? 'font-medium text-[#858174]/70' : 'font-semibold text-[#171717]'
-                              }`}>
-                              {item.startTimeClean}
-                            </span>
-                          </div>
-
-                          {/* Center Node: small subtle dot on the time mark (NO connecting vertical lines) */}
-                          <div className="w-3 shrink-0 flex items-center justify-center">
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.isPast ? 'bg-[#858174]/25' : 'bg-[#171717]/35'
-                              }`} />
-                          </div>
-
-                          {/* Right Column: Clean, individually separated session tile */}
-                          <div className={`flex-1 min-w-0 rounded-xl p-2.5 transition-all ${item.isPast
-                              ? 'bg-[#FAF7F0]/60 border border-[#D8D1C3]/50 opacity-60'
-                              : 'bg-[#FAF7F0]/90 border border-[#D8D1C3]/80'
-                            }`}>
-                            <div className="flex items-baseline justify-between gap-1.5">
-                              <span className={`text-xs truncate tracking-tight ${item.isPast ? 'font-medium text-[#858174]' : 'font-bold text-[#171717]'
-                                }`}>
-                                {item.title}
-                              </span>
-                              <span className={`text-[10px] tabular-nums shrink-0 ${item.isPast ? 'text-[#858174]/70' : 'text-[#858174]'
-                                }`}>
-                                {item.timeRangeCompact}
-                              </span>
-                            </div>
-
-                            <div className={`flex items-center gap-1.5 text-[11px] mt-0.5 truncate ${item.isPast ? 'text-[#858174]/60' : 'text-[#858174]'
-                              }`}>
-                              <span>{item.room}</span>
-                              <span>•</span>
-                              <span>{item.section}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
+                      })}
+                    </div>
                   ) : (
                     <p className="text-xs text-[#858174] font-medium py-2">
                       No classes scheduled for today.
