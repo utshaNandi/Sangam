@@ -4,10 +4,20 @@ import TeacherApp from './pages/Teacher/TeacherApp';
 import DirectorApp from './pages/Director/DirectorApp';
 import StudentApp from './pages/Student/StudentApp';
 import BookOpenTransition from './components/BookOpenTransition';
+import PrivacyPolicy from './pages/Public/PrivacyPolicy';
+import TermsOfService from './pages/Public/TermsOfService';
 import { auth, db } from './firebase/config';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { isRegistrationCoordinated } from './firebase/authCoordinator';
+
+function getPublicRoute() {
+  if (typeof window === 'undefined') return null;
+  const path = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+  if (path === '/privacy') return 'privacy';
+  if (path === '/terms') return 'terms';
+  return null;
+}
 
 function runWithTimeout(promise, ms = 3500, operationName = 'Firestore operation') {
   return Promise.race([
@@ -19,12 +29,29 @@ function runWithTimeout(promise, ms = 3500, operationName = 'Firestore operation
 }
 
 function App() {
+  const [publicRoute, setPublicRoute] = useState(getPublicRoute);
   const [appState, setAppState] = useState('login'); // 'login', 'transition', 'app'
   const [transitionConfig, setTransitionConfig] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [pendingApprovalNotice, setPendingApprovalNotice] = useState(null);
+
+  // Sync public routes with browser navigation (back/forward)
+  useEffect(() => {
+    const handlePopState = () => {
+      setPublicRoute(getPublicRoute());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (path) => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', path);
+      setPublicRoute(getPublicRoute());
+    }
+  };
 
   // Persist authentication state using onAuthStateChanged
   useEffect(() => {
@@ -162,6 +189,25 @@ function App() {
 
   const activeRole = transitionConfig?.role || userProfile?.role || 'student';
 
+  // Public unauthenticated routes for Google OAuth compliance and legal review
+  if (publicRoute === 'privacy') {
+    return (
+      <PrivacyPolicy
+        onNavigateHome={() => navigateTo('/')}
+        onNavigateTerms={() => navigateTo('/terms')}
+      />
+    );
+  }
+
+  if (publicRoute === 'terms') {
+    return (
+      <TermsOfService
+        onNavigateHome={() => navigateTo('/')}
+        onNavigatePrivacy={() => navigateTo('/privacy')}
+      />
+    );
+  }
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#F4EEE2] flex flex-col items-center justify-center">
@@ -200,6 +246,7 @@ function App() {
       {/* Login Screen - Unmount when in app to reset state */}
       {appState !== 'app' && (
         <WelcomeScreen 
+          onNavigate={navigateTo}
           onStartTransition={(config) => {
             setPendingApprovalNotice(null);
             setTransitionConfig(config);

@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import InteractiveBook from '../components/InteractiveBook';
 
-export default function WelcomeScreen({ onStartTransition }) {
+export default function WelcomeScreen({ onStartTransition, onNavigate }) {
   const [selectedRole, setSelectedRole] = useState(null);
 
   const studentBookRef = useRef(null);
@@ -211,6 +211,39 @@ export default function WelcomeScreen({ onStartTransition }) {
         </div>
 
       </div>
+
+      {/* Public Legal Footer (Google OAuth compliance requirement) */}
+      <footer
+        className={`absolute bottom-3 left-0 right-0 z-30 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 text-xs font-serif text-[#3E2723]/60 transition-all duration-500 pointer-events-auto ${
+          selectedRole ? 'opacity-0 pointer-events-none translate-y-2' : 'opacity-100 translate-y-0'
+        }`}
+      >
+        <span>© {new Date().getFullYear()} Sangam Academic Portal</span>
+        <span className="opacity-40">•</span>
+        <a
+          href="/privacy"
+          onClick={(e) => {
+            e.preventDefault();
+            if (onNavigate) onNavigate('/privacy');
+            else window.location.href = '/privacy';
+          }}
+          className="hover:text-[#3E2723] hover:underline transition-colors"
+        >
+          Privacy Policy
+        </a>
+        <span className="opacity-40">•</span>
+        <a
+          href="/terms"
+          onClick={(e) => {
+            e.preventDefault();
+            if (onNavigate) onNavigate('/terms');
+            else window.location.href = '/terms';
+          }}
+          className="hover:text-[#3E2723] hover:underline transition-colors"
+        >
+          Terms of Service
+        </a>
+      </footer>
     </div>
   );
 }
