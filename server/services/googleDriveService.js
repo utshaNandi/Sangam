@@ -225,7 +225,7 @@ export const stateManager = new OAuthStateManager();
 
 // Run periodic cleanup every 15 minutes (non-blocking)
 if (process.env.NODE_ENV !== 'test') {
-  setInterval(() => stateManager.cleanup().catch(() => {}), 15 * 60 * 1000).unref();
+  setInterval(() => stateManager.cleanup().catch(() => { }), 15 * 60 * 1000).unref();
 }
 
 /**
@@ -288,7 +288,7 @@ export class GoogleDriveService {
     const oauth2Client = this.getOAuth2Client();
     return oauth2Client.generateAuthUrl({
       access_type: 'offline', // Required to receive a refresh token
-      prompt: 'consent',     // Forces consent to ensure refresh token is returned
+      prompt: 'consent select_account',     // Forces consent to ensure refresh token is returned
       scope: GOOGLE_OAUTH_SCOPES,
       include_granted_scopes: true,
       state
