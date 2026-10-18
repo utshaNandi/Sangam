@@ -391,7 +391,7 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
                 <QuickAction icon={<Icons.Assignments />} label="Assignments" onClick={() => onNavigate('Assignments')} />
                   <QuickAction icon={<Icons.Attendance />} label="Attendance" onClick={() => onNavigate('Attendance')} />
                   <QuickAction icon={<Icons.Schedule />} label="Schedule" onClick={() => onNavigate('Schedule')} />
-                  <QuickAction icon={<Icons.Announcements />} label="Announcements" onClick={() => onNavigate('Academic Space')} />
+                  <QuickAction icon={<Icons.Announcements />} label="Announcements" onClick={() => onNavigate('Academic Space', 'announcements')} />
               </div>
             </section>
 
@@ -430,7 +430,7 @@ export default function StudentDashboard({ onNavigate, userProfile }) {
       {/* Dashboard Announcement Popup */}
       {latestAnnouncement && showAnnouncementPopup && createPortal(
         <div
-          onClick={() => onNavigate('Academic Space')}
+          onClick={() => onNavigate('Academic Space', 'announcements')}
           className="fixed bottom-6 right-6 z-[9999] w-[340px] bg-white rounded-2xl shadow-lg border border-slate-200 p-5 cursor-pointer hover:shadow-xl hover:border-theme-primary transition-all animate-fade-in opacity-100 bg-opacity-100 backdrop-blur-none"
         >
           <div className="flex justify-between items-start mb-2">

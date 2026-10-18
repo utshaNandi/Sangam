@@ -9,6 +9,7 @@ import StudentProfile from './StudentProfile';
 
 export default function StudentApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
+  const [academicSpaceTab, setAcademicSpaceTab] = useState('materials');
 
   const studentName = (userProfile?.name && userProfile.name.trim())
     || (userProfile?.email ? userProfile.email.split('@')[0] : '')
@@ -37,11 +38,21 @@ export default function StudentApp({ userProfile, onLogout }) {
     { id: 'Logout', label: 'Logout', icon: <Icons.Logout />, onClick: onLogout },
   ];
 
+  const handleNavigate = (tab, subTab) => {
+    setActiveTab(tab);
+    if (tab === 'Academic Space') {
+      setAcademicSpaceTab(subTab || 'materials');
+    }
+  };
+
   const handleNavClick = (id, onClick) => {
     if (onClick) {
       onClick();
     } else {
       setActiveTab(id);
+      if (id === 'Academic Space') {
+        setAcademicSpaceTab('materials');
+      }
       setIsMobileMenuOpen(false);
     }
   };
@@ -49,9 +60,9 @@ export default function StudentApp({ userProfile, onLogout }) {
   const renderContent = () => {
     switch (activeTab) {
       case 'Dashboard':
-        return <StudentDashboard userProfile={userProfile} onNavigate={setActiveTab} />;
+        return <StudentDashboard userProfile={userProfile} onNavigate={handleNavigate} />;
       case 'Academic Space':
-        return <AcademicSpace userProfile={userProfile} />;
+        return <AcademicSpace userProfile={userProfile} initialTab={academicSpaceTab} />;
       case 'Schedule':
         return <StudentSchedule userProfile={userProfile} />;
       case 'Attendance':

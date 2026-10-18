@@ -95,6 +95,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
             userProfile={userProfile}
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
+            onNavigate={setActiveTab}
             onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
           />
         );

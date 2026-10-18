@@ -12,6 +12,8 @@ import { verifyFirebaseToken } from './server/middleware/authMiddleware.js';
 import { validateKey } from './server/services/encryptionService.js';
 import storageRoutes, { assignmentRoutes, submissionRoutes, studentRoutes } from './server/routes/storageRoutes.js';
 import announcementRoutes from './server/routes/announcementRoutes.js';
+import studyMaterialRoutes from './server/routes/studyMaterialRoutes.js';
+import subjectRoutes from './server/routes/subjectRoutes.js';
 
 if (fs.existsSync('.env.local')) {
   dotenv.config({ path: '.env.local' });
@@ -242,6 +244,8 @@ app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/study-materials', studyMaterialRoutes);
+app.use('/api/subjects', subjectRoutes);
 
 // Generic CORS and server error handler
 app.use((err, req, res, next) => {

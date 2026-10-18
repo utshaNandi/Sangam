@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Icons } from '../Teacher/Icons';
 import OfficialGroupView from '../../components/OfficialGroupView';
+import DirectorSubjectsView from './DirectorSubjectsView';
+import { getCanonicalDepartmentFromPath } from '../../services/academicHierarchyUtils.js';
+
+export { getCanonicalDepartmentFromPath };
 
 const programmes = ['B.Tech', 'BBA', 'BCA', 'BBA LLB', 'LLB', 'MBA', 'M.Tech'];
 const btechBranches = ['CSE', 'ESE', 'ME', 'CE', 'BT'];
@@ -10,7 +14,7 @@ const sections = ['Section A', 'Section B', 'Section C'];
 
 function useDelayedUnmount(isMounted, delayTime) {
   const [shouldRender, setShouldRender] = useState(isMounted);
-  
+
   if (isMounted && !shouldRender) {
     setShouldRender(true);
   }
@@ -56,20 +60,21 @@ const generateDirectorTree = () => {
 
 const tree = generateDirectorTree();
 
-export default function DirectorAcademicSpacesView() {
+export default function DirectorAcademicSpacesView({ onOpenStudentList, userProfile, onNavigate }) {
   const [selectedGroup, setSelectedGroup] = useState(null);
+  const [selectedSubjectsScope, setSelectedSubjectsScope] = useState(null);
   const [expandedPaths, setExpandedPaths] = useState(new Set());
   const [activePath, setActivePath] = useState(['UEMK']); // Default UEMK active
 
   const toggleExpand = (pathArr, isExpanded) => {
     const pathStr = pathArr.join('|');
     const newExpanded = new Set(expandedPaths);
-    
+
     if (isExpanded) {
       newExpanded.delete(pathStr);
       const currentActiveStr = activePath.join('|');
       if (currentActiveStr.startsWith(pathStr)) {
-         setActivePath(pathArr.slice(0, -1));
+        setActivePath(pathArr.slice(0, -1));
       }
     } else {
       newExpanded.add(pathStr);
@@ -78,8 +83,30 @@ export default function DirectorAcademicSpacesView() {
     setExpandedPaths(newExpanded);
   };
 
+  const handleOpenSubjectsScope = (pathArr) => {
+    const yearSegment = pathArr.find(seg => seg.includes('Year')) || pathArr[pathArr.length - 1];
+    const canonicalDept = getCanonicalDepartmentFromPath(pathArr);
+
+    // Ensure all ancestor paths and the target year node are in expandedPaths and activePath
+    // so returning from Subjects restores the exact hierarchy expansion and selection state.
+    const newExpanded = new Set(expandedPaths);
+    for (let i = 1; i <= pathArr.length; i++) {
+      newExpanded.add(pathArr.slice(0, i).join('|'));
+    }
+    setExpandedPaths(newExpanded);
+    setActivePath(pathArr);
+
+    setSelectedSubjectsScope({
+      path: pathArr,
+      department: canonicalDept,
+      year: yearSegment
+    });
+  };
+
   const handleNavigateBack = () => {
-    if (selectedGroup) {
+    if (selectedSubjectsScope) {
+      setSelectedSubjectsScope(null);
+    } else if (selectedGroup) {
       setSelectedGroup(null);
     } else {
       if (activePath.length > 1) {
@@ -95,19 +122,52 @@ export default function DirectorAcademicSpacesView() {
   };
 
   const handleNavigateTo = (index) => {
+    if (selectedSubjectsScope) {
+      if (index < selectedSubjectsScope.path.length) {
+        const targetPath = selectedSubjectsScope.path.slice(0, index + 1);
+        setSelectedSubjectsScope(null);
+        const newExpanded = new Set();
+        for (let i = 1; i <= targetPath.length; i++) {
+          newExpanded.add(targetPath.slice(0, i).join('|'));
+        }
+        setExpandedPaths(newExpanded);
+        setActivePath(targetPath);
+      }
+      return;
+    }
     if (selectedGroup) setSelectedGroup(null);
     const targetPath = (selectedGroup ? [...selectedGroup.path, 'Official Group'] : activePath).slice(0, index + 1);
-    
+
     const newExpanded = new Set(expandedPaths);
     const currentPath = selectedGroup ? selectedGroup.path : activePath;
     for (let i = index + 2; i <= currentPath.length; i++) {
-       newExpanded.delete(currentPath.slice(0, i).join('|'));
+      newExpanded.delete(currentPath.slice(0, i).join('|'));
     }
     setExpandedPaths(newExpanded);
     setActivePath(targetPath);
   };
 
   const currentPathForBreadcrumb = selectedGroup ? [...selectedGroup.path, 'Official Group'] : activePath;
+
+  if (selectedSubjectsScope) {
+    const breadcrumbSegments = [...selectedSubjectsScope.path, 'Subjects'];
+    return (
+      <div className="space-y-6 animate-fade-in relative z-10 pb-10">
+        <BreadcrumbNav
+          activePath={breadcrumbSegments}
+          onNavigateBack={handleNavigateBack}
+          onNavigateTo={handleNavigateTo}
+        />
+        <DirectorSubjectsView
+          userProfile={userProfile}
+          onNavigate={onNavigate}
+          scopedDepartment={selectedSubjectsScope.department}
+          scopedYear={selectedSubjectsScope.year}
+          onBack={() => setSelectedSubjectsScope(null)}
+        />
+      </div>
+    );
+  }
 
   if (selectedGroup) {
     return (
@@ -126,7 +186,7 @@ export default function DirectorAcademicSpacesView() {
           Global Institutional View
         </span>
       </div>
-      
+
       {currentPathForBreadcrumb.length > 0 && (
         <BreadcrumbNav activePath={currentPathForBreadcrumb} onNavigateBack={handleNavigateBack} onNavigateTo={handleNavigateTo} />
       )}
@@ -134,13 +194,15 @@ export default function DirectorAcademicSpacesView() {
       <div className="bg-white rounded-[24px] border border-slate-100 p-5 md:p-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-x-auto transition-all duration-500 w-full max-w-4xl">
         <div className="min-w-[500px]">
           {Object.entries(tree).map(([inst, programmes]) => (
-            <InstitutionNode 
-              key={inst} 
-              name={inst} 
-              programmes={programmes} 
-              onSelectGroup={setSelectedGroup} 
-              expandedPaths={expandedPaths} 
-              toggleExpand={toggleExpand} 
+            <InstitutionNode
+              key={inst}
+              name={inst}
+              programmes={programmes}
+              onSelectGroup={setSelectedGroup}
+              onOpenStudentList={onOpenStudentList}
+              onSelectSubjectsScope={handleOpenSubjectsScope}
+              expandedPaths={expandedPaths}
+              toggleExpand={toggleExpand}
               setActivePath={setActivePath}
               activePath={activePath}
             />
@@ -165,7 +227,7 @@ function BreadcrumbNav({ activePath, onNavigateBack, onNavigateTo }) {
           const isLast = index === activePath.length - 1;
           return (
             <div key={index} className="flex items-center gap-2 whitespace-nowrap">
-              <button 
+              <button
                 onClick={() => !isLast && onNavigateTo(index)}
                 className={`transition-colors ${isLast ? 'text-slate-900 cursor-default' : 'text-slate-500 hover:text-theme-primary'}`}
               >
@@ -183,7 +245,7 @@ function BreadcrumbNav({ activePath, onNavigateBack, onNavigateTo }) {
 function OfficialGroupConnector({ path, scopeName, onSelectGroup }) {
   return (
     <div className="ml-1 pl-5 border-l-2 border-slate-100 pt-2 pb-1 animate-fade-in">
-      <div 
+      <div
         onClick={() => onSelectGroup({ name: "Official Group", permissions: ["View", "Announce", "Manage"], path })}
         className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl p-3 cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:-translate-y-0.5 active:scale-[0.98] hover:border-theme-primary/30 hover:bg-white transition-all duration-300 group w-full max-w-sm relative before:absolute before:left-[-21px] before:top-[20px] before:w-[20px] before:h-[2px] before:bg-slate-100"
       >
@@ -204,6 +266,33 @@ function OfficialGroupConnector({ path, scopeName, onSelectGroup }) {
   );
 }
 
+function CurriculumSubjectsConnector({ path, scopeName, onSelectSubjectsScope }) {
+  return (
+    <div className="ml-1 pl-5 border-l-2 border-slate-100 pt-1 pb-1 animate-fade-in">
+      <div
+        onClick={() => onSelectSubjectsScope && onSelectSubjectsScope(path)}
+        className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl p-3 cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:-translate-y-0.5 active:scale-[0.98] hover:border-theme-primary/30 hover:bg-white transition-all duration-300 group w-full max-w-sm relative before:absolute before:left-[-21px] before:top-[20px] before:w-[20px] before:h-[2px] before:bg-slate-100"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm">
+            <Icons.Classes />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-900 group-hover:text-theme-primary transition-colors">Curriculum Subjects</p>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5 group-hover:text-slate-600 transition-colors">{scopeName} syllabus & faculty</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="text-xs font-bold text-theme-primary px-3 py-1.5 bg-theme-bg/50 group-hover:bg-theme-bg rounded-lg transition-all duration-300 border border-transparent group-hover:border-theme-primary/10"
+        >
+          Manage
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Wrapper for sibling hiding animation
 function NodeVisibilityWrapper({ isVisible, children }) {
   return (
@@ -215,13 +304,13 @@ function NodeVisibilityWrapper({ isVisible, children }) {
   );
 }
 
-function InstitutionNode({ name, programmes, onSelectGroup, expandedPaths, toggleExpand, setActivePath, activePath }) {
+function InstitutionNode({ name, programmes, onSelectGroup, onOpenStudentList, onSelectSubjectsScope, expandedPaths, toggleExpand, setActivePath, activePath }) {
   const fullPath = [name];
   const isActive = activePath.join('|') === fullPath.join('|');
-  
+
   return (
     <div>
-      <div 
+      <div
         className="flex items-center gap-3 cursor-pointer group w-full"
         onClick={() => setActivePath(fullPath)}
       >
@@ -236,7 +325,7 @@ function InstitutionNode({ name, programmes, onSelectGroup, expandedPaths, toggl
           const isVisible = activePath.length <= 1 || activePath[1] === prog;
           return (
             <NodeVisibilityWrapper key={prog} isVisible={isVisible}>
-              <ProgrammeNode name={prog} branches={branches} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
+              <ProgrammeNode name={prog} branches={branches} path={fullPath} onSelectGroup={onSelectGroup} onOpenStudentList={onOpenStudentList} onSelectSubjectsScope={onSelectSubjectsScope} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
             </NodeVisibilityWrapper>
           );
         })}
@@ -245,12 +334,12 @@ function InstitutionNode({ name, programmes, onSelectGroup, expandedPaths, toggl
   );
 }
 
-function ProgrammeNode({ name, branches, path, onSelectGroup, expandedPaths, toggleExpand, activePath }) {
+function ProgrammeNode({ name, branches, path, onSelectGroup, onOpenStudentList, onSelectSubjectsScope, expandedPaths, toggleExpand, activePath }) {
   const fullPath = [...path, name];
   const expanded = expandedPaths.has(fullPath.join('|'));
   const isActive = activePath.join('|') === fullPath.join('|');
   const shouldRenderChildren = useDelayedUnmount(expanded, 400);
-  
+
   return (
     <div className="relative before:absolute before:left-[-26px] before:top-[12px] before:w-[20px] before:h-[2px] before:bg-slate-100">
       <div className={`flex items-center gap-2 group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
@@ -259,7 +348,7 @@ function ProgrammeNode({ name, branches, path, onSelectGroup, expandedPaths, tog
         </button>
         <h4 className={`text-lg font-bold transition-colors duration-300 ${isActive ? 'text-theme-primary' : 'text-slate-800 group-hover:text-theme-primary'}`}>{name}</h4>
       </div>
-      
+
       <div className={`grid transition-[grid-template-rows,opacity] duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="overflow-hidden">
           <div className="ml-3 pl-6 border-l-2 border-slate-100 pt-1 pb-2">
@@ -270,25 +359,25 @@ function ProgrammeNode({ name, branches, path, onSelectGroup, expandedPaths, tog
                   const isVisible = activePath.length <= 2 || activePath[2] === branch;
                   return (
                     <NodeVisibilityWrapper key={branch} isVisible={isVisible}>
-                      <BranchNode name={branch} specializations={specializations} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
+                      <BranchNode name={branch} specializations={specializations} path={fullPath} onSelectGroup={onSelectGroup} onOpenStudentList={onOpenStudentList} onSelectSubjectsScope={onSelectSubjectsScope} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
                     </NodeVisibilityWrapper>
                   );
                 })}
-</>
+              </>
             )}
           </div>
         </div>
       </div>
     </div>
-    );
+  );
 }
 
-function BranchNode({ name, specializations, path, onSelectGroup, expandedPaths, toggleExpand, activePath }) {
+function BranchNode({ name, specializations, path, onSelectGroup, onOpenStudentList, onSelectSubjectsScope, expandedPaths, toggleExpand, activePath }) {
   const fullPath = [...path, name];
   const expanded = expandedPaths.has(fullPath.join('|'));
   const isActive = activePath.join('|') === fullPath.join('|');
   const shouldRenderChildren = useDelayedUnmount(expanded, 400);
-  
+
   return (
     <div className="relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100">
       <div className={`flex items-center gap-2 group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
@@ -307,25 +396,25 @@ function BranchNode({ name, specializations, path, onSelectGroup, expandedPaths,
                   const isVisible = activePath.length <= 3 || activePath[3] === spec;
                   return (
                     <NodeVisibilityWrapper key={spec} isVisible={isVisible}>
-                      <SpecializationNode name={spec} years={years} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
+                      <SpecializationNode name={spec} years={years} path={fullPath} onSelectGroup={onSelectGroup} onOpenStudentList={onOpenStudentList} onSelectSubjectsScope={onSelectSubjectsScope} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
                     </NodeVisibilityWrapper>
                   );
                 })}
-</>
+              </>
             )}
           </div>
         </div>
       </div>
     </div>
-    );
+  );
 }
 
-function SpecializationNode({ name, years, path, onSelectGroup, expandedPaths, toggleExpand, activePath }) {
+function SpecializationNode({ name, years, path, onSelectGroup, onOpenStudentList, onSelectSubjectsScope, expandedPaths, toggleExpand, activePath }) {
   const fullPath = [...path, name];
   const expanded = expandedPaths.has(fullPath.join('|'));
   const isActive = activePath.join('|') === fullPath.join('|');
   const shouldRenderChildren = useDelayedUnmount(expanded, 400);
-  
+
   return (
     <div className="relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100">
       <div className={`flex items-center gap-2 group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
@@ -344,74 +433,158 @@ function SpecializationNode({ name, years, path, onSelectGroup, expandedPaths, t
                   const isVisible = activePath.length <= 4 || activePath[4] === year;
                   return (
                     <NodeVisibilityWrapper key={year} isVisible={isVisible}>
-                      <YearNode name={year} sections={sections} path={fullPath} onSelectGroup={onSelectGroup} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
+                      <YearNode name={year} sections={sections} path={fullPath} onSelectGroup={onSelectGroup} onOpenStudentList={onOpenStudentList} onSelectSubjectsScope={onSelectSubjectsScope} expandedPaths={expandedPaths} toggleExpand={toggleExpand} activePath={activePath} />
                     </NodeVisibilityWrapper>
                   );
                 })}
-</>
+              </>
             )}
           </div>
         </div>
       </div>
     </div>
-    );
+  );
 }
 
-function YearNode({ name, sections, path, onSelectGroup, expandedPaths, toggleExpand, activePath }) {
+function YearNode({ name, sections, path, onSelectGroup, onOpenStudentList, onSelectSubjectsScope, expandedPaths, toggleExpand, activePath }) {
   const fullPath = [...path, name];
   const expanded = expandedPaths.has(fullPath.join('|'));
   const isActive = activePath.join('|') === fullPath.join('|');
   const shouldRenderChildren = useDelayedUnmount(expanded, 400);
-  
+
+  const handleOpenSubjects = (e) => {
+    e.stopPropagation();
+    if (onSelectSubjectsScope) {
+      onSelectSubjectsScope(fullPath);
+    }
+  };
+
   return (
     <div className="relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100">
-      <div className={`flex items-center gap-2 group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
-        <button className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors duration-300 ${isActive ? 'bg-white shadow-sm text-theme-primary' : 'hover:bg-slate-100 text-slate-400'}`}>
-          {expanded ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>}
+      <div className={`flex items-center justify-between group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
+        <div className="flex items-center gap-2">
+          <button className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors duration-300 ${isActive ? 'bg-white shadow-sm text-theme-primary' : 'hover:bg-slate-100 text-slate-400'}`}>
+            {expanded ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>}
+          </button>
+          <span className={`text-[15px] font-bold transition-colors duration-300 ${isActive ? 'text-theme-primary' : 'text-slate-700 group-hover:text-theme-primary'}`}>{name}</span>
+        </div>
+
+        {/* Clear Subjects action button on each Year node */}
+        <button
+          type="button"
+          onClick={handleOpenSubjects}
+          className="text-xs font-bold text-theme-primary px-3 py-1 bg-theme-bg/60 hover:bg-theme-bg rounded-lg transition-all duration-200 border border-theme-primary/20 hover:border-theme-primary/40 cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5"
+        >
+          <Icons.Classes />
+          <span>Subjects</span>
         </button>
-        <span className={`text-[15px] font-bold transition-colors duration-300 ${isActive ? 'text-theme-primary' : 'text-slate-700 group-hover:text-theme-primary'}`}>{name}</span>
       </div>
+
       <div className={`grid transition-[grid-template-rows,opacity] duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="overflow-hidden">
           <div className="ml-2.5 pl-6 border-l-2 border-slate-100 pt-1 pb-2">
             {shouldRenderChildren && (
               <>
-                {isActive && <div className="mt-2"><OfficialGroupConnector path={fullPath} scopeName="Year-wide" onSelectGroup={onSelectGroup} /></div>}
+                {isActive && (
+                  <div className="mt-2 space-y-2">
+                    <OfficialGroupConnector path={fullPath} scopeName="Year-wide" onSelectGroup={onSelectGroup} />
+                    <CurriculumSubjectsConnector path={fullPath} scopeName={name} onSelectSubjectsScope={onSelectSubjectsScope} />
+                  </div>
+                )}
                 {Object.entries(sections).map(([sec]) => {
                   const isVisible = activePath.length <= 5 || activePath[5] === sec;
                   return (
                     <NodeVisibilityWrapper key={sec} isVisible={isVisible}>
-                      <SectionNode name={sec} path={fullPath} onSelectGroup={onSelectGroup} activePath={activePath} setActivePath={toggleExpand} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
+                      <SectionNode name={sec} path={fullPath} onSelectGroup={onSelectGroup} onOpenStudentList={onOpenStudentList} activePath={activePath} setActivePath={toggleExpand} expandedPaths={expandedPaths} toggleExpand={toggleExpand} />
                     </NodeVisibilityWrapper>
                   );
                 })}
-</>
+              </>
             )}
           </div>
         </div>
       </div>
     </div>
-    );
+  );
 }
 
-function SectionNode({ name, path, onSelectGroup, activePath, setActivePath, expandedPaths, toggleExpand }) {
+function SectionNode({ name, path, onSelectGroup, onOpenStudentList, activePath, setActivePath, expandedPaths, toggleExpand }) {
   const fullPath = [...path, name];
   const isActive = activePath.join('|') === fullPath.join('|');
   const expanded = expandedPaths.has(fullPath.join('|'));
   const shouldRenderChildren = useDelayedUnmount(expanded, 400);
-  
+
+  const handleOpenStudentList = (e) => {
+    e.stopPropagation();
+    if (onOpenStudentList) {
+      onOpenStudentList({
+        name: "Students",
+        isStudents: true,
+        path: fullPath,
+        section: name,
+        scope: `${name} only`
+      });
+    } else {
+      onSelectGroup({
+        name: "Students",
+        isStudents: true,
+        path: fullPath,
+        section: name,
+        scope: `${name} only`
+      });
+    }
+  };
+
   return (
     <div className="relative before:absolute before:left-[-26px] before:top-[10px] before:w-[20px] before:h-[2px] before:bg-slate-100">
-      <div className={`flex items-center gap-2 group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
-        <button className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors duration-300 ${isActive ? 'bg-white shadow-sm text-theme-primary' : 'hover:bg-slate-100 text-slate-400'}`}>
-          {expanded ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>}
+      <div className={`flex items-center justify-between group cursor-pointer w-full py-1.5 px-2 -ml-2 rounded-lg transition-colors duration-300 ${isActive ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`} onClick={() => toggleExpand(fullPath, expanded)}>
+        <div className="flex items-center gap-2">
+          <button className={`w-5 h-5 flex items-center justify-center rounded-md transition-colors duration-300 ${isActive ? 'bg-white shadow-sm text-theme-primary' : 'hover:bg-slate-100 text-slate-400'}`}>
+            {expanded ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>}
+          </button>
+          <span className={`text-[15px] font-bold transition-colors duration-300 ${isActive ? 'text-theme-primary' : 'text-slate-700 group-hover:text-theme-primary'}`}>{name}</span>
+        </div>
+
+        {/* View button directly available on every section row */}
+        <button
+          type="button"
+          onClick={handleOpenStudentList}
+          className="text-xs font-bold text-theme-primary px-3 py-1 bg-theme-bg/60 hover:bg-theme-bg rounded-lg transition-all duration-200 border border-theme-primary/20 hover:border-theme-primary/40 cursor-pointer shadow-sm active:scale-95"
+        >
+          View
         </button>
-        <span className={`text-[15px] font-bold transition-colors duration-300 ${isActive ? 'text-theme-primary' : 'text-slate-700 group-hover:text-theme-primary'}`}>{name}</span>
       </div>
+
       <div className={`grid transition-[grid-template-rows,opacity] duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="overflow-hidden">
           <div className="ml-2.5 pl-6 border-l-2 border-slate-100 pt-1 pb-2">
-            {shouldRenderChildren && isActive && <div className="mt-2"><OfficialGroupConnector path={fullPath} scopeName="Section-wide" onSelectGroup={onSelectGroup} /></div>}
+            {shouldRenderChildren && isActive && (
+              <div className="mt-2 space-y-2">
+                <OfficialGroupConnector path={fullPath} scopeName="Section-wide" onSelectGroup={onSelectGroup} />
+                <div className="ml-1 pl-5 border-l-2 border-slate-100 pt-1 pb-1 animate-fade-in">
+                  <div
+                    onClick={handleOpenStudentList}
+                    className="flex items-center justify-between bg-slate-50/50 border border-slate-100 rounded-xl p-3 cursor-pointer hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:-translate-y-0.5 active:scale-[0.98] hover:border-theme-primary/30 hover:bg-white transition-all duration-300 group w-full max-w-sm relative before:absolute before:left-[-21px] before:top-[20px] before:w-[20px] before:h-[2px] before:bg-slate-100"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-theme-primary flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-sm">
+                        <Icons.Students />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 group-hover:text-theme-primary transition-colors">Students List</p>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5 group-hover:text-slate-600 transition-colors">85 enrolled students</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs font-bold text-theme-primary px-3 py-1.5 bg-theme-bg/50 group-hover:bg-theme-bg rounded-lg transition-all duration-300 border border-theme-primary/10"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

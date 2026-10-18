@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from '../Teacher/Icons';
 import { fetchAnnouncements } from '../../services/announcementService.js';
+import StudentStudyMaterialsView from './StudentStudyMaterialsView';
 
-export default function AcademicSpace({ userProfile }) {
+export default function AcademicSpace({ userProfile, initialTab = 'materials' }) {
   const department = userProfile?.department;
   const year = userProfile?.year;
   const section = userProfile?.section;
@@ -14,9 +15,16 @@ export default function AcademicSpace({ userProfile }) {
     ? placementParts.join(' • ')
     : (section ? 'Academic Placement' : 'Academic Placement Pending');
 
+  const [activeTab, setActiveTab] = useState(initialTab || 'materials');
   const [announcements, setAnnouncements] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const loadAnnouncements = async () => {
     if (!userProfile?.uid) {
@@ -40,11 +48,13 @@ export default function AcademicSpace({ userProfile }) {
   };
 
   useEffect(() => {
-    loadAnnouncements();
-  }, [userProfile?.uid]);
+    if (activeTab === 'announcements') {
+      loadAnnouncements();
+    }
+  }, [userProfile?.uid, activeTab]);
 
   return (
-    <div className="space-y-4 animate-fade-in relative z-10 pb-10">
+    <div className="space-y-6 animate-fade-in relative z-10 pb-12">
       
       {/* Header Area */}
       <div className="bg-white rounded-[24px] border border-slate-200/60 shadow-sm p-6 sm:px-8 sm:py-6 relative overflow-hidden">
@@ -60,90 +70,126 @@ export default function AcademicSpace({ userProfile }) {
           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-1">
             {placementTitle}
           </h2>
-          <p className="text-lg text-slate-600 max-w-2xl">
+          <p className="text-base sm:text-lg text-slate-600 max-w-2xl">
             {placementSubtitle}
           </p>
         </div>
       </div>
 
-      {/* Content Area */}
-      <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
-        {/* Banner */}
-        <div className="bg-slate-50/80 border-b border-slate-100 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center shadow-sm">
-              <Icons.Announcements />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <h3 className="text-lg font-bold text-slate-900 leading-none">Announcements</h3>
-              <p className="text-sm font-medium text-slate-500 leading-none">Official updates from faculty & administration</p>
+      {/* Section Sub-Navigation Tabs */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('materials')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+            activeTab === 'materials'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/60 shadow-2xs'
+          }`}
+        >
+          <Icons.Resources />
+          <span>Study Materials</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('announcements')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+            activeTab === 'announcements'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/60 shadow-2xs'
+          }`}
+        >
+          <Icons.Announcements />
+          <span>Official Announcements</span>
+        </button>
+      </div>
+
+      {/* Tab 1: Study Materials */}
+      {activeTab === 'materials' && (
+        <StudentStudyMaterialsView userProfile={userProfile} />
+      )}
+
+      {/* Tab 2: Announcements */}
+      {activeTab === 'announcements' && (
+        <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] overflow-hidden">
+          {/* Banner */}
+          <div className="bg-slate-50/80 border-b border-slate-100 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-theme-bg text-theme-primary flex items-center justify-center shadow-sm">
+                <Icons.Announcements />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-lg font-bold text-slate-900 leading-none">Announcements</h3>
+                <p className="text-sm font-medium text-slate-500 leading-none">Official updates from faculty & administration</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="p-6 sm:p-8 space-y-4">
-          {isLoading ? (
-            <div className="text-center py-10">
-              <p className="text-slate-400 font-medium text-sm">Loading announcements...</p>
-            </div>
-          ) : error ? (
-            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium flex items-center justify-between">
-              <span>{error}</span>
-              <button
-                onClick={loadAnnouncements}
-                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors cursor-pointer"
-              >
-                Retry
-              </button>
-            </div>
-          ) : announcements.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-slate-400 font-medium text-sm">No announcements yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {announcements.map(ann => {
-                const author = ann.authorName || ann.author || (ann.authorRole === 'director' ? 'Director' : 'Administration');
-                const formattedDate = ann.createdAt
-                  ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  : (ann.time || ann.date || 'Recent');
+          <div className="p-6 sm:p-8 space-y-4">
+            {isLoading ? (
+              <div className="text-center py-10">
+                <p className="text-slate-400 font-medium text-sm">Loading announcements...</p>
+              </div>
+            ) : error ? (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium flex items-center justify-between">
+                <span>{error}</span>
+                <button
+                  onClick={loadAnnouncements}
+                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : announcements.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-slate-400 font-medium text-sm">No announcements yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {announcements.map(ann => {
+                  const author = ann.authorName || ann.author || (ann.authorRole === 'director' ? 'Director' : 'Administration');
+                  const formattedDate = ann.createdAt
+                    ? new Date(ann.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : (ann.time || ann.date || 'Recent');
 
-                return (
-                  <div key={ann.id} className="p-6 rounded-2xl border border-slate-100 hover:border-slate-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.02)] transition-all bg-white group flex flex-col gap-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-bold text-slate-900 text-lg leading-tight">{ann.title}</h4>
-                        {ann.priority === 'urgent' && (
-                          <span className="text-[10px] font-extrabold text-white bg-red-600 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            Urgent
+                  return (
+                    <div key={ann.id} className="p-6 rounded-2xl border border-slate-100 hover:border-slate-200 hover:shadow-[0_4px_12px_rgba(0,0,0,0.02)] transition-all bg-white group flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-slate-900 text-lg leading-tight">{ann.title}</h4>
+                          {ann.priority === 'urgent' && (
+                            <span className="text-[10px] font-extrabold text-white bg-red-600 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              Urgent
+                            </span>
+                          )}
+                        </div>
+                        {ann.scopeType && (
+                          <span className="text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg uppercase tracking-wider whitespace-nowrap">
+                            {ann.scopeType === 'institution'
+                              ? 'Institution'
+                              : ann.scopeType === 'branch'
+                              ? 'Department'
+                              : ann.scopeType === 'year'
+                              ? 'Year'
+                              : 'Section'}
                           </span>
                         )}
                       </div>
-                      {ann.scopeType && (
-                        <span className="text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg uppercase tracking-wider whitespace-nowrap">
-                          {ann.scopeType === 'institution'
-                            ? 'Institution'
-                            : ann.scopeType === 'branch'
-                            ? 'Department'
-                            : ann.scopeType === 'year'
-                            ? 'Year'
-                            : 'Section'}
-                        </span>
-                      )}
+                      <p className="text-slate-600 text-sm font-medium leading-relaxed whitespace-pre-line">{ann.content}</p>
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-400 pt-1">
+                        <span className="text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-md">{author}</span>
+                        <span className="text-slate-300">•</span>
+                        <span>{formattedDate}</span>
+                      </div>
                     </div>
-                    <p className="text-slate-600 text-sm font-medium leading-relaxed whitespace-pre-line">{ann.content}</p>
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-slate-400 pt-1">
-                      <span className="text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-md">{author}</span>
-                      <span className="text-slate-300">•</span>
-                      <span>{formattedDate}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );

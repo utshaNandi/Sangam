@@ -4,6 +4,7 @@ import { auth, db } from '../../firebase/config';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { partitionStudentRecords, deduplicateFacultyRecords } from './studentPartition';
 import { createTeacherAllocation, deleteTeacherAllocation, fetchTeacherAllocations } from '../../services/attendanceService';
+import DirectorSubjectsView from './DirectorSubjectsView';
 
 const DEPARTMENTS = [
   'Computer Science',
@@ -869,36 +870,83 @@ function FacultyAllocationModal({ faculty, existingAllocations = [], onClose, on
   );
 }
 
-export function AcademicManagementView({ onNavigate }) {
+export function AcademicManagementView({ onNavigate, userProfile }) {
+  const [academicTab, setAcademicTab] = useState('Subjects & Curriculum');
+
   return (
     <div className="space-y-6 animate-hero-fade-up">
-      <h2 className="text-2xl font-extrabold text-slate-900">Academic Management</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow">
-          <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4">
-            <Icons.Hierarchy />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900">Programmes</h3>
-          <p className="text-sm text-slate-500 mt-1">Manage B.Tech, BBA, etc.</p>
+      {/* Sub-tab Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+        <div>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Academic Management</h2>
+          <p className="text-xs text-slate-500 mt-1">Configure subjects, syllabus codes, faculty assignments, and institutional hierarchy.</p>
         </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow">
-          <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4">
-            <Icons.Classes />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900">Branches & Specializations</h3>
-          <p className="text-sm text-slate-500 mt-1">Manage CSE, AI, Core, etc.</p>
-        </div>
-        <div 
-          onClick={() => onNavigate && onNavigate('People', 'Faculty')}
-          className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow group"
-        >
-          <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-            <Icons.Students />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#D67756] transition-colors">Faculty Assignment</h3>
-          <p className="text-sm text-slate-500 mt-1">Assign faculty to academic scopes.</p>
+        <div className="flex items-center gap-2 bg-slate-100/80 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setAcademicTab('Subjects & Curriculum')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              academicTab === 'Subjects & Curriculum'
+                ? 'bg-white text-[#D67756] shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Subjects & Faculty Assignment
+          </button>
+          <button
+            type="button"
+            onClick={() => setAcademicTab('Academic Structure')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              academicTab === 'Academic Structure'
+                ? 'bg-white text-[#D67756] shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Academic Structure
+          </button>
         </div>
       </div>
+
+      {academicTab === 'Subjects & Curriculum' ? (
+        <DirectorSubjectsView userProfile={userProfile} onNavigate={onNavigate} />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 animate-fade-in">
+          <div
+            onClick={() => setAcademicTab('Subjects & Curriculum')}
+            className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+              <Icons.Classes />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#D67756] transition-colors">Subjects & Curriculum</h3>
+            <p className="text-sm text-slate-500 mt-1">Create course codes and assign faculty to curriculum subjects.</p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow">
+            <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4">
+              <Icons.Hierarchy />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">Programmes</h3>
+            <p className="text-sm text-slate-500 mt-1">Manage B.Tech, BBA, and degree pathways.</p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow">
+            <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4">
+              <Icons.Classes />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">Branches & Specializations</h3>
+            <p className="text-sm text-slate-500 mt-1">Manage CSE, AI, Core, and allied branches.</p>
+          </div>
+          <div
+            onClick={() => onNavigate && onNavigate('People', 'Faculty')}
+            className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-shadow group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-theme-bg text-theme-primary flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+              <Icons.Students />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#D67756] transition-colors">Faculty Class Allocation</h3>
+            <p className="text-sm text-slate-500 mt-1">Allocate teachers to departmental classes and sections.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
