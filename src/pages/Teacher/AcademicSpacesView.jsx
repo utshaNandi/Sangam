@@ -2,12 +2,13 @@ import { useState, useMemo } from 'react';
 import { Icons } from './Icons';
 import { AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
 import StudentListSectionView from './StudentListSectionView';
+import AnnouncementPage from './AnnouncementPage';
 import { buildAcademicHierarchyTree } from '../../services/attendanceService';
 import { announcements as sharedAnnouncements, addAnnouncement, studyMaterials as sharedStudyMaterials, addStudyMaterial } from './mockData';
 
 export const buildTree = buildAcademicHierarchyTree;
 
-export default function AcademicSpacesView({ userProfile, allocations = [], isLoadingAllocations = false, embedded = false, onNavigate, onOpenStudentList }) {
+export default function AcademicSpacesView({ userProfile, allocations = [], isLoadingAllocations = false, embedded = false, onNavigate, onOpenStudentList, onOpenAnnouncement }) {
   // Strictly rely on real allocations passed from backend
   const effectiveAllocations = Array.isArray(allocations) ? allocations : [];
   const tree = buildAcademicHierarchyTree(effectiveAllocations, userProfile?.institution || 'UEMK');
@@ -16,6 +17,8 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
   const handleSelectGroup = (group) => {
     if (group?.isStudents && onOpenStudentList) {
       onOpenStudentList(group);
+    } else if (group?.isAnnounce && onOpenAnnouncement) {
+      onOpenAnnouncement(group);
     } else {
       setSelectedGroup(group);
     }
@@ -158,6 +161,19 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
       );
     }
 
+    if (selectedGroup.isAnnounce) {
+      return (
+        <div className="fixed inset-0 z-[9999] bg-[#F8F3E6] overflow-hidden animate-fade-in">
+          <AnnouncementPage
+            group={selectedGroup}
+            onBack={() => setSelectedGroup(null)}
+            userProfile={userProfile}
+            allocations={effectiveAllocations}
+          />
+        </div>
+      );
+    }
+
     if (embedded) {
       return (
         <div className="h-full flex flex-col overflow-hidden animate-fade-in p-3 sm:p-4">
@@ -177,7 +193,7 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
             ) : selectedGroup.isAttendance ? (
               <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
             ) : (
-              <OfficialGroupView group={selectedGroup} embedded={true} />
+              <OfficialGroupView group={selectedGroup} onOpenAnnouncement={onOpenAnnouncement} embedded={true} />
             )}
           </div>
         </div>
@@ -194,7 +210,7 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
         ) : selectedGroup.isAttendance ? (
           <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
         ) : (
-          <OfficialGroupView group={selectedGroup} />
+          <OfficialGroupView group={selectedGroup} onOpenAnnouncement={onOpenAnnouncement} />
         )}
       </div>
     );
@@ -760,7 +776,7 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
               </button>
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Official Group", permissions: ['Announce'], path: fullPath }); }}
+                onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Official Group", isAnnounce: true, permissions: ['Announce'], path: fullPath }); }}
                 className="text-[11px] font-normal px-2.5 py-0.5 rounded-full bg-[#EFA9D1]/25 text-[#5e193c] hover:bg-[#EFA9D1]/45 transition-colors cursor-pointer active:scale-95"
               >
                 Announce
@@ -817,7 +833,7 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
               VIEW
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Official Group", permissions: ['Announce'], path: fullPath }); }}
+              onClick={(e) => { e.stopPropagation(); onSelectGroup({ name: "Official Group", isAnnounce: true, permissions: ['Announce'], path: fullPath }); }}
               className="text-[10px] uppercase tracking-wider font-extrabold px-3 py-1 rounded-full bg-[#EFA9D1]/25 text-[#171717] border border-[#EFA9D1] hover:bg-[#EFA9D1] transition-all cursor-pointer shadow-sm active:scale-95"
             >
               ANNOUNCE
@@ -847,7 +863,7 @@ function SectionNode({ name, subjects, path, onSelectGroup, expandedPaths, toggl
   );
 }
 
-function OfficialGroupView({ group, embedded = false }) {
+function OfficialGroupView({ group, onOpenAnnouncement, embedded = false }) {
   const canAnnounce = group.permissions.includes('Announce') || group.permissions.includes('Manage');
   const scopePath = group.path.join('/');
 
@@ -938,7 +954,29 @@ function OfficialGroupView({ group, embedded = false }) {
         {/* Notices list */}
         <div className="space-y-2">
           {announcements.map(ann => (
-            <div key={ann.id} className="p-3 rounded-xl border border-[#D8D1C3]/70 bg-white/60 hover:bg-white transition-all">
+            <div
+              key={ann.id}
+              onClick={() => {
+                const grp = {
+                  ...group,
+                  isAnnounce: true,
+                  selectedAnnouncement: {
+                    id: String(ann.id),
+                    senderName: ann.author || 'Dr. Sarah Jenkins',
+                    senderRole: 'Faculty',
+                    senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+                    timestamp: ann.time || 'Today',
+                    subject: ann.title,
+                    message: ann.content,
+                    category: 'Academic',
+                    status: 'Important',
+                    isSaved: false
+                  }
+                };
+                if (onOpenAnnouncement) onOpenAnnouncement(grp);
+              }}
+              className="p-3 rounded-xl border border-[#D8D1C3]/70 bg-white/60 hover:bg-white transition-all cursor-pointer"
+            >
               <h5 className="font-medium text-[#171717] text-xs">{ann.title}</h5>
               <p className="text-[#858174] mt-1 text-[11px] font-normal leading-relaxed">{ann.content}</p>
               <div className="flex items-center gap-2 mt-2 text-[10px] text-[#858174]">
@@ -1032,7 +1070,29 @@ function OfficialGroupView({ group, embedded = false }) {
           {/* Announcements List */}
           <div className="space-y-3.5">
             {announcements.map(ann => (
-              <div key={ann.id} className="p-5 rounded-2xl border border-[#D8D1C3]/80 hover:border-[#171717]/40 hover:shadow-sm transition-all bg-white group">
+              <div
+                key={ann.id}
+                onClick={() => {
+                  const grp = {
+                    ...group,
+                    isAnnounce: true,
+                    selectedAnnouncement: {
+                      id: String(ann.id),
+                      senderName: ann.author || 'Dr. Sarah Jenkins',
+                      senderRole: 'Faculty',
+                      senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+                      timestamp: ann.time || 'Today',
+                      subject: ann.title,
+                      message: ann.content,
+                      category: 'Academic',
+                      status: 'Important',
+                      isSaved: false
+                    }
+                  };
+                  if (onOpenAnnouncement) onOpenAnnouncement(grp);
+                }}
+                className="p-5 rounded-2xl border border-[#D8D1C3]/80 hover:border-[#171717]/40 hover:shadow-sm transition-all bg-white group cursor-pointer"
+              >
                 <h4 className="font-extrabold text-[#171717] text-base">{ann.title}</h4>
                 <p className="text-[#858174] mt-1.5 mb-3 text-xs font-medium leading-relaxed">{ann.content}</p>
                 <div className="flex items-center gap-2 text-[11px] font-bold text-[#858174]">

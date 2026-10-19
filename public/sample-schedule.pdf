@@ -1,0 +1,43 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>
+endobj
+5 0 obj
+<< /Length 725 >>
+stream
+BT /F1 20 Tf 50 780 Td (SANGAM UNIVERSITY - ACADEMIC REGISTRY) Tj 0 -30 Td /F1 14 Tf (Fall Semester Final Examination Schedule - 2026) Tj 0 -30 Td /F1 10 Tf (Course Code    Course Title                      Date          Time       Hall) Tj 0 -20 Td (CSE-401        Scalable AI Architectures         12/12/2026    09:30 AM   LH-101) Tj 0 -18 Td (CSE-403        Distributed Database Systems      14/12/2026    09:30 AM   LH-102) Tj 0 -18 Td (CSE-405        Neural Networks & Deep Learning   16/12/2026    02:00 PM   LH-201) Tj 0 -18 Td (CSE-409        Information Security & Cryptology 18/12/2026    09:30 AM   LH-101) Tj 0 -35 Td /F1 9 Tf (Important: Students must bring their official Sangam University Smart ID card.) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Length 603 >>
+stream
+BT /F1 20 Tf 50 780 Td (EXAMINATION PROTOCOLS & INSTRUCTIONS) Tj 0 -30 Td /F1 12 Tf (Guidelines for Faculty Invigilators & Students) Tj 0 -25 Td /F1 10 Tf (1. Reporting Time: All candidates must be seated 15 minutes before commencement.) Tj 0 -18 Td (2. Question Paper Distribution: Promptly at 09:30 AM / 02:00 PM.) Tj 0 -18 Td (3. Calculators and Devices: Only non-programmable scientific calculators permitted.) Tj 0 -18 Td (4. Attendance Verification: Invigilators must cross-verify digital attendance on Sangam.) Tj 0 -35 Td /F1 9 Tf (Approved by: Dean of Academic Affairs, Sangam University) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000373 00000 n 
+0000001149 00000 n 
+0000001803 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1873
+%%EOF

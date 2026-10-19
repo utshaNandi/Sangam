@@ -72,7 +72,7 @@ const monthNames = ["January", "February", "March", "April", "May", "June", "Jul
 const monthAbbrs = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dayNamesFull = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export default function DashboardHome({ onNavigate, userProfile, allocations = [], isLoadingAllocations = false, onOpenStudentList }) {
+export default function DashboardHome({ onNavigate, userProfile, allocations = [], isLoadingAllocations = false, onOpenStudentList, onOpenAnnouncement }) {
   const effectiveAllocations = useMemo(() => {
     if (Array.isArray(allocations) && allocations.length > 0) {
       return allocations;
@@ -801,6 +801,7 @@ export default function DashboardHome({ onNavigate, userProfile, allocations = [
                 isLoadingAllocations={isLoadingAllocations}
                 onNavigate={onNavigate}
                 onOpenStudentList={onOpenStudentList}
+                onOpenAnnouncement={onOpenAnnouncement}
               />
             </InteractiveDotCanvas>
           </div>

@@ -13,6 +13,7 @@ import {
 } from './TeacherViews';
 import AcademicSpacesView from './AcademicSpacesView';
 import StudentListSectionView from './StudentListSectionView';
+import AnnouncementPage from './AnnouncementPage';
 import { auth } from '../../firebase/config';
 import { subscribeTeacherAllocations } from '../../services/attendanceService';
 
@@ -25,6 +26,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
   const [allocations, setAllocations] = useState([]);
   const [isLoadingAllocations, setIsLoadingAllocations] = useState(true);
   const [fullscreenStudentGroup, setFullscreenStudentGroup] = useState(null);
+  const [fullscreenAnnouncementGroup, setFullscreenAnnouncementGroup] = useState(null);
 
   const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
   const institution = userProfile?.institution || '';
@@ -86,6 +88,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
             onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
+            onOpenAnnouncement={(group) => setFullscreenAnnouncementGroup(group)}
           />
         );
       case 'Academic Spaces':
@@ -95,6 +98,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
             onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
+            onOpenAnnouncement={(group) => setFullscreenAnnouncementGroup(group)}
           />
         );
       case 'My Classes':
@@ -177,8 +181,19 @@ export default function TeacherApp({ userProfile, onLogout }) {
         </div>
       )}
 
+      {fullscreenAnnouncementGroup && (
+        <div className="fixed inset-0 z-[9999] bg-[#F8F3E6] overflow-hidden animate-fade-in">
+          <AnnouncementPage
+            group={fullscreenAnnouncementGroup}
+            onBack={() => setFullscreenAnnouncementGroup(null)}
+            userProfile={userProfile}
+            allocations={allocations}
+          />
+        </div>
+      )}
+
       <div
-        className={`flex h-screen h-[100dvh] bg-[#F8F3E6] font-sans text-[#171717] overflow-hidden selection:bg-[#F5E5EE] selection:text-[#171717] ${fullscreenStudentGroup ? 'hidden' : ''}`}
+        className={`flex h-screen h-[100dvh] bg-[#F8F3E6] font-sans text-[#171717] overflow-hidden selection:bg-[#F5E5EE] selection:text-[#171717] ${(fullscreenStudentGroup || fullscreenAnnouncementGroup) ? 'hidden' : ''}`}
         style={{
           '--theme-primary': '#171717',
           '--theme-bg': '#F5E5EE',
