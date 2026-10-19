@@ -115,8 +115,14 @@ export class AnnouncementService {
     }
 
     // 2. Validate known role
-    const normalizedRole = (rawRole === 'admin') ? 'director' : (rawRole === 'teacher' ? 'faculty' : rawRole);
-    if (!['director', 'faculty', 'student'].includes(normalizedRole)) {
+    const normalizedRole = (rawRole === 'admin')
+      ? 'director'
+      : (rawRole === 'teacher'
+        ? 'faculty'
+        : (rawRole === 'head_of_department' || rawRole === 'head of department' || rawRole === 'hod')
+          ? 'hod'
+          : rawRole);
+    if (!['director', 'hod', 'faculty', 'student'].includes(normalizedRole)) {
       const err = new Error(`Forbidden: Unrecognized account role '${userData.role}'.`);
       err.statusCode = 403;
       err.code = 'INVALID_ROLE';
@@ -494,9 +500,11 @@ export class AnnouncementService {
    * @param {string} params.callerUid - Authenticated user ID.
    * @param {number|string} [params.page=1] - 1-indexed page number.
    * @param {number|string} [params.limit=50] - Number of items per page (max 100).
+   * @param {string|Array<string>} [params.authorRole] - Optional filter for author role(s).
+   * @param {string|Array<string>} [params.authorRoles] - Optional filter for author role(s).
    * @returns {Promise<{ announcements: Array<object>, pagination: object }>}
    */
-  async getAnnouncementsForUser({ callerUid, page = 1, limit = 50 }) {
+  async getAnnouncementsForUser({ callerUid, page = 1, limit = 50, authorRole, authorRoles }) {
     // 1. Load and validate server profile
     const profile = await this.getValidatedUserProfile(callerUid);
     const role = profile.role;
@@ -518,6 +526,17 @@ export class AnnouncementService {
     let teacherAllocations = [];
     if (role === 'faculty') {
       teacherAllocations = await this.getTeacherActiveAllocations(callerUid);
+    }
+
+    // Parse authorRoles filter if specified (e.g. 'director,hod' or ['director', 'hod'])
+    const rawFilter = authorRole || authorRoles;
+    let allowedRoles = null;
+    if (rawFilter) {
+      if (Array.isArray(rawFilter)) {
+        allowedRoles = rawFilter.map(r => String(r).toLowerCase().trim()).filter(Boolean);
+      } else if (typeof rawFilter === 'string') {
+        allowedRoles = rawFilter.split(',').map(r => r.toLowerCase().trim()).filter(Boolean);
+      }
     }
 
     // 4. Query announcements from Firestore for user's institution
@@ -548,6 +567,22 @@ export class AnnouncementService {
 
         // Scope check based on role
         if (this.isUserAuthorizedToRead(profile, ann, teacherAllocations)) {
+          // If author role filter is specified, enforce trusted authorRole matching
+          if (allowedRoles && allowedRoles.length > 0) {
+            const annAuthorRole = String(ann.authorRole || '').toLowerCase().trim();
+            const matchesRole = allowedRoles.some(filterRole => {
+              if (filterRole === 'director' || filterRole === 'admin') {
+                return annAuthorRole === 'director' || annAuthorRole === 'admin';
+              }
+              if (filterRole === 'hod' || filterRole === 'head_of_department') {
+                return annAuthorRole === 'hod' || annAuthorRole === 'head_of_department' || annAuthorRole === 'head of department';
+              }
+              return annAuthorRole === filterRole;
+            });
+            if (!matchesRole) {
+              return;
+            }
+          }
           matched.push(ann);
         }
       });
@@ -570,6 +605,24 @@ export class AnnouncementService {
         hasMore: offset + parsedLimit < total
       }
     };
+  }
+
+  /**
+   * Specifically retrieves Director and HOD announcements for the dashboard,
+   * enforcing server-side scoping and returning up to limit (default 4).
+   *
+   * @param {object} params
+   * @param {string} params.callerUid - Authenticated user ID.
+   * @param {number} [params.limit=4] - Max items to return.
+   * @returns {Promise<{ announcements: Array<object>, pagination: object }>}
+   */
+  async getDashboardAnnouncements({ callerUid, limit = 4 }) {
+    return this.getAnnouncementsForUser({
+      callerUid,
+      page: 1,
+      limit,
+      authorRoles: ['director', 'hod']
+    });
   }
 
   /**
@@ -641,6 +694,15 @@ export class AnnouncementService {
     // 2. Director: sees all announcements within their authorized institution
     if (role === 'director') {
       return true;
+    }
+
+    // 2b. HOD: sees all announcements within their authorized institution and department
+    if (role === 'hod') {
+      if (scopeType === 'institution') return true;
+      if (announcement.department && profile.department && isMatchingDepartment(profile.department, announcement.department)) {
+        return true;
+      }
+      return false;
     }
 
     // 3. Institution-wide announcement: visible to all active users in that institution
@@ -723,6 +785,29 @@ export class AnnouncementService {
 
     return false;
   }
+}
+
+/**
+ * Evaluates whether a role string represents a Director or HOD.
+ *
+ * @param {string} role - User or author role string.
+ * @returns {boolean}
+ */
+export function isDirectorOrHodRole(role) {
+  if (!role || typeof role !== 'string') return false;
+  const r = role.toLowerCase().trim();
+  return r === 'director' || r === 'admin' || r === 'hod' || r === 'head_of_department' || r === 'head of department';
+}
+
+/**
+ * Evaluates whether an announcement document was published by a Director or HOD.
+ *
+ * @param {object} announcement
+ * @returns {boolean}
+ */
+export function isDirectorOrHodAnnouncement(announcement) {
+  if (!announcement) return false;
+  return isDirectorOrHodRole(announcement.authorRole);
 }
 
 export const announcementService = new AnnouncementService();

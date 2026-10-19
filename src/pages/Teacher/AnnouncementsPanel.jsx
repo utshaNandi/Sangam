@@ -1,7 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  fetchDashboardAnnouncements,
+  ANNOUNCEMENT_THEMES,
+  isDirectorOrHodRole,
+  isDirectorOrHodAnnouncement,
+  filterEligibleDashboardAnnouncements,
+  filterAnnouncementsByPeriod,
+  mapAnnouncementToPanelItem
+} from '../../services/announcementService.js';
+
+export {
+  ANNOUNCEMENT_THEMES,
+  isDirectorOrHodRole,
+  isDirectorOrHodAnnouncement,
+  filterEligibleDashboardAnnouncements,
+  filterAnnouncementsByPeriod,
+  mapAnnouncementToPanelItem
+};
 
 // SVG Icons matching the exact 1:1 Gemini specification
-const ICONS = {
+export const ICONS = {
   knot: (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1E1E1E" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
@@ -33,100 +51,23 @@ const ICONS = {
   )
 };
 
-const ANNOUNCEMENTS_DATA = {
+export const PANEL_HEADERS = {
   leftHeader: "Announcement",
   rightHeader: "Details",
   labels: ["Published By", "Observation", "Action Items"],
-  subPrefix: "Reference ",
-  items: [
-    {
-      id: "ann-1",
-      name: "Taigo Wilkinson",
-      subtitle: "Emergency Visit",
-      time: "09 : 15 AM",
-      color: "#F5B8D8",
-      tagBg: "#E4A3C5",
-      mutedColor: "#6E4E60",
-      icon: "knot",
-      badgeCode: "1EG4-TES-MK72",
-      demographics: "Operations Lead • Priority Broadcast",
-      tags: ["Urgent", "Ward A & B", "Shift Handover"],
-      checkedBy: "Dr Everly",
-      checkedDate: "on 21 April 2021",
-      refCode: "#2J983KT0",
-      observation: "Updated triage intake routing is now active for all morning emergency arrivals.",
-      prescriptions: [
-        "Verify badge sync before 10:00 AM",
-        "Route priority lab samples via Express Desk"
-      ]
-    },
-    {
-      id: "ann-2",
-      name: "Samantha Williams",
-      subtitle: "Routine Check-Up",
-      time: "09 : 15 AM",
-      color: "#C4D4F2",
-      tagBg: "#AEC2E8",
-      mutedColor: "#4A5974",
-      icon: "stethoscope",
-      badgeCode: "9B2K-R41-PL08",
-      demographics: "Clinical Coordinator • Weekly Brief",
-      tags: ["Equipment", "Diagnostics", "Floor 3"],
-      checkedBy: "BioMed Team",
-      checkedDate: "on 16 October 2026",
-      refCode: "#8K412MN9",
-      observation: "Annual calibration completed on all outpatient diagnostic monitors with zero downtime.",
-      prescriptions: [
-        "Review updated check-up checklist",
-        "Log afternoon vitals in unified portal"
-      ]
-    },
-    {
-      id: "ann-3",
-      name: "Amy White",
-      subtitle: "Video Consultation",
-      time: "09 : 15 AM",
-      color: "#C4B5FD",
-      tagBg: "#B39DF8",
-      mutedColor: "#4C1D95",
-      icon: "video",
-      badgeCode: "4VD9-M82-QW19",
-      demographics: "Telehealth Director • Platform Update",
-      tags: ["Telehealth", "HD Audio", "Low Latency"],
-      checkedBy: "IT Systems",
-      checkedDate: "on 15 October 2026",
-      refCode: "#5P109VX4",
-      observation: "Virtual consultation rooms now include instant prescription card sharing for patients.",
-      prescriptions: [
-        "Enable one-click room link in calendar",
-        "Attach post-visit summary automatically"
-      ]
-    },
-    {
-      id: "ann-4",
-      name: "Tyler Young",
-      subtitle: "Report",
-      time: "09 : 45 AM",
-      color: "#A7B868",
-      tagBg: "#94A753",
-      mutedColor: "#465124",
-      icon: "report",
-      badgeCode: "7RP3-K19-ZN64",
-      demographics: "Quality Assurance • Monthly Audit",
-      tags: ["Q3 Metrics", "Compliance", "100% Verified"],
-      checkedBy: "Audit Board",
-      checkedDate: "on 14 October 2026",
-      refCode: "#3L774TY2",
-      observation: "Departmental turnaround time improved by 24% across all routine lab reports this quarter.",
-      prescriptions: [
-        "Download signed Q3 compliance packet",
-        "Share summary before Friday briefing"
-      ]
-    }
-  ]
+  subPrefix: "Reference "
 };
 
-export default function AnnouncementsPanel({ userProfile, onNavigate }) {
+export const ANNOUNCEMENTS_DATA = {
+  ...PANEL_HEADERS,
+  items: []
+};
+
+export default function AnnouncementsPanel({ userProfile, onNavigate, announcements: propAnnouncements }) {
+  const [fetchedAnnouncements, setFetchedAnnouncements] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState('Today');
   const [isPeriodDropdownOpen, setIsPeriodDropdownOpen] = useState(false);
@@ -137,13 +78,79 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
   const toastTimeoutRef = useRef(null);
   const periodDropdownRef = useRef(null);
 
-  const currentItem = ANNOUNCEMENTS_DATA.items[selectedIndex] || ANNOUNCEMENTS_DATA.items[0];
+  // Load announcements from backend if not provided as prop
+  const loadDashboardAnnouncements = React.useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data = await fetchDashboardAnnouncements({ limit: 4 });
+      setFetchedAnnouncements(Array.isArray(data?.announcements) ? data.announcements : []);
+    } catch (err) {
+      console.warn('[AnnouncementsPanel] Error fetching dashboard announcements:', err.message);
+      setFetchError(err.message);
+      setFetchedAnnouncements([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (propAnnouncements !== undefined) {
+      return;
+    }
+    loadDashboardAnnouncements();
+  }, [propAnnouncements, loadDashboardAnnouncements]);
+
+  // Refresh dashboard announcements whenever a new announcement is published or window regains focus
+  useEffect(() => {
+    if (propAnnouncements !== undefined) {
+      return;
+    }
+
+    const handleRefresh = () => {
+      loadDashboardAnnouncements();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('sangam:announcement-published', handleRefresh);
+      window.addEventListener('focus', handleRefresh);
+      return () => {
+        window.removeEventListener('sangam:announcement-published', handleRefresh);
+        window.removeEventListener('focus', handleRefresh);
+      };
+    }
+  }, [propAnnouncements, loadDashboardAnnouncements]);
+
+  // Determine source announcements and strictly filter to Director/HOD
+  const rawAnnouncements = propAnnouncements !== undefined ? propAnnouncements : fetchedAnnouncements;
+  const eligibleAnnouncements = filterEligibleDashboardAnnouncements(rawAnnouncements);
+
+  // Always display the 4 most recent announcements published by Director or HOD,
+  // regardless of publication date. Do NOT apply date-based filtering to this list.
+  const items = eligibleAnnouncements.slice(0, 4).map((ann, idx) => mapAnnouncementToPanelItem(ann, idx));
+
+  const currentItem = items[selectedIndex] || items[0] || null;
   const [displayedItem, setDisplayedItem] = useState(currentItem);
 
+  // Synchronize displayed item when list changes
+  useEffect(() => {
+    if (items.length === 0) {
+      setSelectedIndex(0);
+      setDisplayedItem(null);
+      return;
+    }
+    if (selectedIndex >= items.length) {
+      setSelectedIndex(0);
+      setDisplayedItem(items[0]);
+    } else if (!displayedItem || !items.some(it => it.id === displayedItem.id)) {
+      setDisplayedItem(items[selectedIndex] || items[0]);
+    }
+  }, [items, selectedIndex]);
+
   const selectItem = (index, immediate = false) => {
-    if (index < 0 || index >= ANNOUNCEMENTS_DATA.items.length) return;
+    if (index < 0 || index >= items.length) return;
     setSelectedIndex(index);
-    const targetItem = ANNOUNCEMENTS_DATA.items[index];
+    const targetItem = items[index];
 
     if (immediate) {
       setDisplayedItem(targetItem);
@@ -163,14 +170,15 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (items.length === 0) return;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = (selectedIndex + 1) % ANNOUNCEMENTS_DATA.items.length;
+        const next = (selectedIndex + 1) % items.length;
         selectItem(next);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const len = ANNOUNCEMENTS_DATA.items.length;
+        const len = items.length;
         const prev = (selectedIndex - 1 + len) % len;
         selectItem(prev);
       }
@@ -178,7 +186,7 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex]);
+  }, [selectedIndex, items.length]);
 
   // Click outside listener for period dropdown
   useEffect(() => {
@@ -192,6 +200,7 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
   }, []);
 
   const handlePrescriptionClick = () => {
+    if (!displayedItem) return;
     const msg = `Loaded reference ${displayedItem.refCode} for ${displayedItem.name}`;
     setToastMessage(msg);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -205,6 +214,10 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
   const rowGap = 12;
   const connectorY = selectedIndex * (rowHeight + rowGap);
 
+  const activeColor = currentItem?.color || '#FAF6EB';
+  const activeTagBg = currentItem?.tagBg || '#EFECE1';
+  const activeMuted = currentItem?.mutedColor || '#6B6860';
+
   return (
     <div
       className="announcement-widget w-full select-none"
@@ -212,9 +225,9 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
         '--bg-cream': '#FAF6EB',
         '--card-unselected': '#EFECE1',
         '--card-unselected-hover': '#E7E3D5',
-        '--active-color': currentItem.color,
-        '--active-tag-bg': currentItem.tagBg,
-        '--active-muted': currentItem.mutedColor,
+        '--active-color': activeColor,
+        '--active-tag-bg': activeTagBg,
+        '--active-muted': activeMuted,
         '--row-height': `${rowHeight}px`,
         '--row-gap': `${rowGap}px`,
         '--left-width': '244px',
@@ -420,7 +433,7 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
         {/* Left Column Header */}
         <div className="flex items-center justify-between gap-1.5">
           <h2 className="text-[17px] font-medium tracking-tight text-[#222222] whitespace-nowrap">
-            {ANNOUNCEMENTS_DATA.leftHeader}
+            {PANEL_HEADERS.leftHeader}
           </h2>
 
           {/* Filter Pill Dropdown ("Today v") */}
@@ -474,149 +487,179 @@ export default function AnnouncementsPanel({ userProfile, onNavigate }) {
         {/* Right Column Header */}
         <div className="flex items-center justify-between pl-1">
           <h2 className="text-[17px] font-medium tracking-tight text-[#222222]">
-            {ANNOUNCEMENTS_DATA.rightHeader}
+            {PANEL_HEADERS.rightHeader}
           </h2>
         </div>
       </div>
 
       {/* Connected Master-Detail Stage: Strictly Side-by-Side */}
       <div className="board-stage">
-        {/* Continuous Sliding Active Connector + Concave Inner Scoops */}
-        <div className="active-row-connector">
-          {/* Upper Concave Fillet */}
-          <div className="concave-scoop scoop-top">
-            <svg viewBox="0 0 22 22" preserveAspectRatio="none">
-              <path d="M 22 0 L 22 22 L 0 22 A 22 22 0 0 0 22 0 Z"></path>
-            </svg>
+        {/* Continuous Sliding Active Connector (rendered only when items exist) */}
+        {items.length > 0 && (
+          <div className="active-row-connector">
+            {/* Upper Concave Fillet */}
+            <div className="concave-scoop scoop-top">
+              <svg viewBox="0 0 22 22" preserveAspectRatio="none">
+                <path d="M 22 0 L 22 22 L 0 22 A 22 22 0 0 0 22 0 Z"></path>
+              </svg>
+            </div>
+            {/* Lower Concave Fillet */}
+            <div className="concave-scoop scoop-bottom">
+              <svg viewBox="0 0 22 22" preserveAspectRatio="none">
+                <path d="M 0 0 L 22 0 L 22 22 A 22 22 0 0 0 0 0 Z"></path>
+              </svg>
+            </div>
           </div>
-          {/* Lower Concave Fillet */}
-          <div className="concave-scoop scoop-bottom">
-            <svg viewBox="0 0 22 22" preserveAspectRatio="none">
-              <path d="M 0 0 L 22 0 L 22 22 A 22 22 0 0 0 0 0 Z"></path>
-            </svg>
-          </div>
-        </div>
+        )}
 
-        {/* Left Column: Shorter Boxes List */}
+        {/* Left Column: Shorter Boxes List (or empty state) */}
         <div className="left-list" role="listbox" aria-label="Announcement list">
-          {ANNOUNCEMENTS_DATA.items.map((item, index) => {
-            const isSelected = index === selectedIndex;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                className={`list-item-btn ${isSelected ? 'is-selected' : ''}`}
-                onClick={() => selectItem(index)}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className="item-icon-circle"
+          {items.length === 0 ? (
+            <div className="h-full flex flex-col justify-center items-center p-6 text-center bg-[#EFECE1] rounded-[22px] border border-dashed border-[#DDD7C5]">
+              <div className="w-10 h-10 rounded-full bg-[#E5DFCE] flex items-center justify-center text-[#7A7568] mb-2">
+                {ICONS.knot}
+              </div>
+              <p className="text-xs font-bold text-[#2E2E2E]">No Announcements</p>
+              <p className="text-[10px] text-[#7A7568] mt-1 leading-snug">
+                No Director or HOD announcements currently available.
+              </p>
+            </div>
+          ) : (
+            items.map((item, index) => {
+              const isSelected = index === selectedIndex;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  className={`list-item-btn ${isSelected ? 'is-selected' : ''}`}
+                  onClick={() => selectItem(index)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div
+                      className="item-icon-circle"
+                      style={{ backgroundColor: isSelected ? '#FFFFFF' : item.color }}
+                    >
+                      {ICONS[item.icon] || ICONS.knot}
+                    </div>
+                    <div className="truncate">
+                      <div className="text-[12.5px] font-bold text-[#1F1F1F] leading-tight truncate">
+                        {item.name}
+                      </div>
+                      <div
+                        className="text-[10px] font-medium mt-0.5 truncate transition-colors duration-300"
+                        style={{ color: isSelected ? item.mutedColor : '#6B6860' }}
+                      >
+                        {item.subtitle}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className="item-time-oval"
                     style={{ backgroundColor: isSelected ? '#FFFFFF' : item.color }}
                   >
-                    {ICONS[item.icon] || ICONS.knot}
-                  </div>
-                  <div className="truncate">
-                    <div className="text-[12.5px] font-bold text-[#1F1F1F] leading-tight truncate">
-                      {item.name}
-                    </div>
-                    <div
-                      className="text-[10px] font-medium mt-0.5 truncate transition-colors duration-300"
-                      style={{ color: isSelected ? item.mutedColor : '#6B6860' }}
-                    >
-                      {item.subtitle}
-                    </div>
-                  </div>
-                </div>
-                <span
-                  className="item-time-oval"
-                  style={{ backgroundColor: isSelected ? '#FFFFFF' : item.color }}
-                >
-                  {item.time}
-                </span>
-              </button>
-            );
-          })}
+                    {item.time}
+                  </span>
+                </button>
+              );
+            })
+          )}
         </div>
 
         {/* Right Column: Connected Details Panel */}
-        <section className="details-panel" aria-live="polite">
-          <div className={`details-content-inner ${isSwitching ? 'is-switching' : ''}`}>
-            {/* Top Identity & Badge Row */}
-            <div className="flex items-start justify-between gap-3 mb-2.5">
-              <div>
-                <h3 className="text-[15.5px] font-bold text-[#1E1E1E] underline decoration-[#1E1E1E]/80 underline-offset-[3px] leading-snug">
-                  {displayedItem.name}
-                </h3>
-                <p className="text-[11.5px] font-semibold text-[#2A2A2A] mt-0.5">
-                  {displayedItem.demographics}
-                </p>
+        <section
+          className="details-panel"
+          aria-live="polite"
+          style={items.length === 0 ? { backgroundColor: '#EFECE1' } : {}}
+        >
+          {items.length === 0 || !displayedItem ? (
+            <div className="h-full flex flex-col justify-center items-center text-center p-6">
+              <div className="w-12 h-12 rounded-full bg-[#E5DFCE] flex items-center justify-center text-[#7A7568] mb-3">
+                {ICONS.report}
+              </div>
+              <h3 className="text-sm font-bold text-[#2A2A2A]">Official Notice Board</h3>
+              <p className="text-xs text-[#7A7568] mt-1.5 max-w-[280px] leading-relaxed">
+                Only verified announcements published by the Director or Head of Department appear in this dashboard panel.
+              </p>
+            </div>
+          ) : (
+            <div className={`details-content-inner ${isSwitching ? 'is-switching' : ''}`}>
+              {/* Top Identity & Badge Row */}
+              <div className="flex items-start justify-between gap-3 mb-2.5">
+                <div>
+                  <h3 className="text-[15.5px] font-bold text-[#1E1E1E] underline decoration-[#1E1E1E]/80 underline-offset-[3px] leading-snug">
+                    {displayedItem.name}
+                  </h3>
+                  <p className="text-[11.5px] font-semibold text-[#2A2A2A] mt-0.5">
+                    {displayedItem.demographics}
+                  </p>
+                </div>
+
+                <span className="bg-white text-[#1E1E1E] text-[11px] font-bold tracking-tight px-3 py-1 rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.04)] whitespace-nowrap">
+                  {displayedItem.badgeCode}
+                </span>
               </div>
 
-              <span className="bg-white text-[#1E1E1E] text-[11px] font-bold tracking-tight px-3 py-1 rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.04)] whitespace-nowrap">
-                {displayedItem.badgeCode}
-              </span>
-            </div>
-
-            {/* Category Ovals Row */}
-            <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              {displayedItem.tags.map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="symptom-tag text-[#1E1E1E] text-[11px] font-semibold px-3 py-0.5 rounded-full cursor-default"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {/* Structured Metadata Rows */}
-            <div className="space-y-2 text-[11.5px] leading-snug">
-              {/* Row 1 */}
-              <div className="grid grid-cols-[98px_1fr] gap-2 items-baseline">
-                <span className="muted-label font-medium">{ANNOUNCEMENTS_DATA.labels[0]}</span>
-                <div className="text-[#1F1F1F] font-medium">
-                  <span>
-                    <span className="underline decoration-[#1F1F1F]/70 underline-offset-2 font-semibold">
-                      {displayedItem.checkedBy}
-                    </span>{' '}
-                    {displayedItem.checkedDate}
+              {/* Category Ovals Row */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                {displayedItem.tags.map((tag, idx) => (
+                  <span
+                    key={idx}
+                    className="symptom-tag text-[#1E1E1E] text-[11px] font-semibold px-3 py-0.5 rounded-full cursor-default"
+                  >
+                    {tag}
                   </span>
-                  <div className="mt-0.5">
-                    <span>{ANNOUNCEMENTS_DATA.subPrefix}</span>
-                    <button
-                      type="button"
-                      onClick={handlePrescriptionClick}
-                      className="text-[#2B6CB0] hover:text-[#1D4ED8] underline font-semibold transition-colors cursor-pointer"
-                    >
-                      {displayedItem.refCode}
-                    </button>
+                ))}
+              </div>
+
+              {/* Structured Metadata Rows */}
+              <div className="space-y-2 text-[11.5px] leading-snug">
+                {/* Row 1 */}
+                <div className="grid grid-cols-[98px_1fr] gap-2 items-baseline">
+                  <span className="muted-label font-medium">{PANEL_HEADERS.labels[0]}</span>
+                  <div className="text-[#1F1F1F] font-medium">
+                    <span>
+                      <span className="underline decoration-[#1F1F1F]/70 underline-offset-2 font-semibold">
+                        {displayedItem.checkedBy}
+                      </span>{' '}
+                      {displayedItem.checkedDate}
+                    </span>
+                    <div className="mt-0.5">
+                      <span>{PANEL_HEADERS.subPrefix}</span>
+                      <button
+                        type="button"
+                        onClick={handlePrescriptionClick}
+                        className="text-[#2B6CB0] hover:text-[#1D4ED8] underline font-semibold transition-colors cursor-pointer"
+                      >
+                        {displayedItem.refCode}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2 */}
+                <div className="grid grid-cols-[98px_1fr] gap-2 items-baseline">
+                  <span className="muted-label font-medium">{PANEL_HEADERS.labels[1]}</span>
+                  <p className="text-[#1F1F1F] font-medium m-0">
+                    {displayedItem.observation}
+                  </p>
+                </div>
+
+                {/* Row 3 */}
+                <div className="grid grid-cols-[98px_1fr] gap-2 items-baseline">
+                  <span className="muted-label font-medium">{PANEL_HEADERS.labels[2]}</span>
+                  <div className="text-[#1F1F1F] font-medium space-y-0.5">
+                    {displayedItem.prescriptions.map((line, idx) => (
+                      <p key={idx} className="m-0">
+                        {line}
+                      </p>
+                    ))}
                   </div>
                 </div>
               </div>
-
-              {/* Row 2 */}
-              <div className="grid grid-cols-[98px_1fr] gap-2 items-baseline">
-                <span className="muted-label font-medium">{ANNOUNCEMENTS_DATA.labels[1]}</span>
-                <p className="text-[#1F1F1F] font-medium m-0">
-                  {displayedItem.observation}
-                </p>
-              </div>
-
-              {/* Row 3 */}
-              <div className="grid grid-cols-[98px_1fr] gap-2 items-baseline">
-                <span className="muted-label font-medium">{ANNOUNCEMENTS_DATA.labels[2]}</span>
-                <div className="text-[#1F1F1F] font-medium space-y-0.5">
-                  {displayedItem.prescriptions.map((line, idx) => (
-                    <p key={idx} className="m-0">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              </div>
             </div>
-          </div>
+          )}
         </section>
       </div>
 

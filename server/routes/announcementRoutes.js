@@ -85,12 +85,13 @@ router.get('/', verifyFirebaseToken, async (req, res) => {
       });
     }
 
-    const { page, limit } = req.query;
+    const { page, limit, authorRole, authorRoles } = req.query;
 
     const result = await announcementService.getAnnouncementsForUser({
       callerUid,
       page,
-      limit
+      limit,
+      authorRoles: authorRole || authorRoles
     });
 
     return res.json({
@@ -99,6 +100,42 @@ router.get('/', verifyFirebaseToken, async (req, res) => {
     });
   } catch (error) {
     console.error('[AnnouncementRoutes] Fetch failed:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code || 'ANNOUNCEMENT_FETCH_FAILED',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/announcements/dashboard
+ * Retrieves up to 4 Director and HOD announcements for the dashboard panel.
+ * Strictly enforces server-side scoping and role filtering.
+ */
+router.get('/dashboard', verifyFirebaseToken, async (req, res) => {
+  try {
+    const callerUid = req.userId;
+    if (!callerUid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User identity could not be verified.'
+      });
+    }
+
+    const { limit = 4 } = req.query;
+    const result = await announcementService.getDashboardAnnouncements({
+      callerUid,
+      limit: parseInt(limit, 10) || 4
+    });
+
+    return res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('[AnnouncementRoutes] Fetch dashboard announcements failed:', error.message);
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({
       success: false,
