@@ -46,6 +46,18 @@ client_secret*.json
 # Temporary scratch scripts
 temp_*.js
 
+# Token files and auth caches
+token*.json
+*token*.json
+*.token
+*.token.json
+.firebase/
+.cache/
+*.bak
+*.orig
+*.tmp
+*.temp
+Thumbs.db
 
 .vercel
 

@@ -187,3 +187,54 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Completely hide scrollbars for Sangam announcement list while preserving smooth scrolling */
+.sangam-scrollable-list {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sangam-scrollable-list::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Announcement Detail Modal Opening, Closing & Window Transitions */
+@keyframes sangamBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sangamBackdropOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes sangamModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes sangamModalOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.975) translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sangam-modal-backdrop,
+  .sangam-modal-card {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

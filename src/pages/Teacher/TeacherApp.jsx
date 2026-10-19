@@ -13,10 +13,12 @@ import {
 } from './TeacherViews';
 import AcademicSpacesView from './AcademicSpacesView';
 import StudentListSectionView from './StudentListSectionView';
+import AnnouncementPage from './AnnouncementPage';
 import SettingsView from './SettingsView';
 import FacultyDriveView from './FacultyDriveView';
 import { auth } from '../../firebase/config';
 import { subscribeTeacherAllocations } from '../../services/attendanceService';
+import { postAnnouncement } from '../../services/announcementService';
 
 export default function TeacherApp({ userProfile, onLogout }) {
   const [activeTab, setActiveTabState] = useState('Dashboard');
@@ -28,6 +30,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
   const [allocations, setAllocations] = useState([]);
   const [isLoadingAllocations, setIsLoadingAllocations] = useState(true);
   const [fullscreenStudentGroup, setFullscreenStudentGroup] = useState(null);
+  const [fullscreenAnnouncementGroup, setFullscreenAnnouncementGroup] = useState(null);
 
   const setActiveTab = (tabId, handoffData = null) => {
     if (handoffData) {
@@ -68,6 +71,34 @@ export default function TeacherApp({ userProfile, onLogout }) {
     };
   }, [teacherUid, institution]);
 
+  useEffect(() => {
+    window.__SANGAM_PUBLISH_ANNOUNCEMENT__ = async (newAnnouncement) => {
+      const targetGroup = fullscreenAnnouncementGroup;
+      const path = targetGroup?.path || [];
+      const department = path[1] || userProfile?.department || 'Computer Science and Engineering';
+      const year = path[2] || '1st Year';
+      const section = path[3] || 'Sec B';
+
+      try {
+        await postAnnouncement({
+          title: newAnnouncement.subject,
+          content: newAnnouncement.message,
+          scopeType: 'section',
+          department,
+          year,
+          section,
+          priority: newAnnouncement.status === 'Important' ? 'urgent' : 'normal',
+          category: (newAnnouncement.category || 'general').toLowerCase()
+        });
+      } catch (err) {
+        console.warn('[TeacherApp] Backend announcement publish notice:', err.message);
+      }
+    };
+    return () => {
+      delete window.__SANGAM_PUBLISH_ANNOUNCEMENT__;
+    };
+  }, [fullscreenAnnouncementGroup, userProfile]);
+
   const generalNavItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },
     { id: 'Schedule', label: 'Schedule', icon: <Icons.Schedule /> },
@@ -98,6 +129,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
             onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
+            onOpenAnnouncement={(group) => setFullscreenAnnouncementGroup(group)}
           />
         );
       case 'Academic Spaces':
@@ -108,6 +140,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
             isLoadingAllocations={isLoadingAllocations}
             onNavigate={handleNavigate}
             onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
+            onOpenAnnouncement={(group) => setFullscreenAnnouncementGroup(group)}
             studyMaterialHandoff={studyMaterialHandoff}
             onClearHandoff={() => setStudyMaterialHandoff(null)}
           />
@@ -203,8 +236,19 @@ export default function TeacherApp({ userProfile, onLogout }) {
         </div>
       )}
 
+      {fullscreenAnnouncementGroup && (
+        <div className="fixed inset-0 z-[9999] bg-[#F8F3E6] overflow-hidden animate-fade-in">
+          <AnnouncementPage
+            group={fullscreenAnnouncementGroup}
+            onBack={() => setFullscreenAnnouncementGroup(null)}
+            userProfile={userProfile}
+            allocations={allocations}
+          />
+        </div>
+      )}
+
       <div
-        className={`flex h-screen h-[100dvh] bg-[#F8F3E6] font-sans text-[#171717] overflow-hidden selection:bg-[#F5E5EE] selection:text-[#171717] ${fullscreenStudentGroup ? 'hidden' : ''}`}
+        className={`flex h-screen h-[100dvh] bg-[#F8F3E6] font-sans text-[#171717] overflow-hidden selection:bg-[#F5E5EE] selection:text-[#171717] ${(fullscreenStudentGroup || fullscreenAnnouncementGroup) ? 'hidden' : ''}`}
         style={{
           '--theme-primary': '#171717',
           '--theme-bg': '#F5E5EE',
