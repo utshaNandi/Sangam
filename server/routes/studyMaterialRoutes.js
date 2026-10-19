@@ -157,6 +157,172 @@ router.post('/upload', verifyFirebaseToken, handleStudyMaterialFileUpload, handl
 router.post('/', verifyFirebaseToken, handleStudyMaterialFileUpload, handleUploadStudyMaterial);
 
 /**
+ * GET /api/study-materials/drive/files
+ * Lists active files in the teacher's subject folder with publication status.
+ * Protected by verifyFirebaseToken.
+ */
+router.get('/drive/files', verifyFirebaseToken, async (req, res) => {
+  try {
+    const callerUid = req.userId;
+    if (!callerUid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User identity could not be verified.'
+      });
+    }
+
+    const { subjectId } = req.query;
+    if (!subjectId) {
+      return res.status(400).json({
+        success: false,
+        code: 'MISSING_SUBJECT',
+        error: 'subjectId query parameter is required.'
+      });
+    }
+
+    const result = await studyMaterialService.listDriveFilesForSubject({
+      callerUid,
+      subjectId
+    });
+
+    return res.json({
+      success: true,
+      folderId: result.folderId,
+      folderName: result.folderName,
+      files: result.files
+    });
+  } catch (error) {
+    console.error('[StudyMaterialRoutes] Failed to list Drive files:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code || 'DRIVE_LIST_FAILED',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/study-materials/drive/upload
+ * Uploads a draft PDF directly to the teacher's Google Drive subject folder.
+ * Does NOT publish or create a study_materials document.
+ * Protected by verifyFirebaseToken.
+ */
+router.post('/drive/upload', verifyFirebaseToken, handleStudyMaterialFileUpload, async (req, res) => {
+  const file = req.file;
+  if (!file) {
+    return res.status(400).json({
+      success: false,
+      code: 'MISSING_FILE',
+      error: 'Missing file: PDF document is required in form-data field "file".'
+    });
+  }
+
+  try {
+    if (file.size === 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'EMPTY_FILE',
+        error: 'File is empty (0 bytes).'
+      });
+    }
+
+    const fileBuffer = await fs.promises.readFile(file.path);
+    const callerUid = req.userId;
+    const callerEmail = req.userEmail;
+    const { subjectId } = req.body || {};
+
+    const uploaded = await studyMaterialService.uploadToDriveSubjectFolder({
+      callerUid,
+      callerEmail,
+      fileBuffer,
+      originalFileName: file.originalname,
+      fileSize: file.size,
+      mimeType: file.mimetype || 'application/pdf',
+      subjectId
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Draft file uploaded to Google Drive successfully.',
+      file: uploaded
+    });
+  } catch (error) {
+    console.error('[StudyMaterialRoutes] Drive draft upload failed:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code || 'UPLOAD_FAILED',
+      error: error.message
+    });
+  } finally {
+    if (file && file.path && fs.existsSync(file.path)) {
+      try {
+        fs.unlinkSync(file.path);
+      } catch (cleanupErr) {
+        console.warn('[StudyMaterialRoutes] Failed to clean up temp file:', file.path, cleanupErr.message);
+      }
+    }
+  }
+});
+
+/**
+ * POST /api/study-materials/publish-from-drive
+ * Publishes an existing Google Drive file as a study material without duplicating it.
+ * Protected by verifyFirebaseToken.
+ */
+router.post('/publish-from-drive', verifyFirebaseToken, async (req, res) => {
+  try {
+    const callerUid = req.userId;
+    if (!callerUid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User identity could not be verified.'
+      });
+    }
+
+    const callerEmail = req.userEmail;
+    const {
+      subjectId,
+      driveFileId,
+      title,
+      scope,
+      section,
+      category,
+      description,
+      isYearWide
+    } = req.body || {};
+
+    const material = await studyMaterialService.publishFromDriveFile({
+      callerUid,
+      callerEmail,
+      subjectId,
+      driveFileId,
+      title,
+      scope,
+      section,
+      category,
+      description,
+      isYearWide
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Drive file published as study material successfully.',
+      material
+    });
+  } catch (error) {
+    console.error('[StudyMaterialRoutes] Publish from Drive failed:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code || 'PUBLISH_FROM_DRIVE_FAILED',
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/study-materials
  * Retrieves study materials matching the authenticated caller's academic scope and role permissions.
  * Protected by verifyFirebaseToken.
@@ -193,6 +359,86 @@ router.get('/', verifyFirebaseToken, async (req, res) => {
     return res.status(statusCode).json({
       success: false,
       code: error.code || 'MATERIALS_FETCH_FAILED',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/study-materials/history
+ * Retrieves full study material history and archive for authorized faculty and directors.
+ * Protected by verifyFirebaseToken.
+ */
+router.get('/history', verifyFirebaseToken, async (req, res) => {
+  try {
+    const callerUid = req.userId;
+    if (!callerUid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User identity could not be verified.'
+      });
+    }
+
+    const { subjectId, department, year, section } = req.query;
+
+    const history = await studyMaterialService.getStudyMaterialHistory({
+      callerUid,
+      subjectId,
+      department,
+      year,
+      section
+    });
+
+    return res.json({
+      success: true,
+      history
+    });
+  } catch (error) {
+    console.error('[StudyMaterialRoutes] Failed to fetch material history:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code || 'HISTORY_FETCH_FAILED',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/study-materials/student-history
+ * Retrieves sanitized unavailable/archived study materials for authenticated students.
+ * Protected by verifyFirebaseToken.
+ */
+router.get('/student-history', verifyFirebaseToken, async (req, res) => {
+  try {
+    const callerUid = req.userId;
+    if (!callerUid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: User identity could not be verified.'
+      });
+    }
+
+    const { subjectId, department, year, section } = req.query;
+
+    const history = await studyMaterialService.getStudentStudyMaterialHistory({
+      callerUid,
+      subjectId,
+      department,
+      year,
+      section
+    });
+
+    return res.json({
+      success: true,
+      history
+    });
+  } catch (error) {
+    console.error('[StudyMaterialRoutes] Failed to fetch student material history:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: error.code || 'STUDENT_HISTORY_FETCH_FAILED',
       error: error.message
     });
   }

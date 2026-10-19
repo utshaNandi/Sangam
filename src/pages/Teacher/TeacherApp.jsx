@@ -14,11 +14,13 @@ import {
 import AcademicSpacesView from './AcademicSpacesView';
 import StudentListSectionView from './StudentListSectionView';
 import SettingsView from './SettingsView';
+import FacultyDriveView from './FacultyDriveView';
 import { auth } from '../../firebase/config';
 import { subscribeTeacherAllocations } from '../../services/attendanceService';
 
 export default function TeacherApp({ userProfile, onLogout }) {
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [activeTab, setActiveTabState] = useState('Dashboard');
+  const [studyMaterialHandoff, setStudyMaterialHandoff] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +28,14 @@ export default function TeacherApp({ userProfile, onLogout }) {
   const [allocations, setAllocations] = useState([]);
   const [isLoadingAllocations, setIsLoadingAllocations] = useState(true);
   const [fullscreenStudentGroup, setFullscreenStudentGroup] = useState(null);
+
+  const setActiveTab = (tabId, handoffData = null) => {
+    if (handoffData) {
+      setStudyMaterialHandoff(handoffData);
+    }
+    setActiveTabState(tabId);
+  };
+  const handleNavigate = setActiveTab;
 
   const teacherUid = userProfile?.uid || auth?.currentUser?.uid || '';
   const institution = userProfile?.institution || '';
@@ -69,6 +79,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
     { id: 'Attendance', label: 'Attendance', icon: <Icons.Attendance /> },
     { id: 'Grades', label: 'Grades / Marks', icon: <Icons.Grades /> },
     { id: 'Announcements', label: 'Announcements', icon: <Icons.Announcements /> },
+    { id: 'Drive', label: 'Drive', icon: <Icons.Drive /> },
   ];
 
   const bottomNavItems = [
@@ -82,7 +93,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
       case 'Dashboard':
         return (
           <DashboardHome
-            onNavigate={setActiveTab}
+            onNavigate={handleNavigate}
             userProfile={userProfile}
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
@@ -95,8 +106,10 @@ export default function TeacherApp({ userProfile, onLogout }) {
             userProfile={userProfile}
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
-            onNavigate={setActiveTab}
+            onNavigate={handleNavigate}
             onOpenStudentList={(group) => setFullscreenStudentGroup(group)}
+            studyMaterialHandoff={studyMaterialHandoff}
+            onClearHandoff={() => setStudyMaterialHandoff(null)}
           />
         );
       case 'My Classes':
@@ -137,6 +150,15 @@ export default function TeacherApp({ userProfile, onLogout }) {
             userProfile={userProfile}
             allocations={allocations}
             isLoadingAllocations={isLoadingAllocations}
+          />
+        );
+      case 'Drive':
+        return (
+          <FacultyDriveView
+            userProfile={userProfile}
+            allocations={allocations}
+            isLoadingAllocations={isLoadingAllocations}
+            onNavigate={setActiveTab}
           />
         );
       case 'Schedule':

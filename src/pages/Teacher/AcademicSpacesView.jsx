@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Icons } from './Icons';
 import { AssignmentsView, StudentsListView, AttendanceView } from './TeacherViews';
 import StudentListSectionView from './StudentListSectionView';
@@ -8,11 +8,32 @@ import StudyMaterialView from './StudyMaterialView';
 
 export const buildTree = buildAcademicHierarchyTree;
 
-export default function AcademicSpacesView({ userProfile, allocations = [], isLoadingAllocations = false, embedded = false, onNavigate, onOpenStudentList }) {
+export default function AcademicSpacesView({
+  userProfile,
+  allocations = [],
+  isLoadingAllocations = false,
+  embedded = false,
+  onNavigate,
+  onOpenStudentList,
+  studyMaterialHandoff = null,
+  onClearHandoff = null
+}) {
   // Strictly rely on real allocations passed from backend
   const effectiveAllocations = Array.isArray(allocations) ? allocations : [];
   const tree = buildAcademicHierarchyTree(effectiveAllocations, userProfile?.institution || 'UEMK');
   const [selectedGroup, setSelectedGroup] = useState(null);
+
+  useEffect(() => {
+    if (studyMaterialHandoff?.department && studyMaterialHandoff?.year) {
+      const inst = userProfile?.institution || 'UEMK';
+      setSelectedGroup({
+        name: "Study Material",
+        isStudyMaterial: true,
+        path: [inst, studyMaterialHandoff.department, studyMaterialHandoff.year],
+        scope: "Common to all sections"
+      });
+    }
+  }, [studyMaterialHandoff, userProfile?.institution]);
 
   const handleSelectGroup = (group) => {
     if (group?.isStudents && onOpenStudentList) {
@@ -174,7 +195,15 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
             {selectedGroup.isAssignment ? (
               <AssignmentsView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
             ) : selectedGroup.isStudyMaterial ? (
-              <StudyMaterialView group={selectedGroup} userProfile={userProfile} embedded={true} allocations={effectiveAllocations} onNavigate={onNavigate} />
+              <StudyMaterialView
+                group={selectedGroup}
+                userProfile={userProfile}
+                embedded={true}
+                allocations={effectiveAllocations}
+                onNavigate={onNavigate}
+                studyMaterialHandoff={studyMaterialHandoff}
+                onClearHandoff={onClearHandoff}
+              />
             ) : selectedGroup.isAttendance ? (
               <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
             ) : (
@@ -191,7 +220,15 @@ export default function AcademicSpacesView({ userProfile, allocations = [], isLo
         {selectedGroup.isAssignment ? (
           <AssignmentsView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
         ) : selectedGroup.isStudyMaterial ? (
-          <StudyMaterialView group={selectedGroup} userProfile={userProfile} embedded={false} allocations={effectiveAllocations} onNavigate={onNavigate} />
+          <StudyMaterialView
+            group={selectedGroup}
+            userProfile={userProfile}
+            embedded={false}
+            allocations={effectiveAllocations}
+            onNavigate={onNavigate}
+            studyMaterialHandoff={studyMaterialHandoff}
+            onClearHandoff={onClearHandoff}
+          />
         ) : selectedGroup.isAttendance ? (
           <AttendanceView group={selectedGroup} userProfile={userProfile} allocations={effectiveAllocations} />
         ) : (

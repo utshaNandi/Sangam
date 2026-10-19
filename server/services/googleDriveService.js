@@ -384,6 +384,25 @@ export class GoogleDriveService {
   }
 
   /**
+   * Test-only helper to inject a mock Drive API adapter.
+   * Strictly forbidden and fails closed in production.
+   */
+  setTestDriveApi(mockApi) {
+    const isTestEnv = (process.env.NODE_ENV === 'test' || process.env.TEST_MODE === 'true');
+    if (!isTestEnv) {
+      throw new Error('SECURITY VIOLATION: setTestDriveApi can only be called in test environment.');
+    }
+    this.customDriveApi = mockApi;
+  }
+
+  /**
+   * Alias for setTestDriveApi.
+   */
+  setCustomDriveApi(mockApi) {
+    return this.setTestDriveApi(mockApi);
+  }
+
+  /**
    * Saves or updates the teacher's encrypted Google Drive integration in Firestore.
    *
    * @param {string} teacherUid - The authenticated teacher UID.
@@ -758,6 +777,346 @@ export class GoogleDriveService {
   }
 
   /**
+   * Creates a private subfolder inside a specified parent Google Drive folder.
+   * Enforces zero public permissions and private least privilege.
+   *
+   * @param {string} parentFolderId - ID of parent folder (e.g. 'Sangam Coursework' root folder).
+   * @param {string} folderName - Name of the subfolder.
+   * @param {string} accessToken - Valid Google access token.
+   * @param {string} [description=''] - Optional description.
+   * @returns {Promise<{ id: string, name: string, parents: string[] }>}
+   */
+  async createSubfolder(parentFolderId, folderName, accessToken, description = '') {
+    if (!parentFolderId || !folderName || !accessToken) {
+      throw new Error('parentFolderId, folderName, and accessToken are required to create a subfolder.');
+    }
+
+    const targetName = folderName.trim();
+
+    if (this.customDriveApi && typeof this.customDriveApi.createSubfolder === 'function') {
+      return await this.customDriveApi.createSubfolder(parentFolderId, targetName, accessToken, description);
+    }
+
+    if (this.customDriveApi && typeof this.customDriveApi.createFolder === 'function') {
+      return await this.customDriveApi.createFolder(targetName, accessToken, parentFolderId);
+    }
+
+    const url = 'https://www.googleapis.com/drive/v3/files?fields=id,name,mimeType,trashed,parents';
+    const body = {
+      name: targetName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentFolderId],
+      description: description || `Sangam Coursework Folder: ${targetName}`
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      if (errText.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT') || errText.includes('insufficient authentication scopes')) {
+        const scopeErr = new Error(
+          'Google Drive access denied: Insufficient permission scopes. Please reconnect your Google Drive account, ensuring you check the box to allow Sangam to access Google Drive files.'
+        );
+        scopeErr.statusCode = 403;
+        scopeErr.code = 'ACCESS_TOKEN_SCOPE_INSUFFICIENT';
+        throw scopeErr;
+      }
+      throw new Error(`Failed to create Google Drive subfolder (${res.status}): ${errText}`);
+    }
+
+    const data = await res.json();
+    if (!data.id) {
+      throw new Error('Google Drive API did not return a valid folder ID for subfolder.');
+    }
+
+    return {
+      id: data.id,
+      name: data.name || targetName,
+      parents: data.parents || [parentFolderId]
+    };
+  }
+
+  /**
+   * Searches for an existing, non-trashed folder by exact name inside a parent folder.
+   * Escapes query parameters safely to prevent query injection.
+   *
+   * @param {string} parentFolderId - ID of parent folder.
+   * @param {string} folderName - Exact folder name to match.
+   * @param {string} accessToken - Valid Google access token.
+   * @returns {Promise<{ id: string, name: string, exists: boolean }|null>}
+   */
+  async findFolderByName(parentFolderId, folderName, accessToken) {
+    if (!parentFolderId || !folderName || !accessToken) {
+      return null;
+    }
+
+    const targetName = folderName.trim();
+
+    if (this.customDriveApi) {
+      if (typeof this.customDriveApi.findFolderByName === 'function') {
+        return await this.customDriveApi.findFolderByName(parentFolderId, targetName, accessToken);
+      }
+      return null;
+    }
+
+    const escapedParent = String(parentFolderId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const escapedName = String(targetName).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const q = `'${escapedParent}' in parents and mimeType = 'application/vnd.google-apps.folder' and name = '${escapedName}' and trashed = false`;
+
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,trashed)&pageSize=10`;
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[GoogleDriveService] findFolderByName error:', res.status, errText);
+      return null;
+    }
+
+    const data = await res.json();
+    const files = data.files || [];
+    const match = files.find(f => f.name === targetName && !f.trashed);
+    if (!match) {
+      return null;
+    }
+
+    return {
+      id: match.id,
+      name: match.name,
+      exists: true
+    };
+  }
+
+  /**
+   * Lists active, non-trashed files in a specified Google Drive folder.
+   * Returns metadata without exposing private links or credentials.
+   *
+   * @param {string} folderId - Target Google Drive folder ID.
+   * @param {string} accessToken - Valid Google access token.
+   * @returns {Promise<Array<{ id: string, name: string, mimeType: string, size: number, createdTime: string, modifiedTime: string }>>}
+   */
+  async listFilesInFolder(folderId, accessToken) {
+    if (!folderId || !accessToken) {
+      return [];
+    }
+
+    if (this.customDriveApi) {
+      if (typeof this.customDriveApi.listFilesInFolder === 'function') {
+        return await this.customDriveApi.listFilesInFolder(folderId, accessToken);
+      }
+      return [];
+    }
+
+    const escapedFolder = String(folderId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const q = `'${escapedFolder}' in parents and trashed = false`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,createdTime,modifiedTime)&orderBy=modifiedTime desc&pageSize=100`;
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[GoogleDriveService] listFilesInFolder error:', res.status, errText);
+      return [];
+    }
+
+    const data = await res.json();
+    return (data.files || []).map(f => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      size: parseInt(f.size || 0, 10),
+      createdTime: f.createdTime,
+      modifiedTime: f.modifiedTime
+    }));
+  }
+
+  /**
+   * Fetches metadata for a single Google Drive file or folder.
+   *
+   * @param {string} fileId - Google Drive file or folder ID.
+   * @param {string} accessToken - Valid Google access token.
+   * @returns {Promise<{ id: string, name: string, mimeType: string, size: number, trashed: boolean, exists: boolean, parents: string[], createdTime: string, modifiedTime: string }|null>}
+   */
+  async getFileMetadata(fileId, accessToken) {
+    if (!fileId || !accessToken) {
+      return null;
+    }
+
+    if (this.customDriveApi) {
+      if (typeof this.customDriveApi.getFileMetadata === 'function') {
+        return await this.customDriveApi.getFileMetadata(fileId, accessToken);
+      }
+      // Check test doubles that store in files or uploadedFiles Map
+      if (this.customDriveApi.files instanceof Map) {
+        if (this.customDriveApi.files.has(fileId)) {
+          const f = this.customDriveApi.files.get(fileId);
+          return {
+            id: f.id || fileId,
+            name: f.name || 'Mock File',
+            mimeType: f.mimeType || 'application/pdf',
+            size: f.size || (f.content ? f.content.length : 0),
+            trashed: Boolean(f.trashed),
+            exists: !f.trashed,
+            parents: f.parents || [],
+            createdTime: f.createdTime || new Date().toISOString(),
+            modifiedTime: f.modifiedTime || new Date().toISOString()
+          };
+        }
+        return null;
+      }
+      if (this.customDriveApi.uploadedFiles instanceof Map) {
+        if (this.customDriveApi.uploadedFiles.has(fileId)) {
+          const f = this.customDriveApi.uploadedFiles.get(fileId);
+          return {
+            id: f.id || fileId,
+            name: f.name || 'Mock File',
+            mimeType: f.mimeType || 'application/pdf',
+            size: f.size || (f.content ? f.content.length : 0),
+            trashed: Boolean(f.trashed),
+            exists: !f.trashed,
+            parents: f.parents || [],
+            createdTime: f.createdTime || new Date().toISOString(),
+            modifiedTime: f.modifiedTime || new Date().toISOString()
+          };
+        }
+        return null;
+      }
+      return {
+        id: fileId,
+        name: 'Mock Folder',
+        mimeType: 'application/vnd.google-apps.folder',
+        size: 0,
+        trashed: false,
+        exists: true,
+        parents: [],
+        createdTime: new Date().toISOString(),
+        modifiedTime: new Date().toISOString()
+      };
+    }
+
+    const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size,trashed,parents,createdTime,modifiedTime`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (res.status === 404) {
+      return null;
+    }
+
+    if (res.status === 401) {
+      const err = new Error('Google authorization has been revoked or expired. Please reconnect your account.');
+      err.statusCode = 401;
+      err.code = 'GOOGLE_AUTH_REVOKED';
+      throw err;
+    }
+
+    if (res.status === 403) {
+      const errText = await res.text();
+      if (errText.includes('rateLimitExceeded') || errText.includes('userRateLimitExceeded')) {
+        const err = new Error('Google Drive API rate limit exceeded. Please try again later.');
+        err.statusCode = 503;
+        err.code = 'DRIVE_TEMPORARY_ERROR';
+        err.isTemporary = true;
+        throw err;
+      }
+      const err = new Error(`Google Drive permission denied or revoked (${res.status}): ${errText}`);
+      err.statusCode = 403;
+      err.code = 'GOOGLE_AUTH_REVOKED';
+      throw err;
+    }
+
+    if (res.status === 429 || res.status >= 500) {
+      const errText = await res.text();
+      const err = new Error(`Google Drive service is temporarily unavailable (${res.status}): ${errText}`);
+      err.statusCode = 503;
+      err.code = 'DRIVE_TEMPORARY_ERROR';
+      err.isTemporary = true;
+      throw err;
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[GoogleDriveService] getFileMetadata error:', res.status, errText);
+      const err = new Error(`Google Drive error (${res.status}): ${errText}`);
+      err.statusCode = res.status;
+      throw err;
+    }
+
+    const file = await res.json();
+    return {
+      id: file.id,
+      name: file.name,
+      mimeType: file.mimeType,
+      size: parseInt(file.size || 0, 10),
+      trashed: Boolean(file.trashed),
+      exists: !file.trashed,
+      parents: file.parents || [],
+      createdTime: file.createdTime,
+      modifiedTime: file.modifiedTime
+    };
+  }
+
+  /**
+   * Updates a Google Drive file or folder's display name without altering its ID.
+   * Used for safe subject folder renaming.
+   *
+   * @param {string} fileId - Google Drive file or folder ID.
+   * @param {string} newName - New name.
+   * @param {string} accessToken - Valid Google access token.
+   * @returns {Promise<{ id: string, name: string }>}
+   */
+  async updateDriveFileName(fileId, newName, accessToken) {
+    if (!fileId || !newName || !accessToken) {
+      throw new Error('fileId, newName, and accessToken are required.');
+    }
+
+    const targetName = newName.trim();
+
+    if (this.customDriveApi) {
+      if (typeof this.customDriveApi.updateFileName === 'function') {
+        return await this.customDriveApi.updateFileName(fileId, targetName, accessToken);
+      }
+      return { id: fileId, name: targetName };
+    }
+
+    const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: targetName })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[GoogleDriveService] updateDriveFileName error:', res.status, errText);
+      throw new Error(`Failed to update Drive file name: ${errText}`);
+    }
+
+    return await res.json();
+  }
+
+  /**
    * Idempotently retrieves or creates the teacher's private 'Sangam Coursework' root folder.
    * Coordinates across concurrent requests and instances to prevent duplicate folders.
    *
@@ -792,14 +1151,15 @@ export class GoogleDriveService {
         }
 
         // 2. If rootFolderId already exists, verify usability with provider
-        if (record.rootFolderId && typeof record.rootFolderId === 'string') {
+        const existingRootId = record.rootFolderId || record.courseworkFolderId;
+        if (existingRootId && typeof existingRootId === 'string') {
           const accessToken = await this.getValidAccessToken(teacherUid, encryptionKey);
           try {
-            const verification = await this.verifyFolder(record.rootFolderId, accessToken);
+            const verification = await this.verifyFolder(existingRootId, accessToken);
             if (verification.exists) {
               return {
-                id: record.rootFolderId,
-                name: verification.name || record.rootFolderName || 'Sangam Coursework'
+                id: existingRootId,
+                name: verification.name || record.rootFolderName || record.courseworkFolderName || 'Sangam Coursework'
               };
             }
           } catch (verifyErr) {
@@ -1910,18 +2270,44 @@ export class GoogleDriveService {
       throw new Error('driveFileId and accessToken are required for file download.');
     }
 
-    if (this.customDriveApi && typeof this.customDriveApi.downloadFile === 'function') {
-      const res = await this.customDriveApi.downloadFile(driveFileId, accessToken);
-      if (Buffer.isBuffer(res)) {
-        return res;
+    if (this.customDriveApi) {
+      if (typeof this.customDriveApi.downloadFile === 'function') {
+        const res = await this.customDriveApi.downloadFile(driveFileId, accessToken);
+        if (Buffer.isBuffer(res)) {
+          return res;
+        }
+        if (res && res.data && Buffer.isBuffer(res.data)) {
+          return res.data;
+        }
+        if (res && typeof res === 'string') {
+          return Buffer.from(res);
+        }
+        return Buffer.from(res || '');
       }
-      if (res && res.data && Buffer.isBuffer(res.data)) {
-        return res.data;
+
+      let fileObj = null;
+      if (this.customDriveApi.files instanceof Map && this.customDriveApi.files.has(driveFileId)) {
+        fileObj = this.customDriveApi.files.get(driveFileId);
+      } else if (this.customDriveApi.uploadedFiles instanceof Map && this.customDriveApi.uploadedFiles.has(driveFileId)) {
+        fileObj = this.customDriveApi.uploadedFiles.get(driveFileId);
       }
-      if (res && typeof res === 'string') {
-        return Buffer.from(res);
+
+      if (fileObj) {
+        if (fileObj.trashed) {
+          const err = new Error(`File '${driveFileId}' is trashed in Google Drive.`);
+          err.statusCode = 410;
+          err.code = 'FILE_TRASHED';
+          throw err;
+        }
+        return fileObj.content || Buffer.from('Mock PDF Content');
       }
-      return Buffer.from(res || '');
+
+      if ((this.customDriveApi.files instanceof Map) || (this.customDriveApi.uploadedFiles instanceof Map)) {
+        const notFoundErr = new Error(`File '${driveFileId}' not found in Google Drive.`);
+        notFoundErr.statusCode = 404;
+        notFoundErr.code = 'FILE_NOT_FOUND';
+        throw notFoundErr;
+      }
     }
 
     const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(driveFileId)}?alt=media`;
@@ -1937,6 +2323,15 @@ export class GoogleDriveService {
       notFoundErr.statusCode = 404;
       notFoundErr.code = 'FILE_NOT_FOUND';
       throw notFoundErr;
+    }
+
+    if (res.status === 429 || res.status >= 500) {
+      const errText = await res.text();
+      const err = new Error(`Google Drive download is temporarily unavailable (${res.status}): ${errText}`);
+      err.statusCode = 503;
+      err.code = 'DRIVE_TEMPORARY_ERROR';
+      err.isTemporary = true;
+      throw err;
     }
 
     if (!res.ok) {

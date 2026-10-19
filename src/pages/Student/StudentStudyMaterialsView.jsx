@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Icons } from '../Teacher/Icons';
 import {
   fetchStudyMaterials,
+  fetchStudentStudyMaterialHistory,
   downloadStudyMaterialFile
 } from '../../services/studyMaterialService.js';
 
@@ -56,6 +57,33 @@ export default function StudentStudyMaterialsView({ userProfile }) {
   const [downloadError, setDownloadError] = useState(null);
   const [downloadSuccess, setDownloadSuccess] = useState(null);
 
+  // View Mode: 'active' (Active Coursework) | 'archive' (Course Archive)
+  const [activeTab, setActiveTab] = useState('active');
+  const [archiveMaterials, setArchiveMaterials] = useState([]);
+  const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+
+  // Load unavailable historical materials for student's section/year
+  const loadArchiveMaterials = async (showLoading = true) => {
+    if (!hasAcademicPlacement) {
+      setArchiveMaterials([]);
+      return;
+    }
+    if (showLoading) setIsLoadingArchive(true);
+    try {
+      const fetched = await fetchStudentStudyMaterialHistory({
+        department,
+        year,
+        section
+      });
+      setArchiveMaterials(fetched || []);
+    } catch (err) {
+      console.warn('[StudentStudyMaterialsView] Failed to fetch archive:', err.message);
+      setArchiveMaterials([]);
+    } finally {
+      if (showLoading) setIsLoadingArchive(false);
+    }
+  };
+
   // Load published study materials for the student's scope
   const loadMaterials = async () => {
     if (!hasAcademicPlacement) {
@@ -79,6 +107,9 @@ export default function StudentStudyMaterialsView({ userProfile }) {
       // Strict client-side safeguard: Only show published materials
       const publishedOnly = (fetched || []).filter(m => m.isPublished === true);
       setMaterials(publishedOnly);
+
+      // Preload archive records in background
+      loadArchiveMaterials(false);
     } catch (err) {
       console.warn('[StudentStudyMaterialsView] Failed to fetch materials:', err.message);
       setLoadError(err.message || 'Failed to load coursework study materials. Please check your network connection.');
@@ -146,6 +177,36 @@ export default function StudentStudyMaterialsView({ userProfile }) {
     return list;
   }, [materials, activeSubjectId, activeCategory, searchQuery]);
 
+  // Filter archive materials based on search, category, and subject
+  const filteredArchiveMaterials = useMemo(() => {
+    let list = archiveMaterials;
+
+    if (activeSubjectId !== 'ALL') {
+      list = list.filter(m => (m.subjectId || m.subjectCode || 'general') === activeSubjectId);
+    }
+
+    if (activeCategory !== 'All') {
+      list = list.filter(m => m.category === activeCategory);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(m => {
+        return (
+          (m.title || '').toLowerCase().includes(q) ||
+          (m.subjectName || '').toLowerCase().includes(q) ||
+          (m.subjectCode || '').toLowerCase().includes(q) ||
+          (m.teacherName || '').toLowerCase().includes(q) ||
+          (m.fileName || '').toLowerCase().includes(q) ||
+          (m.description || '').toLowerCase().includes(q) ||
+          (m.unavailabilityReason || '').toLowerCase().includes(q)
+        );
+      });
+    }
+
+    return list;
+  }, [archiveMaterials, activeSubjectId, activeCategory, searchQuery]);
+
   // Group filtered materials by subject for structured browsing
   const groupedBySubject = useMemo(() => {
     const groups = new Map();
@@ -191,7 +252,11 @@ export default function StudentStudyMaterialsView({ userProfile }) {
         // Immediately remove from client state so student doesn't see outdated item
         setMaterials(prev => prev.filter(m => m.id !== material.id));
       } else if (err.code === 'FILE_NOT_FOUND' || err.statusCode === 404) {
-        setDownloadError(`The file for "${material.title}" could not be located in Google Drive.`);
+        setDownloadError(`The file for "${material.title}" is no longer available in Google Drive.`);
+        setMaterials(prev => prev.filter(m => m.id !== material.id));
+      } else if (err.code === 'FILE_TRASHED' || err.statusCode === 410) {
+        setDownloadError(`The file for "${material.title}" is in Google Drive trash and cannot be accessed.`);
+        setMaterials(prev => prev.filter(m => m.id !== material.id));
       } else {
         setDownloadError(err.message || `Failed to download "${material.title}". Please try again.`);
       }
@@ -247,18 +312,81 @@ export default function StudentStudyMaterialsView({ userProfile }) {
         </div>
       )}
 
+      {/* Navigation Subtabs: Active Coursework vs Course Archive */}
+      <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-100 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setActiveTab('active')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            activeTab === 'active'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <span>Active Coursework</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+            activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {materials.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('archive');
+            loadArchiveMaterials(true);
+          }}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            activeTab === 'archive'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+          }`}
+        >
+          <Icons.Archive />
+          <span>Course Archive</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+            activeTab === 'archive' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+          }`}>
+            {archiveMaterials.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Course Archive Banner */}
+      {activeTab === 'archive' && (
+        <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl text-xs text-amber-900 flex items-start gap-3 shadow-xs animate-fade-in">
+          <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 font-bold">
+            <Icons.Archive />
+          </div>
+          <div>
+            <p className="font-extrabold text-amber-950">Coursework History & Inactive Archive</p>
+            <p className="mt-1 leading-relaxed text-amber-800">
+              This archive preserves records of coursework materials previously published for your section or academic year that have become unavailable or removed from Google Drive.
+              In accordance with Google Drive access policies, downloads and previews for unavailable files are disabled.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header and Search Bar */}
       <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-[0_2px_20px_rgba(0,0,0,0.02)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight">Coursework Study Materials</h3>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                {activeTab === 'archive' ? 'Course Archive' : 'Coursework Study Materials'}
+              </h3>
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-theme-bg text-theme-primary">
-                {materials.length} {materials.length === 1 ? 'Resource' : 'Resources'}
+                {activeTab === 'archive'
+                  ? `${archiveMaterials.length} Archived`
+                  : `${materials.length} ${materials.length === 1 ? 'Resource' : 'Resources'}`}
               </span>
             </div>
             <p className="text-xs font-medium text-slate-500 mt-1">
-              Lecture slides, lab manuals, reference books, and problem sets published by faculty.
+              {activeTab === 'archive'
+                ? 'Historical records of unavailable coursework files published for your section or year.'
+                : 'Lecture slides, lab manuals, reference books, and problem sets published by faculty.'}
             </p>
           </div>
 
@@ -266,7 +394,7 @@ export default function StudentStudyMaterialsView({ userProfile }) {
           <div className="relative w-full sm:w-72">
             <input
               type="text"
-              placeholder="Search by topic, subject, faculty..."
+              placeholder={activeTab === 'archive' ? 'Search archive...' : 'Search by topic, subject, faculty...'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full px-3.5 py-2 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-800 transition-colors"
@@ -301,7 +429,7 @@ export default function StudentStudyMaterialsView({ userProfile }) {
                     : 'bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200/60'
                 }`}
               >
-                All Subjects ({materials.length})
+                All Subjects ({activeTab === 'archive' ? archiveMaterials.length : materials.length})
               </button>
               {availableSubjects.map(sub => (
                 <button
@@ -345,8 +473,33 @@ export default function StudentStudyMaterialsView({ userProfile }) {
         </div>
       </div>
 
-      {/* Materials Content List */}
-      {isLoading ? (
+      {/* Materials Content List (Active or Archive) */}
+      {activeTab === 'archive' ? (
+        isLoadingArchive ? (
+          <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-xs">
+            <div className="w-8 h-8 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-xs font-bold text-slate-600">Loading course archive...</p>
+          </div>
+        ) : filteredArchiveMaterials.length === 0 ? (
+          <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-xs space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center mx-auto shadow-xs">
+              <Icons.Archive />
+            </div>
+            <h3 className="text-base font-bold text-slate-900">No Archived Materials Found</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+              {archiveMaterials.length === 0
+                ? 'There are currently no unavailable or archived coursework documents for your section.'
+                : 'No archived materials matched your active search or category filters.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredArchiveMaterials.map(mat => (
+              <StudentArchiveCard key={mat.id} material={mat} />
+            ))}
+          </div>
+        )
+      ) : isLoading ? (
         <div className="bg-white rounded-[24px] border border-slate-100 p-12 text-center shadow-xs">
           <div className="w-8 h-8 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
           <p className="text-xs font-bold text-slate-600">Loading coursework study materials...</p>
@@ -538,6 +691,100 @@ function StudentMaterialCard({ material, isDownloading, onDownload }) {
               <span>Download</span>
             </>
           )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// SUBCOMPONENT: Student Archive Card (Course Archive for Unavailable Files)
+// -----------------------------------------------------------------------------
+function StudentArchiveCard({ material }) {
+  const isYearScoped = material.isYearWide || material.scope === 'year';
+  const formattedDate = formatDate(material.publishedAt || material.createdAt);
+
+  return (
+    <div className="p-5 rounded-2xl border border-slate-200/90 bg-slate-50/70 text-slate-700 transition-all duration-200 flex flex-col justify-between shadow-xs">
+      <div>
+        {/* Badges Bar */}
+        <div className="flex items-start justify-between gap-2 mb-2.5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700">
+              {material.category || 'Coursework'}
+            </span>
+            {material.subjectCode && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-800 text-white font-mono">
+                {material.subjectCode}
+              </span>
+            )}
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-200/60 text-slate-600">
+              {isYearScoped ? 'Year-Wide' : `Section ${material.section || ''}`}
+            </span>
+          </div>
+
+          {/* Unavailable in Drive status badge */}
+          <span className="text-[10px] font-black px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            <span>Unavailable in Drive</span>
+          </span>
+        </div>
+
+        {/* Title */}
+        <h4 className="font-extrabold text-base text-slate-800 leading-snug">
+          {material.title}
+        </h4>
+
+        {/* Subject */}
+        {material.subjectName && (
+          <p className="text-[11px] font-semibold text-slate-500 mt-1">
+            Subject: <strong className="text-slate-700">{material.subjectName}</strong>
+          </p>
+        )}
+
+        {/* Unavailability Explanation */}
+        <div className="mt-2.5 p-2 rounded-lg bg-rose-50/80 border border-rose-200/60 text-[11px] text-rose-700 leading-relaxed">
+          <span>⚠️ {material.unavailabilityReason || 'This coursework document was deleted or removed from Google Drive.'}</span>
+        </div>
+
+        {/* Description */}
+        {material.description && (
+          <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
+            {material.description}
+          </p>
+        )}
+      </div>
+
+      {/* Footer Info & Disabled Action */}
+      <div className="mt-4 pt-3.5 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          {material.teacherName && (
+            <p className="text-[11px] font-semibold text-slate-600">
+              Instructor: <span>{material.teacherName}</span>
+            </p>
+          )}
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+            <span className="font-mono text-slate-600 truncate max-w-[140px]" title={material.fileName}>
+              {material.fileName || 'file.pdf'}
+            </span>
+            {formattedDate && (
+              <>
+                <span>•</span>
+                <span>Published {formattedDate}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Inaccessible Button */}
+        <button
+          type="button"
+          disabled={true}
+          className="px-3.5 py-1.5 bg-slate-200/80 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed select-none flex items-center justify-center gap-1.5 border border-slate-300/60 flex-shrink-0"
+          title="File was removed from Google Drive and is no longer downloadable"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          <span>Unavailable</span>
         </button>
       </div>
     </div>
