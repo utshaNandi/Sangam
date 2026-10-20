@@ -73,14 +73,18 @@ export default function TeacherApp({ userProfile, onLogout }) {
 
   useEffect(() => {
     window.__SANGAM_PUBLISH_ANNOUNCEMENT__ = async (newAnnouncement) => {
-      const targetGroup = fullscreenAnnouncementGroup;
+      const targetGroup = newAnnouncement?.group || fullscreenAnnouncementGroup;
       const path = targetGroup?.path || [];
-      const department = path[1] || userProfile?.department || 'Computer Science and Engineering';
-      const year = path[2] || '1st Year';
-      const section = path[3] || 'Sec B';
+      const department = (newAnnouncement?.department || path[1] || '').trim();
+      const year = (newAnnouncement?.year || path[2] || '').trim();
+      const section = (newAnnouncement?.section || path[3] || '').trim();
+
+      if (!department || !year || !section) {
+        throw new Error('Incomplete hierarchy section scope. Department, Year, and Section are required to publish.');
+      }
 
       try {
-        await postAnnouncement({
+        const result = await postAnnouncement({
           title: newAnnouncement.subject,
           content: newAnnouncement.message,
           scopeType: 'section',
@@ -90,8 +94,10 @@ export default function TeacherApp({ userProfile, onLogout }) {
           priority: newAnnouncement.status === 'Important' ? 'urgent' : 'normal',
           category: (newAnnouncement.category || 'general').toLowerCase()
         });
+        return result?.announcement;
       } catch (err) {
         console.warn('[TeacherApp] Backend announcement publish notice:', err.message);
+        throw err;
       }
     };
     return () => {

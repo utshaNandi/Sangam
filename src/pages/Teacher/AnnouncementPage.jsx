@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import PdfPreview, { preloadPdf } from './PdfPreview';
+import { fetchAnnouncements, postAnnouncement, mapBackendAnnouncementToItem } from '../../services/announcementService';
 
 /**
  * @typedef {'All' | 'Academic' | 'Routine' | 'General'} AnnouncementCategory
@@ -274,6 +275,8 @@ function getBadgePalette(status) {
   }
 }
 
+export { mapBackendAnnouncementToItem };
+
 export function App({ onBack, group, userProfile }) {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -285,6 +288,46 @@ export function App({ onBack, group, userProfile }) {
   // Authenticated faculty member profile
   const currentUser = useMemo(() => getAuthenticatedFacultyProfile(userProfile), [userProfile]);
   const [composerAvatarError, setComposerAvatarError] = useState(false);
+
+  // Fetch announcements for this hierarchy section from backend
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const path = group?.path || [];
+      const dept = (path[1] || '').trim();
+      const yr = (path[2] || '').trim();
+      const sec = (path[3] || '').trim();
+
+      const data = await fetchAnnouncements({
+        department: dept,
+        year: yr,
+        section: sec,
+        page: 1,
+        limit: 100
+      });
+
+      if (data && Array.isArray(data.announcements)) {
+        const mapped = data.announcements.map(mapBackendAnnouncementToItem).filter(Boolean);
+        setAnnouncements(mapped);
+      }
+    } catch (err) {
+      console.warn('[AnnouncementPage] Fetch announcements notice:', err.message);
+    }
+  }, [group]);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  // Listen for announcement-published events to update feed
+  useEffect(() => {
+    const handlePublished = () => {
+      loadAnnouncements();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('sangam:announcement-published', handlePublished);
+      return () => window.removeEventListener('sangam:announcement-published', handlePublished);
+    }
+  }, [loadAnnouncements]);
 
   // Clean, jitter-free Announcement Detail Modal open/close & maximize/restore states
   const [isDetailMaximized, setIsDetailMaximized] = useState(false);
@@ -667,13 +710,43 @@ export function App({ onBack, group, userProfile }) {
 
       // Check if an external Sangam backend handler is registered on window
       const win = typeof window !== 'undefined' ? window : undefined;
-      if (typeof win?.__SANGAM_PUBLISH_ANNOUNCEMENT__ === 'function') {
-        await win.__SANGAM_PUBLISH_ANNOUNCEMENT__(newAnnouncement);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 240));
+      let created = null;
+
+      const path = group?.path || [];
+      const dept = (path[1] || '').trim();
+      const yr = (path[2] || '').trim();
+      const sec = (path[3] || '').trim();
+
+      if (!dept || !yr || !sec) {
+        setComposeNotice('Incomplete hierarchy section scope. Department, Year, and Section are required to publish.');
+        setIsPublishing(false);
+        return;
       }
 
-      setAnnouncements((prev) => [newAnnouncement, ...prev]);
+      if (typeof win?.__SANGAM_PUBLISH_ANNOUNCEMENT__ === 'function') {
+        created = await win.__SANGAM_PUBLISH_ANNOUNCEMENT__({
+          ...newAnnouncement,
+          department: dept,
+          year: yr,
+          section: sec,
+          group
+        });
+      } else {
+        const res = await postAnnouncement({
+          title: trimmedSubject,
+          content: trimmedDescription,
+          scopeType: 'section',
+          department: dept,
+          year: yr,
+          section: sec,
+          priority: composeStatus === 'Important' ? 'urgent' : 'normal',
+          category: composeCategory.toLowerCase()
+        });
+        created = res?.announcement;
+      }
+
+      const itemToAdd = created ? mapBackendAnnouncementToItem(created) : newAnnouncement;
+      setAnnouncements((prev) => [itemToAdd, ...prev.filter(a => a.id !== itemToAdd.id)]);
 
       // Reset composer state and close modal
       setComposeSubject('');
@@ -683,8 +756,8 @@ export function App({ onBack, group, userProfile }) {
       setIsMoreMenuOpen(false);
       setIsTranslateMenuOpen(false);
       setIsComposeOpen(false);
-    } catch {
-      setComposeNotice('Failed to publish announcement. Please try again.');
+    } catch (err) {
+      setComposeNotice(err?.message || 'Failed to publish announcement. Please try again.');
     } finally {
       setIsPublishing(false);
     }

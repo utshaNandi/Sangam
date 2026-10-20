@@ -31,7 +31,7 @@ console.log('======================================================\n');
 // --- SECTION 1: Exact File Parity with Sangam UI Mate Pretty ---
 console.log('--- SECTION 1: Source File Parity & Integrity ---');
 
-runTest('1.1: AnnouncementPage.jsx exists and matches source implementation', () => {
+runTest('1.1: AnnouncementPage.jsx exists and preserves component structure & integration', () => {
   const destPath = path.join(projectRoot, 'src', 'pages', 'Teacher', 'AnnouncementPage.jsx');
   const srcPath = path.join(sourceRoot, 'src', 'pages', 'Teacher', 'AnnouncementPage.jsx');
 
@@ -41,8 +41,115 @@ runTest('1.1: AnnouncementPage.jsx exists and matches source implementation', ()
   const destContent = fs.readFileSync(destPath, 'utf8');
   const srcContent = fs.readFileSync(srcPath, 'utf8');
 
-  assert.strictEqual(destContent.length, srcContent.length, 'AnnouncementPage.jsx size must match source exactly');
-  assert.strictEqual(destContent, srcContent, 'AnnouncementPage.jsx content must match source exactly');
+  // 1. Deterministic Structural Landmarks verified in strict top-to-bottom source order
+  const sequentialLandmarks = [
+    // Header & type definitions
+    "import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';",
+    "import PdfPreview, { preloadPdf } from './PdfPreview';",
+    "@typedef {'All' | 'Academic' | 'Routine' | 'General'} AnnouncementCategory",
+    "@typedef {Object} AnnouncementAttachment",
+    "@typedef {Object} AnnouncementItem",
+    // Core helpers
+    "function getAuthenticatedFacultyProfile(propProfile) {",
+    "function formatSangamDate(date = new Date()) {",
+    "function formatFileSize(bytes) {",
+    "function getAttachmentPreviewKind(att) {",
+    // Constants & seed data
+    "const INITIAL_ANNOUNCEMENTS = [",
+    "const FILTER_CATEGORIES = [",
+    "function getBadgePalette(status) {",
+    // Component signature & state hooks
+    "export function App({ onBack, group, userProfile }) {",
+    "const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);",
+    "const [activeCategory, setActiveCategory] = useState('All');",
+    "const [selectedAnnouncement, setSelectedAnnouncement] = useState(group?.selectedAnnouncement || null);",
+    "const currentUser = useMemo(() => getAuthenticatedFacultyProfile(userProfile), [userProfile]);",
+    "const [isDetailMaximized, setIsDetailMaximized] = useState(false);",
+    "const [isDetailClosing, setIsDetailClosing] = useState(false);",
+    "const [activeAttachmentIndex, setActiveAttachmentIndex] = useState(0);",
+    // Action handlers & keyboard listeners
+    "const handleCloseDetailModal = useCallback(",
+    "const handleOpenDetailModal = useCallback(",
+    "const handleToggleMaximizeDetailModal = useCallback(",
+    "const handleAttachmentSelect = (e) => {",
+    "const handleRemoveAttachment = (attachmentId) => {",
+    "const handlePublishAnnouncement = async (e) => {",
+    "const filteredAnnouncements = useMemo(() => {",
+    "const gridColumns =",
+    // JSX component tree in top-to-bottom render sequence
+    "return (",
+    'aria-label="Go back"',
+    'aria-label="Announcement category filters"',
+    'aria-label="Create new announcement"',
+    "breadcrumbSegments.map((segment, idx) => {",
+    'aria-label="Search announcements"',
+    'aria-label="Announcements table"',
+    'role="rowgroup"',
+    "filteredAnnouncements.map((item) => {",
+    "selectedAnnouncement && (",
+    "<PdfPreview",
+    "isComposeOpen && ("
+  ];
+
+  let lastIndex = 0;
+  sequentialLandmarks.forEach((landmark, i) => {
+    const idx = destContent.indexOf(landmark, lastIndex);
+    assert.ok(
+      idx !== -1,
+      `Landmark #${i + 1} missing or out of order (searching from offset ${lastIndex}): "${landmark.slice(0, 60)}..."`
+    );
+    lastIndex = idx + landmark.length;
+  });
+
+  // 2. Component exports
+  assert.ok(destContent.includes('export function App'), 'Must export App');
+  assert.ok(destContent.includes('export { App as AnnouncementPage }'), 'Must export AnnouncementPage');
+  assert.ok(destContent.includes('export { mapBackendAnnouncementToItem }'), 'Must export mapBackendAnnouncementToItem');
+
+  // 3. UI Constants & Helper Functions
+  assert.ok(destContent.includes('const FILTER_CATEGORIES = ['), 'Must define FILTER_CATEGORIES');
+  assert.ok(destContent.includes("'Academic'"), 'Must include Academic category');
+  assert.ok(destContent.includes("'Routine'"), 'Must include Routine category');
+  assert.ok(destContent.includes("'General'"), 'Must include General category');
+  assert.ok(destContent.includes('const INITIAL_ANNOUNCEMENTS = ['), 'Must define INITIAL_ANNOUNCEMENTS');
+  assert.ok(destContent.includes('function getBadgePalette(status)'), 'Must define getBadgePalette');
+  assert.ok(destContent.includes('#C7D1F6') && destContent.includes('#EBD0E6') && destContent.includes('#B3BC89'), 'Must preserve badge color calibration');
+  assert.ok(destContent.includes('function getAuthenticatedFacultyProfile('), 'Must define getAuthenticatedFacultyProfile');
+  assert.ok(destContent.includes('function formatSangamDate('), 'Must define formatSangamDate');
+  assert.ok(destContent.includes('function formatFileSize('), 'Must define formatFileSize');
+  assert.ok(destContent.includes('function getAttachmentPreviewKind('), 'Must define getAttachmentPreviewKind');
+
+  // 4. Modal State Management & Keyboard Shortcuts
+  assert.ok(destContent.includes('isDetailMaximized, setIsDetailMaximized'), 'Must manage isDetailMaximized');
+  assert.ok(destContent.includes('isDetailClosing, setIsDetailClosing'), 'Must manage isDetailClosing');
+  assert.ok(destContent.includes('activeAttachmentIndex, setActiveAttachmentIndex'), 'Must manage activeAttachmentIndex');
+  assert.ok(destContent.includes('handleCloseDetailModal'), 'Must handle detail modal close');
+  assert.ok(destContent.includes('handleOpenDetailModal'), 'Must handle detail modal open');
+  assert.ok(destContent.includes('handleToggleMaximizeDetailModal'), 'Must handle detail modal maximize toggle');
+  assert.ok(destContent.includes("event.key === 'Escape'"), 'Must handle Escape key shortcut');
+  assert.ok(destContent.includes("event.key === 'ArrowLeft'"), 'Must handle ArrowLeft shortcut');
+  assert.ok(destContent.includes('preloadPdf'), 'Must integrate preloadPdf for background warming');
+
+  // 5. Compose Toolbar Features
+  assert.ok(destContent.includes('isComposeOpen, setIsComposeOpen'), 'Must manage isComposeOpen');
+  assert.ok(destContent.includes('composeSubject, setComposeSubject'), 'Must manage composeSubject');
+  assert.ok(destContent.includes('composeDescription, setComposeDescription'), 'Must manage composeDescription');
+  assert.ok(destContent.includes('isListening, setIsListening'), 'Must manage isListening');
+  assert.ok(destContent.includes('handleToggleSpeechInput'), 'Must implement speech dictation');
+  assert.ok(destContent.includes('handleTranslateAction'), 'Must implement translation action');
+  assert.ok(destContent.includes('handleAttachmentSelect'), 'Must implement file attachment selection');
+  assert.ok(destContent.includes('handleRemoveAttachment'), 'Must implement file attachment removal');
+
+  // 6. Backend Integration & Scope Integrity
+  assert.ok(destContent.includes("from '../../services/announcementService'"), 'Must import from announcementService');
+  assert.ok(destContent.includes('fetchAnnouncements({'), 'Must call fetchAnnouncements');
+  assert.ok(destContent.includes('mapBackendAnnouncementToItem'), 'Must use mapBackendAnnouncementToItem');
+  assert.ok(destContent.includes('postAnnouncement({'), 'Must call postAnnouncement');
+  assert.ok(destContent.includes('sangam:announcement-published'), 'Must listen for realtime publish events');
+  assert.ok(
+    !destContent.includes('path[1] || userProfile?.department'),
+    'Hierarchy scope must NOT silently fall back to userProfile.department'
+  );
 });
 
 runTest('1.2: PdfPreview.jsx exists and matches source implementation', () => {

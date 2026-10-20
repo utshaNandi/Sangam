@@ -61,7 +61,7 @@ export async function getAuthToken() {
  * @param {string|Array<string>} [options.authorRoles]
  * @returns {Promise<{ success: boolean, announcements: Array<object>, pagination: object }>}
  */
-export async function fetchAnnouncements({ page = 1, limit = 50, authorRole, authorRoles } = {}) {
+export async function fetchAnnouncements({ page = 1, limit = 50, authorRole, authorRoles, department, year, section } = {}) {
   const token = await getAuthToken();
   const apiBase = getApiBaseUrl();
 
@@ -72,6 +72,9 @@ export async function fetchAnnouncements({ page = 1, limit = 50, authorRole, aut
   if (roles) {
     queryParams.append('authorRoles', Array.isArray(roles) ? roles.join(',') : roles);
   }
+  if (department) queryParams.append('department', department);
+  if (year) queryParams.append('year', year);
+  if (section) queryParams.append('section', section);
 
   let response;
   try {
@@ -83,7 +86,7 @@ export async function fetchAnnouncements({ page = 1, limit = 50, authorRole, aut
     });
   } catch (netErr) {
     if (netErr?.message?.includes('Failed to fetch') || netErr?.name === 'TypeError') {
-      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.');
+      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.', { cause: netErr });
     }
     throw netErr;
   }
@@ -135,7 +138,7 @@ export async function fetchDashboardAnnouncements({ limit = 4 } = {}) {
     });
   } catch (netErr) {
     if (netErr?.message?.includes('Failed to fetch') || netErr?.name === 'TypeError') {
-      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.');
+      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.', { cause: netErr });
     }
     throw netErr;
   }
@@ -218,7 +221,7 @@ export async function postAnnouncement({
     });
   } catch (netErr) {
     if (netErr?.message?.includes('Failed to fetch') || netErr?.name === 'TypeError') {
-      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.');
+      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.', { cause: netErr });
     }
     throw netErr;
   }
@@ -279,7 +282,7 @@ export async function fetchAnnouncementById(announcementId) {
     });
   } catch (netErr) {
     if (netErr?.message?.includes('Failed to fetch') || netErr?.name === 'TypeError') {
-      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.');
+      throw new Error('Unable to connect to the backend API server. Please verify the Express backend is running (e.g. node server.js) and accessible.', { cause: netErr });
     }
     throw netErr;
   }
@@ -501,6 +504,190 @@ export function mapAnnouncementToPanelItem(ann, index = 0) {
   };
 }
 
+/**
+ * Normalizes an announcement timestamp into epoch milliseconds.
+ * Strictly rejects non-finite values (NaN, Infinity, -Infinity) and malformed objects.
+ * Accurately handles:
+ * - ISO strings / date strings
+ * - Epoch millisecond numbers / numeric strings
+ * - Firestore Timestamp instances (with .toMillis() or .toDate())
+ * - Serialized Firestore Timestamp JSON ({ _seconds, _nanoseconds } or { seconds, nanoseconds })
+ * - Missing or invalid timestamps (safely returns 0 to prevent NaN comparison)
+ *
+ * @param {any} val
+ * @returns {number} Epoch milliseconds (integer >= 0)
+ */
+export function normalizeAnnouncementTimestamp(val) {
+  if (val === null || val === undefined) return 0;
+
+  // Direct number: reject NaN, Infinity, -Infinity, negative numbers
+  if (typeof val === 'number') {
+    return Number.isFinite(val) && val > 0 ? Math.floor(val) : 0;
+  }
+
+  // Date instance
+  if (val instanceof Date) {
+    const ms = val.getTime();
+    return Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+  }
+
+  // Firestore Timestamp instance with toMillis()
+  if (typeof val.toMillis === 'function') {
+    try {
+      const ms = val.toMillis();
+      return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Firestore Timestamp instance with toDate()
+  if (typeof val.toDate === 'function') {
+    try {
+      const d = val.toDate();
+      const ms = d instanceof Date ? d.getTime() : new Date(d).getTime();
+      return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Serialized Firestore Timestamp objects: { _seconds, _nanoseconds } or { seconds, nanoseconds }
+  if (typeof val === 'object') {
+    const secs = val._seconds !== undefined ? val._seconds : val.seconds;
+    const nanos = val._nanoseconds !== undefined ? val._nanoseconds : val.nanoseconds;
+    if (typeof secs === 'number' && Number.isFinite(secs) && secs > 0) {
+      const nanosMs = typeof nanos === 'number' && Number.isFinite(nanos) && nanos > 0 ? Math.floor(nanos / 1e6) : 0;
+      const ms = secs * 1000 + nanosMs;
+      return Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+    }
+    return 0;
+  }
+
+  // String handling
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return 0;
+
+    // Check for stringified non-finite tokens
+    const lower = trimmed.toLowerCase();
+    if (lower === 'nan' || lower === 'infinity' || lower === '+infinity' || lower === '-infinity') {
+      return 0;
+    }
+
+    // Pure numeric digit string (e.g. "1712345678000")
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed);
+      return Number.isFinite(num) && num > 0 ? Math.floor(num) : 0;
+    }
+
+    // Parse ISO / Date string
+    const parsed = new Date(trimmed).getTime();
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+  }
+
+  return 0;
+}
+
+/**
+ * Formats a Date object following Sangam's DD/MM/YY date convention (e.g., 12/12/24).
+ */
+export function formatSangamDate(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Maps an authoritative backend announcement record into the visual item structure
+ * expected by AnnouncementPage.
+ */
+export function mapBackendAnnouncementToItem(ann) {
+  if (!ann) return null;
+
+  const role = String(ann.authorRole || '').toLowerCase().trim();
+  const isDirector = role === 'director' || role === 'admin';
+  const isHod = role === 'hod' || role === 'head_of_department' || role === 'head of department';
+  const isTeacher = role === 'faculty' || role === 'teacher';
+
+  let senderRole = 'Official';
+  if (isDirector) {
+    senderRole = 'Dean of Academic Affairs';
+  } else if (isHod) {
+    senderRole = 'Head of Department';
+  } else if (isTeacher) {
+    senderRole = 'Faculty Member';
+  }
+
+  // Format date DD/MM/YY
+  let formattedDate = '-';
+  if (ann.createdAt !== undefined && ann.createdAt !== null) {
+    try {
+      const ms = normalizeAnnouncementTimestamp(ann.createdAt);
+      if (ms > 0) {
+        formattedDate = formatSangamDate(new Date(ms));
+      } else if (typeof ann.createdAt === 'string' && ann.createdAt.trim()) {
+        formattedDate = ann.createdAt.trim();
+      }
+    } catch {
+      formattedDate = ann.timestamp || '-';
+    }
+  } else if (ann.timestamp) {
+    formattedDate = ann.timestamp;
+  }
+
+  // Map category to Title Case ('Academic' | 'Routine' | 'General')
+  let category = 'General';
+  const rawCat = (ann.category || '').toLowerCase().trim();
+  if (rawCat === 'academic') category = 'Academic';
+  else if (rawCat === 'routine') category = 'Routine';
+  else if (rawCat === 'general') category = 'General';
+
+  // Map status
+  let status = 'Active';
+  if (ann.priority === 'urgent') {
+    status = 'Important';
+  } else if (ann.status && ['Unread', 'Important', 'Active', 'Pinned', 'Routine'].includes(ann.status)) {
+    status = ann.status;
+  } else if (isDirector) {
+    status = 'Important';
+  }
+
+  // Default avatar fallback
+  const senderAvatar =
+    ann.authorAvatar ||
+    ann.senderAvatar ||
+    (isDirector
+      ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80'
+      : isHod
+      ? 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&auto=format&fit=crop&q=80'
+      : 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80');
+
+  return {
+    id: ann.id,
+    senderName: ann.authorName || ann.senderName || (isDirector ? 'Director Office' : isHod ? 'Head of Department' : 'Faculty Member'),
+    senderRole,
+    senderEmail: ann.authorEmail || ann.senderEmail || '',
+    senderAvatar,
+    timestamp: formattedDate,
+    dueDate: ann.dueDate || '-',
+    subject: ann.title || ann.subject || 'Announcement',
+    message: ann.content || ann.message || '',
+    category,
+    status,
+    isSaved: Boolean(ann.isSaved),
+    attachments: ann.attachments || (ann.attachment ? [ann.attachment] : []),
+    createdAt: ann.createdAt,
+    authorUid: ann.authorUid,
+    authorRole: ann.authorRole,
+    scopeType: ann.scopeType,
+    department: ann.department,
+    year: ann.year,
+    section: ann.section
+  };
+}
+
 export default {
   getApiBaseUrl,
   getAuthToken,
@@ -513,6 +700,9 @@ export default {
   filterEligibleDashboardAnnouncements,
   filterAnnouncementsByPeriod,
   mapAnnouncementToPanelItem,
+  mapBackendAnnouncementToItem,
+  formatSangamDate,
+  normalizeAnnouncementTimestamp,
   ANNOUNCEMENT_THEMES
 };
 

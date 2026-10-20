@@ -1,10 +1,30 @@
 import crypto from 'node:crypto';
 import { getAdminFirestore } from '../config/firebaseAdmin.js';
 import {
-  CANONICAL_DEPARTMENT_MAP,
-  isMatchingDepartment,
+  CANONICAL_DEPARTMENT_MAP as BASE_CANONICAL_DEPARTMENT_MAP,
+  isMatchingDepartment as baseIsMatchingDepartment,
   isMatchingSection
 } from './googleDriveService.js';
+
+export const CANONICAL_DEPARTMENT_MAP = {
+  ...BASE_CANONICAL_DEPARTMENT_MAP,
+  'Computer Science and Engineering': 'Computer Science',
+  'Computer Science & Engineering': 'Computer Science',
+  'Electronics and Communication Engineering': 'Electronics & Communication',
+  'Electronics & Communication Engineering': 'Electronics & Communication',
+};
+
+/**
+ * Checks if two department names match directly or via canonical department aliases.
+ */
+export function isMatchingDepartment(d1, d2) {
+  if (!d1 || !d2) return false;
+  if (d1 === d2) return true;
+  const c1 = CANONICAL_DEPARTMENT_MAP[d1] || d1;
+  const c2 = CANONICAL_DEPARTMENT_MAP[d2] || d2;
+  if (c1 === c2) return true;
+  return baseIsMatchingDepartment(d1, d2);
+}
 
 /**
  * Authoritatively compares two year strings (e.g. '1st Year' vs '1st Year', '1st' vs '1st Year', '1' vs '1st Year').
@@ -26,6 +46,158 @@ export function isMatchingYear(y1, y2) {
     return true;
   }
   return false;
+}
+
+/**
+ * Normalizes an announcement timestamp into epoch milliseconds.
+ * Strictly rejects non-finite values (NaN, Infinity, -Infinity) and malformed objects.
+ * Accurately handles:
+ * - ISO strings / date strings
+ * - Epoch millisecond numbers / numeric strings
+ * - Firestore Timestamp instances (with .toMillis() or .toDate())
+ * - Serialized Firestore Timestamp JSON ({ _seconds, _nanoseconds } or { seconds, nanoseconds })
+ * - Missing or invalid timestamps (safely returns 0 to prevent NaN comparison)
+ *
+ * @param {any} val
+ * @returns {number} Epoch milliseconds (integer >= 0)
+ */
+export function normalizeAnnouncementTimestamp(val) {
+  if (val === null || val === undefined) return 0;
+
+  // Direct number: reject NaN, Infinity, -Infinity, negative numbers
+  if (typeof val === 'number') {
+    return Number.isFinite(val) && val > 0 ? Math.floor(val) : 0;
+  }
+
+  // Date instance
+  if (val instanceof Date) {
+    const ms = val.getTime();
+    return Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+  }
+
+  // Firestore Timestamp instance with toMillis()
+  if (typeof val.toMillis === 'function') {
+    try {
+      const ms = val.toMillis();
+      return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Firestore Timestamp instance with toDate()
+  if (typeof val.toDate === 'function') {
+    try {
+      const d = val.toDate();
+      const ms = d instanceof Date ? d.getTime() : new Date(d).getTime();
+      return typeof ms === 'number' && Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+    } catch {
+      // Fallback
+    }
+  }
+
+  // Serialized Firestore Timestamp objects: { _seconds, _nanoseconds } or { seconds, nanoseconds }
+  if (typeof val === 'object') {
+    const secs = val._seconds !== undefined ? val._seconds : val.seconds;
+    const nanos = val._nanoseconds !== undefined ? val._nanoseconds : val.nanoseconds;
+    if (typeof secs === 'number' && Number.isFinite(secs) && secs > 0) {
+      const nanosMs = typeof nanos === 'number' && Number.isFinite(nanos) && nanos > 0 ? Math.floor(nanos / 1e6) : 0;
+      const ms = secs * 1000 + nanosMs;
+      return Number.isFinite(ms) && ms > 0 ? Math.floor(ms) : 0;
+    }
+    return 0;
+  }
+
+  // String handling
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return 0;
+
+    // Check for stringified non-finite tokens
+    const lower = trimmed.toLowerCase();
+    if (lower === 'nan' || lower === 'infinity' || lower === '+infinity' || lower === '-infinity') {
+      return 0;
+    }
+
+    // Pure numeric digit string (e.g. "1712345678000")
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed);
+      return Number.isFinite(num) && num > 0 ? Math.floor(num) : 0;
+    }
+
+    // Parse ISO / Date string
+    const parsed = new Date(trimmed).getTime();
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+  }
+
+  return 0;
+}
+
+/**
+ * Authoritatively validates whether an allocation record is active and authorized.
+ * Rejects stale, revoked, inactive, expired, or mismatched allocations.
+ *
+ * @param {object} data - Allocation record.
+ * @param {string} [teacherUid=null] - Expected teacher UID.
+ * @param {string} [institution=null] - Expected institution ID.
+ * @returns {boolean}
+ */
+export function isValidActiveAllocation(data, teacherUid = null, institution = null) {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  // 1. Must be explicitly authorized
+  if (data.authorized !== true) {
+    return false;
+  }
+
+  // 2. Status check: must not be inactive, revoked, stale, suspended, or deleted
+  if (data.status !== undefined && data.status !== null) {
+    const status = String(data.status).toLowerCase().trim();
+    if (['inactive', 'revoked', 'stale', 'suspended', 'deleted'].includes(status)) {
+      return false;
+    }
+  }
+
+  // 3. Explicit revocation flags
+  if (data.revoked === true || data.revokedAt) {
+    return false;
+  }
+
+  // 4. Expiration / validity timestamp checks
+  const expField = data.expiresAt || data.validUntil;
+  if (expField) {
+    const expMs = normalizeAnnouncementTimestamp(expField);
+    if (expMs > 0 && expMs < Date.now()) {
+      return false;
+    }
+  }
+
+  // 5. Teacher UID matching: cannot authorize a different teacher's allocation
+  if (teacherUid) {
+    const allocTeacherUid = data.teacherUid || data.facultyUid || data.uid;
+    if (allocTeacherUid && String(allocTeacherUid).trim() !== String(teacherUid).trim()) {
+      return false;
+    }
+  }
+
+  // 6. Institution matching: cannot authorize an allocation from a different institution
+  if (institution && data.institution) {
+    if (String(data.institution).trim() !== String(institution).trim()) {
+      return false;
+    }
+  }
+
+  // 7. Academic scope presence: allocation must have non-empty year and section
+  if (!data.year || typeof data.year !== 'string' || !data.year.trim()) {
+    return false;
+  }
+  if (!data.section || typeof data.section !== 'string' || !data.section.trim()) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -152,19 +324,32 @@ export class AnnouncementService {
       return false;
     }
 
+    const cleanTeacherUid = String(teacherUid).trim();
+    const cleanDept = String(department).trim();
+    const cleanYear = String(year).trim();
+    const cleanSec = String(section).trim();
+
     const db = this.getDb();
     const coll = db.collection('teacher_allocations');
 
+    const checkAllocationDoc = (data) => {
+      if (!isValidActiveAllocation(data, cleanTeacherUid, institution)) {
+        return false;
+      }
+      const yMatch = isMatchingYear(data.year, cleanYear);
+      const sMatch = isMatchingSection(data.section, cleanSec);
+      const dMatch = !data.department || isMatchingDepartment(data.department, cleanDept);
+      return yMatch && sMatch && dMatch;
+    };
+
     // 1. Canonical doc ID: {teacherUid}_{department}_{year}_{section}
-    const canonicalId = `${teacherUid}_${department}_${year}_${section}`;
+    const canonicalId = `${cleanTeacherUid}_${cleanDept}_${cleanYear}_${cleanSec}`;
     try {
       const snap = await coll.doc(canonicalId).get();
       if (snap.exists) {
         const data = typeof snap.data === 'function' ? snap.data() : snap;
-        if (data && data.authorized === true) {
-          if (!institution || !data.institution || data.institution === institution) {
-            return true;
-          }
+        if (checkAllocationDoc(data)) {
+          return true;
         }
       }
     } catch {
@@ -173,23 +358,21 @@ export class AnnouncementService {
 
     // 2. Check canonical department aliases (e.g. Computer Science <-> CSE AI)
     const aliases = [];
-    const canonicalDept = CANONICAL_DEPARTMENT_MAP[department] || department;
+    const canonicalDept = CANONICAL_DEPARTMENT_MAP[cleanDept] || cleanDept;
     for (const [alias, mapped] of Object.entries(CANONICAL_DEPARTMENT_MAP)) {
-      if ((mapped === canonicalDept || alias === department) && alias !== department) {
+      if ((mapped === canonicalDept || alias === cleanDept) && alias !== cleanDept) {
         aliases.push(alias);
       }
     }
 
     for (const aliasDept of aliases) {
-      const aliasId = `${teacherUid}_${aliasDept}_${year}_${section}`;
+      const aliasId = `${cleanTeacherUid}_${aliasDept}_${cleanYear}_${cleanSec}`;
       try {
         const snap = await coll.doc(aliasId).get();
         if (snap.exists) {
           const data = typeof snap.data === 'function' ? snap.data() : snap;
-          if (data && data.authorized === true) {
-            if (!institution || !data.institution || data.institution === institution) {
-              return true;
-            }
+          if (checkAllocationDoc(data)) {
+            return true;
           }
         }
       } catch {
@@ -198,17 +381,13 @@ export class AnnouncementService {
     }
 
     // 3. Legacy doc ID: {teacherUid}_{year}_{section}
-    const legacyId = `${teacherUid}_${year}_${section}`;
+    const legacyId = `${cleanTeacherUid}_${cleanYear}_${cleanSec}`;
     try {
       const snap = await coll.doc(legacyId).get();
       if (snap.exists) {
         const data = typeof snap.data === 'function' ? snap.data() : snap;
-        if (data && data.authorized === true) {
-          const deptMatches = !data.department || isMatchingDepartment(data.department, department);
-          const instMatches = !institution || !data.institution || data.institution === institution;
-          if (deptMatches && instMatches) {
-            return true;
-          }
+        if (checkAllocationDoc(data)) {
+          return true;
         }
       }
     } catch {
@@ -218,20 +397,34 @@ export class AnnouncementService {
     // 4. Query fallback: Query teacher_allocations where teacherUid matches
     try {
       if (typeof coll.where === 'function') {
-        const qSnap = await coll.where('teacherUid', '==', teacherUid).get();
+        const qSnap = await coll.where('teacherUid', '==', cleanTeacherUid).get();
         const docs = qSnap.docs || [];
         for (const docSnap of docs) {
           const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap;
-          if (data && data.authorized === true) {
-            const yMatch = String(data.year).trim().toLowerCase() === String(year).trim().toLowerCase();
-            const sMatch = isMatchingSection(data.section, section);
-            const dMatch = !data.department || isMatchingDepartment(data.department, department);
-            const iMatch = !institution || !data.institution || data.institution === institution;
-            if (yMatch && sMatch && dMatch && iMatch) {
-              return true;
-            }
+          if (checkAllocationDoc(data)) {
+            return true;
           }
         }
+      }
+    } catch {
+      // Fallback to full collection scan
+    }
+
+    // 5. Fallback full-collection scan if where() is unavailable or returned no match
+    try {
+      if (typeof coll.get === 'function') {
+        const snap = await coll.get();
+        let matched = false;
+        if (snap && snap.forEach) {
+          snap.forEach(docSnap => {
+            if (matched) return;
+            const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap;
+            if (checkAllocationDoc(data)) {
+              matched = true;
+            }
+          });
+        }
+        if (matched) return true;
       }
     } catch {
       // Return false if unverified
@@ -248,16 +441,28 @@ export class AnnouncementService {
    */
   async getTeacherActiveAllocations(teacherUid) {
     if (!teacherUid) return [];
+    const cleanTeacherUid = String(teacherUid).trim();
     const db = this.getDb();
     const allocations = [];
     try {
       const coll = db.collection('teacher_allocations');
       if (typeof coll.where === 'function') {
-        const snap = await coll.where('teacherUid', '==', teacherUid).get();
+        const snap = await coll.where('teacherUid', '==', cleanTeacherUid).get();
         if (snap && snap.forEach) {
           snap.forEach(docSnap => {
             const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap;
-            if (data && data.authorized === true) {
+            if (isValidActiveAllocation(data, cleanTeacherUid)) {
+              allocations.push(data);
+            }
+          });
+        }
+      }
+      if (allocations.length === 0 && typeof coll.get === 'function') {
+        const snap = await coll.get();
+        if (snap && snap.forEach) {
+          snap.forEach(docSnap => {
+            const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap;
+            if (isValidActiveAllocation(data, cleanTeacherUid)) {
               allocations.push(data);
             }
           });
@@ -408,6 +613,54 @@ export class AnnouncementService {
         targetYear = year.trim();
         targetSection = section.trim();
       }
+    } else if (role === 'hod') {
+      // HOD: may publish department-wide ('branch'), department+year ('year'), or section-wide ('section')
+      // strictly within their authorized department and institution
+      if (normalizedScope === 'institution') {
+        const err = new Error('Forbidden: Heads of Department cannot publish institution-wide announcements.');
+        err.statusCode = 403;
+        err.code = 'HOD_SCOPE_FORBIDDEN';
+        throw err;
+      }
+      const hodDept = profile.department;
+      if (!hodDept) {
+        const err = new Error('Forbidden: HOD profile is missing an assigned department.');
+        err.statusCode = 403;
+        err.code = 'MISSING_HOD_DEPARTMENT';
+        throw err;
+      }
+      if (department && !isMatchingDepartment(department, hodDept)) {
+        const err = new Error(`Forbidden: You cannot publish to department '${department}'. You are HOD of '${hodDept}'.`);
+        err.statusCode = 403;
+        err.code = 'UNAUTHORIZED_DEPARTMENT';
+        throw err;
+      }
+      targetDepartment = CANONICAL_DEPARTMENT_MAP[hodDept] || hodDept;
+
+      if (normalizedScope === 'year') {
+        if (!year || typeof year !== 'string' || !year.trim()) {
+          const err = new Error('year is required when publishing a department+year announcement.');
+          err.statusCode = 400;
+          err.code = 'MISSING_YEAR';
+          throw err;
+        }
+        targetYear = year.trim();
+      } else if (normalizedScope === 'section') {
+        if (!year || typeof year !== 'string' || !year.trim()) {
+          const err = new Error('year is required for section announcements.');
+          err.statusCode = 400;
+          err.code = 'MISSING_YEAR';
+          throw err;
+        }
+        if (!section || typeof section !== 'string' || !section.trim()) {
+          const err = new Error('section is required for section announcements.');
+          err.statusCode = 400;
+          err.code = 'MISSING_SECTION';
+          throw err;
+        }
+        targetYear = year.trim();
+        targetSection = section.trim();
+      }
     } else if (role === 'faculty') {
       // Teacher: may publish ONLY to sections listed in their active authorized teacher_allocations
       if (normalizedScope !== 'section') {
@@ -491,6 +744,60 @@ export class AnnouncementService {
   }
 
   /**
+   * Checks whether an announcement is applicable to a specific academic scope
+   * (e.g. when viewing a specific section in the academic hierarchy).
+   *
+   * Rules:
+   * - If no academic scope parameters are supplied, all authorized announcements match.
+   * - 'institution' scope announcements apply universally to all departments, years, and sections.
+   * - 'branch' / 'department' announcements apply if the department matches (canonical-aware).
+   * - 'year' announcements apply if department and year match.
+   * - 'section' announcements apply if department, year, and section all match.
+   *
+   * @param {object} ann - Announcement document.
+   * @param {object} [scope={}] - Target scope.
+   * @param {string} [scope.department] - Department filter.
+   * @param {string} [scope.year] - Year filter.
+   * @param {string} [scope.section] - Section filter.
+   * @returns {boolean}
+   */
+  isAnnouncementApplicableToScope(ann, { department, year, section } = {}) {
+    if (!department && !year && !section) {
+      return true;
+    }
+    const scopeType = ann?.scopeType;
+
+    // Institution-wide announcements apply universally
+    if (scopeType === 'institution') {
+      return true;
+    }
+
+    // Branch / Department announcements
+    if (scopeType === 'branch' || scopeType === 'department') {
+      if (!department || !ann.department) return false;
+      return isMatchingDepartment(ann.department, department);
+    }
+
+    // Department + Year announcements
+    if (scopeType === 'year') {
+      if (!department || !ann.department || !year || !ann.year) return false;
+      return isMatchingDepartment(ann.department, department) && isMatchingYear(ann.year, year);
+    }
+
+    // Exact Section announcements
+    if (scopeType === 'section') {
+      if (!department || !ann.department || !year || !ann.year || !section || !ann.section) return false;
+      return (
+        isMatchingDepartment(ann.department, department) &&
+        isMatchingYear(ann.year, year) &&
+        isMatchingSection(ann.section, section)
+      );
+    }
+
+    return false;
+  }
+
+  /**
    * Retrieves announcements accessible to the caller with authoritative server-side scoping
    * and pagination.
    *
@@ -502,9 +809,12 @@ export class AnnouncementService {
    * @param {number|string} [params.limit=50] - Number of items per page (max 100).
    * @param {string|Array<string>} [params.authorRole] - Optional filter for author role(s).
    * @param {string|Array<string>} [params.authorRoles] - Optional filter for author role(s).
+   * @param {string} [params.department] - Optional target department filter for section views.
+   * @param {string} [params.year] - Optional target year filter for section views.
+   * @param {string} [params.section] - Optional target section filter for section views.
    * @returns {Promise<{ announcements: Array<object>, pagination: object }>}
    */
-  async getAnnouncementsForUser({ callerUid, page = 1, limit = 50, authorRole, authorRoles }) {
+  async getAnnouncementsForUser({ callerUid, page = 1, limit = 50, authorRole, authorRoles, department, year, section }) {
     // 1. Load and validate server profile
     const profile = await this.getValidatedUserProfile(callerUid);
     const role = profile.role;
@@ -583,13 +893,25 @@ export class AnnouncementService {
               return;
             }
           }
+
+          // If academic scope is requested (e.g. hierarchy section view), filter to applicable scope
+          if (!this.isAnnouncementApplicableToScope(ann, { department, year, section })) {
+            return;
+          }
+
           matched.push(ann);
         }
       });
     }
 
-    // 5. Sort newest first
-    matched.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    // 5. Sort newest first with deterministic tie-breaker
+    matched.sort((a, b) => {
+      const timeA = normalizeAnnouncementTimestamp(a.createdAt);
+      const timeB = normalizeAnnouncementTimestamp(b.createdAt);
+      const timeDiff = timeB - timeA;
+      if (timeDiff !== 0) return timeDiff;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
 
     // 6. Paginate results
     const total = matched.length;
@@ -718,7 +1040,7 @@ export class AnnouncementService {
       }
       if (role === 'faculty' && teacherAllocations.length > 0) {
         return teacherAllocations.some(alloc => {
-          if (alloc.authorized === false) return false;
+          if (!isValidActiveAllocation(alloc, profile.uid, profile.institution)) return false;
           return alloc.department && announcement.department && isMatchingDepartment(alloc.department, announcement.department);
         });
       }
@@ -744,7 +1066,7 @@ export class AnnouncementService {
           }
         }
         return teacherAllocations.some(alloc => {
-          if (alloc.authorized === false) return false;
+          if (!isValidActiveAllocation(alloc, profile.uid, profile.institution)) return false;
           const dMatch = !alloc.department || !announcement.department || isMatchingDepartment(alloc.department, announcement.department);
           const yMatch = !alloc.year || !announcement.year || isMatchingYear(alloc.year, announcement.year);
           return dMatch && yMatch;
@@ -774,7 +1096,7 @@ export class AnnouncementService {
         }
 
         return teacherAllocations.some(alloc => {
-          if (alloc.authorized === false) return false;
+          if (!isValidActiveAllocation(alloc, profile.uid, profile.institution)) return false;
           const dMatch = !alloc.department || !announcement.department || isMatchingDepartment(alloc.department, announcement.department);
           const yMatch = !alloc.year || !announcement.year || isMatchingYear(alloc.year, announcement.year);
           const sMatch = !alloc.section || !announcement.section || isMatchingSection(alloc.section, announcement.section);

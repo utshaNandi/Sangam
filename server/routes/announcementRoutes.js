@@ -85,13 +85,16 @@ router.get('/', verifyFirebaseToken, async (req, res) => {
       });
     }
 
-    const { page, limit, authorRole, authorRoles } = req.query;
+    const { page, limit, authorRole, authorRoles, department, year, section } = req.query;
 
     const result = await announcementService.getAnnouncementsForUser({
       callerUid,
       page,
       limit,
-      authorRoles: authorRole || authorRoles
+      authorRoles: authorRole || authorRoles,
+      department,
+      year,
+      section
     });
 
     return res.json({
