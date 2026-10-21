@@ -12,7 +12,102 @@ export const CANONICAL_DEPARTMENT_MAP = {
   'Computer Science & Engineering': 'Computer Science',
   'Electronics and Communication Engineering': 'Electronics & Communication',
   'Electronics & Communication Engineering': 'Electronics & Communication',
+  'Electronics and Communication': 'Electronics & Communication',
+  'Mechanical': 'Mechanical Engineering',
+  'Civil': 'Civil Engineering',
+  'Electrical': 'Electrical Engineering',
+  'Biotech': 'Biotechnology',
+  'Information Tech': 'Information Technology',
+  'CSE': 'Computer Science',
+  'IT': 'Information Technology',
+  'ECE': 'Electronics & Communication',
+  'EE': 'Electrical Engineering',
+  'ME': 'Mechanical Engineering',
+  'CE': 'Civil Engineering',
+  'BT': 'Biotechnology'
 };
+
+export const normalizeDeptStr = (str) =>
+  String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+export function getCanonicalDepartment(dept) {
+  if (!dept) return '';
+  const norm = normalizeDeptStr(dept);
+
+  if (norm === 'cse' || norm === 'computerscience' || norm === 'computerscienceandengineering' || norm === 'computerscienceengineering' || norm === 'cseengineering' || norm === 'cs') {
+    return 'Computer Science';
+  }
+  if (norm === 'cseai' || norm === 'computerscienceartificialintelligence' || norm === 'computerscienceengineeringartificialintelligence') {
+    return 'Computer Science';
+  }
+  if (norm === 'it' || norm === 'informationtechnology' || norm === 'informationtech' || norm === 'itengineering' || norm === 'infotech') {
+    return 'Information Technology';
+  }
+  if (
+    norm === 'ece' ||
+    norm === 'electronicscommunication' ||
+    norm === 'electronicsandcommunication' ||
+    norm === 'electronicsandcommunicationengineering' ||
+    norm === 'electronicscommunicationengineering' ||
+    norm === 'eceengineering'
+  ) {
+    return 'Electronics & Communication';
+  }
+  if (norm === 'ee' || norm === 'electrical' || norm === 'electricalengineering' || norm === 'eeengineering') {
+    return 'Electrical Engineering';
+  }
+  if (norm === 'me' || norm === 'mech' || norm === 'mechanical' || norm === 'mechanicalengineering' || norm === 'meengineering') {
+    return 'Mechanical Engineering';
+  }
+  if (norm === 'ce' || norm === 'civil' || norm === 'civilengineering' || norm === 'ceengineering') {
+    return 'Civil Engineering';
+  }
+  if (norm === 'bt' || norm === 'biotech' || norm === 'biotechnology' || norm === 'biotechnologyengineering' || norm === 'btengineering') {
+    return 'Biotechnology';
+  }
+  if (norm === 'management' || norm === 'businessadministration' || norm === 'mba' || norm === 'bba' || norm === 'business' || norm === 'mgmt') {
+    return 'Management';
+  }
+
+  const direct = CANONICAL_DEPARTMENT_MAP[dept];
+  if (direct) return direct;
+
+  for (const [key, val] of Object.entries(CANONICAL_DEPARTMENT_MAP)) {
+    if (normalizeDeptStr(key) === norm) {
+      return val;
+    }
+  }
+
+  return String(dept).trim();
+}
+
+/**
+ * Returns all recognized alias strings for a given department.
+ */
+export function getDepartmentAliases(dept) {
+  if (!dept) return [];
+  const c = getCanonicalDepartment(dept);
+  const normC = normalizeDeptStr(c);
+  const normD = normalizeDeptStr(dept);
+  const set = new Set();
+  set.add(dept);
+  if (c) set.add(c);
+
+  for (const [key, val] of Object.entries(CANONICAL_DEPARTMENT_MAP)) {
+    if (
+      normalizeDeptStr(val) === normC ||
+      normalizeDeptStr(key) === normC ||
+      normalizeDeptStr(val) === normD ||
+      normalizeDeptStr(key) === normD
+    ) {
+      set.add(key);
+      set.add(val);
+    }
+  }
+  return Array.from(set);
+}
 
 /**
  * Checks if two department names match directly or via canonical department aliases.
@@ -20,10 +115,19 @@ export const CANONICAL_DEPARTMENT_MAP = {
 export function isMatchingDepartment(d1, d2) {
   if (!d1 || !d2) return false;
   if (d1 === d2) return true;
-  const c1 = CANONICAL_DEPARTMENT_MAP[d1] || d1;
-  const c2 = CANONICAL_DEPARTMENT_MAP[d2] || d2;
-  if (c1 === c2) return true;
-  return baseIsMatchingDepartment(d1, d2);
+  const n1 = normalizeDeptStr(d1);
+  const n2 = normalizeDeptStr(d2);
+  if (n1 === n2) return true;
+
+  const c1 = getCanonicalDepartment(d1);
+  const c2 = getCanonicalDepartment(d2);
+  if (c1 && c2 && normalizeDeptStr(c1) === normalizeDeptStr(c2)) return true;
+
+  const m1 = CANONICAL_DEPARTMENT_MAP[d1] || d1;
+  const m2 = CANONICAL_DEPARTMENT_MAP[d2] || d2;
+  if (m1 === m2 || normalizeDeptStr(m1) === normalizeDeptStr(m2)) return true;
+
+  return Boolean(baseIsMatchingDepartment(d1, d2));
 }
 
 /**
@@ -176,7 +280,7 @@ export function isValidActiveAllocation(data, teacherUid = null, institution = n
 
   // 5. Teacher UID matching: cannot authorize a different teacher's allocation
   if (teacherUid) {
-    const allocTeacherUid = data.teacherUid || data.facultyUid || data.uid;
+    const allocTeacherUid = data.teacherUid || data.facultyUid || data.uid || data.teacherId || data.userId;
     if (allocTeacherUid && String(allocTeacherUid).trim() !== String(teacherUid).trim()) {
       return false;
     }
@@ -356,14 +460,8 @@ export class AnnouncementService {
       // Fallback to alias checks
     }
 
-    // 2. Check canonical department aliases (e.g. Computer Science <-> CSE AI)
-    const aliases = [];
-    const canonicalDept = CANONICAL_DEPARTMENT_MAP[cleanDept] || cleanDept;
-    for (const [alias, mapped] of Object.entries(CANONICAL_DEPARTMENT_MAP)) {
-      if ((mapped === canonicalDept || alias === cleanDept) && alias !== cleanDept) {
-        aliases.push(alias);
-      }
-    }
+    // 2. Check canonical department aliases across all departments
+    const aliases = getDepartmentAliases(cleanDept).filter(a => a !== cleanDept);
 
     for (const aliasDept of aliases) {
       const aliasId = `${cleanTeacherUid}_${aliasDept}_${cleanYear}_${cleanSec}`;
@@ -487,6 +585,7 @@ export class AnnouncementService {
    * @param {string} [params.section] - Target section (required for section).
    * @param {string} [params.priority='normal'] - 'normal' | 'urgent'.
    * @param {string} [params.category='general'] - Announcement category.
+   * @param {Array<object>} [params.attachments=[]] - Attached files (PDFs, images).
    * @returns {Promise<object>} The stored announcement record.
    */
   async createAnnouncement({
@@ -498,7 +597,8 @@ export class AnnouncementService {
     year,
     section,
     priority = 'normal',
-    category = 'general'
+    category = 'general',
+    attachments = []
   }) {
     // 1. Basic field presence and length validation
     if (!title || typeof title !== 'string' || !title.trim()) {
@@ -513,6 +613,50 @@ export class AnnouncementService {
       err.statusCode = 400;
       err.code = 'TITLE_TOO_LONG';
       throw err;
+    }
+
+    // Attachment validation
+    let sanitizedAttachments = [];
+    if (attachments !== undefined && attachments !== null) {
+      if (!Array.isArray(attachments)) {
+        const err = new Error('attachments must be an array.');
+        err.statusCode = 400;
+        err.code = 'INVALID_ATTACHMENTS';
+        throw err;
+      }
+      if (attachments.length > 10) {
+        const err = new Error('attachments cannot exceed 10 files.');
+        err.statusCode = 400;
+        err.code = 'TOO_MANY_ATTACHMENTS';
+        throw err;
+      }
+      for (const att of attachments) {
+        if (!att || typeof att !== 'object') {
+          const err = new Error('Each attachment must be an object.');
+          err.statusCode = 400;
+          err.code = 'INVALID_ATTACHMENT';
+          throw err;
+        }
+        const name = typeof att.name === 'string' ? att.name.trim().slice(0, 255) : 'attachment';
+        const type = typeof att.type === 'string' ? att.type.trim().toLowerCase() : 'application/octet-stream';
+        const size = Number.isFinite(att.size) && att.size >= 0 ? Math.floor(att.size) : 0;
+        const url = typeof att.url === 'string' ? att.url.trim() : typeof att.dataUrl === 'string' ? att.dataUrl.trim() : '';
+
+        if (size > 10 * 1024 * 1024) {
+          const err = new Error(`Attachment '${name}' exceeds maximum allowed size of 10MB.`);
+          err.statusCode = 400;
+          err.code = 'ATTACHMENT_TOO_LARGE';
+          throw err;
+        }
+
+        sanitizedAttachments.push({
+          id: String(att.id || `att_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`).trim(),
+          name,
+          size,
+          type,
+          url
+        });
+      }
     }
 
     if (!content || typeof content !== 'string' || !content.trim()) {
@@ -574,7 +718,7 @@ export class AnnouncementService {
           err.code = 'MISSING_DEPARTMENT';
           throw err;
         }
-        targetDepartment = CANONICAL_DEPARTMENT_MAP[department.trim()] || department.trim();
+        targetDepartment = getCanonicalDepartment(department.trim()) || department.trim();
       } else if (normalizedScope === 'year') {
         if (!department || typeof department !== 'string' || !department.trim()) {
           const err = new Error('department is required when publishing a department+year announcement.');
@@ -588,7 +732,7 @@ export class AnnouncementService {
           err.code = 'MISSING_YEAR';
           throw err;
         }
-        targetDepartment = CANONICAL_DEPARTMENT_MAP[department.trim()] || department.trim();
+        targetDepartment = getCanonicalDepartment(department.trim()) || department.trim();
         targetYear = year.trim();
       } else if (normalizedScope === 'section') {
         if (!department || typeof department !== 'string' || !department.trim()) {
@@ -609,7 +753,7 @@ export class AnnouncementService {
           err.code = 'MISSING_SECTION';
           throw err;
         }
-        targetDepartment = CANONICAL_DEPARTMENT_MAP[department.trim()] || department.trim();
+        targetDepartment = getCanonicalDepartment(department.trim()) || department.trim();
         targetYear = year.trim();
         targetSection = section.trim();
       }
@@ -635,7 +779,7 @@ export class AnnouncementService {
         err.code = 'UNAUTHORIZED_DEPARTMENT';
         throw err;
       }
-      targetDepartment = CANONICAL_DEPARTMENT_MAP[hodDept] || hodDept;
+      targetDepartment = getCanonicalDepartment(hodDept) || hodDept;
 
       if (normalizedScope === 'year') {
         if (!year || typeof year !== 'string' || !year.trim()) {
@@ -708,7 +852,7 @@ export class AnnouncementService {
         throw err;
       }
 
-      targetDepartment = CANONICAL_DEPARTMENT_MAP[cleanDept] || cleanDept;
+      targetDepartment = getCanonicalDepartment(cleanDept) || cleanDept;
       targetYear = cleanYear;
       targetSection = cleanSec;
     }
@@ -732,6 +876,7 @@ export class AnnouncementService {
       authorEmail: profile.email || '',
       priority: priority === 'urgent' ? 'urgent' : 'normal',
       category: typeof category === 'string' && category.trim() ? category.trim().toLowerCase() : 'general',
+      attachments: sanitizedAttachments,
       createdAt: nowIso,
       updatedAt: nowIso
     };

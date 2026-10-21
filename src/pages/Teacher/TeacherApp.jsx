@@ -75,9 +75,9 @@ export default function TeacherApp({ userProfile, onLogout }) {
     window.__SANGAM_PUBLISH_ANNOUNCEMENT__ = async (newAnnouncement) => {
       const targetGroup = newAnnouncement?.group || fullscreenAnnouncementGroup;
       const path = targetGroup?.path || [];
-      const department = (newAnnouncement?.department || path[1] || '').trim();
-      const year = (newAnnouncement?.year || path[2] || '').trim();
-      const section = (newAnnouncement?.section || path[3] || '').trim();
+      const department = (newAnnouncement?.department || targetGroup?.department || path[1] || allocations?.[0]?.department || '').trim();
+      const year = (newAnnouncement?.year || targetGroup?.year || path[2] || allocations?.[0]?.year || '').trim();
+      const section = (newAnnouncement?.section || targetGroup?.section || path[3] || allocations?.[0]?.section || '').trim();
 
       if (!department || !year || !section) {
         throw new Error('Incomplete hierarchy section scope. Department, Year, and Section are required to publish.');
@@ -92,7 +92,8 @@ export default function TeacherApp({ userProfile, onLogout }) {
           year,
           section,
           priority: newAnnouncement.status === 'Important' ? 'urgent' : 'normal',
-          category: (newAnnouncement.category || 'general').toLowerCase()
+          category: (newAnnouncement.category || 'general').toLowerCase(),
+          attachments: newAnnouncement.attachments
         });
         return result?.announcement;
       } catch (err) {
@@ -103,7 +104,7 @@ export default function TeacherApp({ userProfile, onLogout }) {
     return () => {
       delete window.__SANGAM_PUBLISH_ANNOUNCEMENT__;
     };
-  }, [fullscreenAnnouncementGroup, userProfile]);
+  }, [fullscreenAnnouncementGroup, userProfile, allocations]);
 
   const generalNavItems = [
     { id: 'Dashboard', label: 'Dashboard', icon: <Icons.Dashboard /> },

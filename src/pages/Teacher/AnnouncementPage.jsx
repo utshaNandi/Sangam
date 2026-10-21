@@ -122,17 +122,33 @@ function getAttachmentPreviewKind(att) {
 
   if (
     mime.startsWith('image/') ||
+    url.startsWith('data:image/') ||
     /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(name) ||
     /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url)
   ) {
     return 'image';
   }
 
-  if (mime === 'application/pdf' || /\.pdf$/i.test(name) || /\.pdf(\?.*)?$/i.test(url)) {
+  if (
+    mime === 'application/pdf' ||
+    url.startsWith('data:application/pdf') ||
+    /\.pdf$/i.test(name) ||
+    /\.pdf(\?.*)?$/i.test(url)
+  ) {
     return 'pdf';
   }
 
   return 'unsupported';
+}
+
+function readDataUrl(file) {
+  return new Promise((resolve) => {
+    if (!file || typeof FileReader === 'undefined') return resolve(null);
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
 }
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -278,6 +294,7 @@ function getBadgePalette(status) {
 export { mapBackendAnnouncementToItem };
 
 export function App({ onBack, group, userProfile }) {
+  const allocations = (typeof arguments !== 'undefined' && arguments[0]?.allocations) || group?.allocations || [];
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
   const [activeCategory, setActiveCategory] = useState('All');
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(group?.selectedAnnouncement || null);
@@ -293,9 +310,9 @@ export function App({ onBack, group, userProfile }) {
   const loadAnnouncements = useCallback(async () => {
     try {
       const path = group?.path || [];
-      const dept = (path[1] || '').trim();
-      const yr = (path[2] || '').trim();
-      const sec = (path[3] || '').trim();
+      const dept = (group?.department || path[1] || allocations?.[0]?.department || '').trim();
+      const yr = (group?.year || path[2] || allocations?.[0]?.year || '').trim();
+      const sec = (group?.section || path[3] || allocations?.[0]?.section || '').trim();
 
       const data = await fetchAnnouncements({
         department: dept,
@@ -312,7 +329,7 @@ export function App({ onBack, group, userProfile }) {
     } catch (err) {
       console.warn('[AnnouncementPage] Fetch announcements notice:', err.message);
     }
-  }, [group]);
+  }, [group, allocations]);
 
   useEffect(() => {
     loadAnnouncements();
@@ -400,7 +417,14 @@ export function App({ onBack, group, userProfile }) {
       segments = [...group.path];
     } else {
       const inst = userProfile?.institution || 'UEMK';
-      segments = [inst, 'CSE AI', '1st Year', 'Sec B'];
+      const targetDept = (group?.department || allocations?.[0]?.department || '').trim();
+      const targetYear = (group?.year || allocations?.[0]?.year || '').trim();
+      const targetSec = (group?.section || allocations?.[0]?.section || '').trim();
+      if (targetDept && targetYear && targetSec) {
+        segments = [inst, targetDept, targetYear, targetSec];
+      } else {
+        segments = [inst, targetDept || 'CSE AI', targetYear || '1st Year', targetSec || 'Sec B'];
+      }
     }
     return segments.map((seg, idx) => {
       if (idx === segments.length - 1 && typeof seg === 'string') {
@@ -408,7 +432,7 @@ export function App({ onBack, group, userProfile }) {
       }
       return seg;
     });
-  }, [group, userProfile]);
+  }, [group, userProfile, allocations]);
 
   // Announcement Publishing Modal states
   const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -638,13 +662,27 @@ export function App({ onBack, group, userProfile }) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newlyAttached = Array.from(files).map((file) => ({
-      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: file.name,
-      size: file.size,
-      type: file.type || 'application/octet-stream',
-      url: URL.createObjectURL(file),
-    }));
+    const newlyAttached = Array.from(files).map((file) => {
+      const blobUrl = URL.createObjectURL(file);
+      const att = {
+        id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        size: file.size,
+        type: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
+        url: blobUrl,
+        file: file
+      };
+
+      if (typeof FileReader !== 'undefined') {
+        const reader = new FileReader();
+        reader.onload = () => {
+          att.dataUrl = reader.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      return att;
+    });
 
     setComposeAttachments((prev) => [...prev, ...newlyAttached]);
     setComposeNotice(null);
@@ -692,6 +730,35 @@ export function App({ onBack, group, userProfile }) {
     setComposeNotice(null);
 
     try {
+      const path = group?.path || [];
+      const dept = (group?.department || path[1] || allocations?.[0]?.department || '').trim();
+      const yr = (group?.year || path[2] || allocations?.[0]?.year || '').trim();
+      const sec = (group?.section || path[3] || allocations?.[0]?.section || '').trim();
+
+      if (!dept || !yr || !sec) {
+        setComposeNotice('Incomplete hierarchy section scope. Department, Year, and Section are required to publish.');
+        setIsPublishing(false);
+        return;
+      }
+
+      // Prepare persistent serializable attachments with data URIs
+      const persistentAttachments = await Promise.all(
+        composeAttachments.map(async (att) => {
+          let finalUrl = att.dataUrl || att.url;
+          if ((!finalUrl || finalUrl.startsWith('blob:')) && att.file) {
+            const dataUrl = await readDataUrl(att.file);
+            if (dataUrl) finalUrl = dataUrl;
+          }
+          return {
+            id: att.id,
+            name: att.name,
+            size: att.size,
+            type: att.type,
+            url: finalUrl
+          };
+        })
+      );
+
       const newAnnouncement = {
         id: `ann-${Date.now()}`,
         senderName: currentUser.name,
@@ -705,27 +772,17 @@ export function App({ onBack, group, userProfile }) {
         category: composeCategory,
         status: composeStatus,
         isSaved: false,
-        attachments: composeAttachments.length > 0 ? [...composeAttachments] : undefined,
+        attachments: persistentAttachments.length > 0 ? persistentAttachments : undefined,
       };
 
       // Check if an external Sangam backend handler is registered on window
       const win = typeof window !== 'undefined' ? window : undefined;
       let created = null;
 
-      const path = group?.path || [];
-      const dept = (path[1] || '').trim();
-      const yr = (path[2] || '').trim();
-      const sec = (path[3] || '').trim();
-
-      if (!dept || !yr || !sec) {
-        setComposeNotice('Incomplete hierarchy section scope. Department, Year, and Section are required to publish.');
-        setIsPublishing(false);
-        return;
-      }
-
       if (typeof win?.__SANGAM_PUBLISH_ANNOUNCEMENT__ === 'function') {
         created = await win.__SANGAM_PUBLISH_ANNOUNCEMENT__({
           ...newAnnouncement,
+          attachments: persistentAttachments,
           department: dept,
           year: yr,
           section: sec,
@@ -740,7 +797,8 @@ export function App({ onBack, group, userProfile }) {
           year: yr,
           section: sec,
           priority: composeStatus === 'Important' ? 'urgent' : 'normal',
-          category: composeCategory.toLowerCase()
+          category: composeCategory.toLowerCase(),
+          attachments: persistentAttachments
         });
         created = res?.announcement;
       }

@@ -47,14 +47,41 @@ export default function AcademicSpacesView({
     }
   };
 
+  const primaryDept = effectiveAllocations[0]?.department || userProfile?.department || 'CSE AI';
+  const inst = userProfile?.institution || 'UEMK';
+
   const [expandedPaths, setExpandedPaths] = useState(() => {
     if (embedded) {
       // By default in embedded canvas, expand the primary department so the hierarchy is immediately visible
-      return new Set(['UEMK|CSE AI']);
+      return new Set([`${inst}|${primaryDept}`]);
     }
     return new Set();
   });
-  const [activePath, setActivePath] = useState(() => (embedded ? ['UEMK', 'CSE AI'] : []));
+  const [activePath, setActivePath] = useState(() => (embedded ? [inst, primaryDept] : []));
+
+  useEffect(() => {
+    if (embedded && effectiveAllocations.length > 0) {
+      const currentDept = effectiveAllocations[0]?.department;
+      if (currentDept) {
+        const pathKey = `${inst}|${currentDept}`;
+        setExpandedPaths(prev => {
+          if (prev.size === 0 || prev.has('UEMK|CSE AI')) {
+            const next = new Set(prev);
+            if (currentDept !== 'CSE AI') next.delete('UEMK|CSE AI');
+            next.add(pathKey);
+            return next;
+          }
+          return prev;
+        });
+        setActivePath(prev => {
+          if (prev.length === 0 || (prev[0] === 'UEMK' && prev[1] === 'CSE AI' && currentDept !== 'CSE AI')) {
+            return [inst, currentDept];
+          }
+          return prev;
+        });
+      }
+    }
+  }, [embedded, effectiveAllocations, inst]);
 
   // Dynamic academic hierarchy path for minimal breadcrumb navigation
   const currentBreadcrumbPath = useMemo(() => {

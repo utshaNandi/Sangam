@@ -183,6 +183,7 @@ export async function fetchDashboardAnnouncements({ limit = 4 } = {}) {
  * @param {string} params.section - Target section.
  * @param {string} [params.priority='normal'] - 'normal' | 'urgent'.
  * @param {string} [params.category='general'] - Announcement category.
+ * @param {Array<object>} [params.attachments=[]] - Announcement attachments (PDFs, images).
  * @returns {Promise<{ success: boolean, message: string, announcement: object }>}
  */
 export async function postAnnouncement({
@@ -193,7 +194,8 @@ export async function postAnnouncement({
   year,
   section,
   priority = 'normal',
-  category = 'general'
+  category = 'general',
+  attachments = []
 }) {
   const token = await getAuthToken();
   const apiBase = getApiBaseUrl();
@@ -206,7 +208,8 @@ export async function postAnnouncement({
     year: year?.trim(),
     section: section?.trim(),
     priority: priority === 'urgent' ? 'urgent' : 'normal',
-    category: category?.trim() || 'general'
+    category: category?.trim() || 'general',
+    attachments: Array.isArray(attachments) ? attachments : []
   };
 
   let response;

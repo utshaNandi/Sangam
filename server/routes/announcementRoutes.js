@@ -33,7 +33,8 @@ router.post('/', verifyFirebaseToken, async (req, res) => {
       year,
       section,
       priority,
-      category
+      category,
+      attachments
     } = req.body || {};
 
     const announcement = await announcementService.createAnnouncement({
@@ -45,7 +46,8 @@ router.post('/', verifyFirebaseToken, async (req, res) => {
       year,
       section,
       priority,
-      category
+      category,
+      attachments
     });
 
     return res.status(201).json({

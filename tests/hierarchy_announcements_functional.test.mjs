@@ -227,6 +227,115 @@ mockDb.store.teacher_allocations['alloc_mech_1'] = {
   authorized: true
 };
 
+// Setup Verified User Profiles for all configured Sangam departments
+mockDb.store.users['uid_teacher_it'] = {
+  uid: 'uid_teacher_it',
+  role: 'teacher',
+  institution: 'Sangam University',
+  department: 'Information Technology',
+  name: 'Prof. IT Teacher',
+  email: 'teacher.it@sangam.edu',
+  status: 'active'
+};
+mockDb.store.teacher_allocations['alloc_it_1'] = {
+  teacherUid: 'uid_teacher_it',
+  institution: 'Sangam University',
+  department: 'Information Technology',
+  year: '2nd Year',
+  section: 'Sec A',
+  authorized: true
+};
+
+mockDb.store.users['uid_teacher_ece'] = {
+  uid: 'uid_teacher_ece',
+  role: 'teacher',
+  institution: 'Sangam University',
+  department: 'Electronics & Communication',
+  name: 'Prof. ECE Teacher',
+  email: 'teacher.ece@sangam.edu',
+  status: 'active'
+};
+mockDb.store.teacher_allocations['alloc_ece_1'] = {
+  teacherUid: 'uid_teacher_ece',
+  institution: 'Sangam University',
+  department: 'Electronics & Communication',
+  year: '3rd Year',
+  section: 'Sec C',
+  authorized: true
+};
+
+mockDb.store.users['uid_teacher_ee'] = {
+  uid: 'uid_teacher_ee',
+  role: 'teacher',
+  institution: 'Sangam University',
+  department: 'Electrical Engineering',
+  name: 'Prof. EE Teacher',
+  email: 'teacher.ee@sangam.edu',
+  status: 'active'
+};
+mockDb.store.teacher_allocations['alloc_ee_1'] = {
+  teacherUid: 'uid_teacher_ee',
+  institution: 'Sangam University',
+  department: 'Electrical Engineering',
+  year: '2nd Year',
+  section: 'Sec A',
+  authorized: true
+};
+
+mockDb.store.users['uid_teacher_civil'] = {
+  uid: 'uid_teacher_civil',
+  role: 'teacher',
+  institution: 'Sangam University',
+  department: 'Civil Engineering',
+  name: 'Prof. Civil Teacher',
+  email: 'teacher.civil@sangam.edu',
+  status: 'active'
+};
+mockDb.store.teacher_allocations['alloc_civil_1'] = {
+  teacherUid: 'uid_teacher_civil',
+  institution: 'Sangam University',
+  department: 'Civil Engineering',
+  year: '1st Year',
+  section: 'Sec B',
+  authorized: true
+};
+
+mockDb.store.users['uid_teacher_bt'] = {
+  uid: 'uid_teacher_bt',
+  role: 'teacher',
+  institution: 'Sangam University',
+  department: 'Biotechnology',
+  name: 'Prof. Biotech Teacher',
+  email: 'teacher.bt@sangam.edu',
+  status: 'active'
+};
+mockDb.store.teacher_allocations['alloc_bt_1'] = {
+  teacherUid: 'uid_teacher_bt',
+  institution: 'Sangam University',
+  department: 'Biotechnology',
+  year: '4th Year',
+  section: 'Sec A',
+  authorized: true
+};
+
+mockDb.store.users['uid_teacher_mgmt'] = {
+  uid: 'uid_teacher_mgmt',
+  role: 'teacher',
+  institution: 'Sangam University',
+  department: 'Management',
+  name: 'Prof. Management Teacher',
+  email: 'teacher.mgmt@sangam.edu',
+  status: 'active'
+};
+mockDb.store.teacher_allocations['alloc_mgmt_1'] = {
+  teacherUid: 'uid_teacher_mgmt',
+  institution: 'Sangam University',
+  department: 'Management',
+  year: '1st Year',
+  section: 'Sec A',
+  authorized: true
+};
+
 // =============================================================================
 // TEST SUITE EXECUTION
 // =============================================================================
@@ -1042,6 +1151,431 @@ async function runAllTests() {
       },
       (err) => err.statusCode === 400 && err.code === 'MISSING_SECTION'
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // SECTION 13: Comprehensive All-Department Publishing & Scoping Suite
+  // ---------------------------------------------------------------------------
+  console.log('\n--- SECTION 13: Comprehensive All-Department Publishing & Scoping Suite ---');
+
+  let itAnnId = null;
+  let eceAnnId = null;
+  let eeAnnId = null;
+  let civilAnnId = null;
+  let btAnnId = null;
+  let mgmtAnnId = null;
+
+  await runAsyncTest('13.1: Information Technology teacher publishes to IT • 2nd Year • Sec A', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_it',
+      title: 'IT201 Database Architecture Seminar',
+      content: 'Guest lecture on relational databases tomorrow at 11 AM.',
+      scopeType: 'section',
+      department: 'Information Technology',
+      year: '2nd Year',
+      section: 'Sec A',
+      priority: 'normal',
+      category: 'academic'
+    });
+    assert.ok(ann && ann.id);
+    assert.strictEqual(ann.scopeType, 'section');
+    assert.strictEqual(ann.authorUid, 'uid_teacher_it');
+    itAnnId = ann.id;
+
+    // Verify IT teacher sees it in section feed
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_it',
+      department: 'Information Technology',
+      year: '2nd Year',
+      section: 'Sec A'
+    });
+    assert.ok(feed.announcements.some(a => a.id === itAnnId), 'IT teacher must see their announcement in IT feed');
+
+    // Verify CS teacher does NOT see IT section announcement
+    const csFeed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_cs',
+      department: 'Computer Science and Engineering',
+      year: '1st Year',
+      section: 'Sec B'
+    });
+    assert.ok(!csFeed.announcements.some(a => a.id === itAnnId), 'CS teacher must NOT see IT section announcement');
+  });
+
+  await runAsyncTest('13.2: ECE teacher publishes using alias ECE • 3rd Year • Sec C', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_ece',
+      title: 'ECE301 VLSI Design Submission',
+      content: 'Verilog testbench simulation waveforms due by Monday.',
+      scopeType: 'section',
+      department: 'ECE',
+      year: '3rd Year',
+      section: 'Sec C',
+      priority: 'urgent',
+      category: 'academic'
+    });
+    assert.ok(ann && ann.id);
+    eceAnnId = ann.id;
+
+    // Verify ECE teacher sees it in feed when queried with full department name
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_ece',
+      department: 'Electronics & Communication',
+      year: '3rd Year',
+      section: 'Sec C'
+    });
+    assert.ok(feed.announcements.some(a => a.id === eceAnnId), 'ECE teacher must see ECE announcement in feed');
+  });
+
+  await runAsyncTest('13.3: Electrical Engineering teacher publishes to EE • 2nd Year • Sec A', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_ee',
+      title: 'EE202 Power Systems Lab Safety',
+      content: 'Transformer bench testing instructions posted.',
+      scopeType: 'section',
+      department: 'Electrical Engineering',
+      year: '2nd Year',
+      section: 'Sec A',
+      priority: 'normal',
+      category: 'routine'
+    });
+    assert.ok(ann && ann.id);
+    eeAnnId = ann.id;
+
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_ee',
+      department: 'Electrical Engineering',
+      year: '2nd Year',
+      section: 'Sec A'
+    });
+    assert.ok(feed.announcements.some(a => a.id === eeAnnId), 'EE teacher must see EE announcement in feed');
+  });
+
+  await runAsyncTest('13.4: Civil Engineering teacher publishes to Civil • 1st Year • Sec B', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_civil',
+      title: 'CE101 Surveying Field Trip',
+      content: 'Theodolite field measurement session this Saturday morning.',
+      scopeType: 'section',
+      department: 'Civil Engineering',
+      year: '1st Year',
+      section: 'Sec B',
+      priority: 'normal',
+      category: 'academic'
+    });
+    assert.ok(ann && ann.id);
+    civilAnnId = ann.id;
+
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_civil',
+      department: 'Civil Engineering',
+      year: '1st Year',
+      section: 'Sec B'
+    });
+    assert.ok(feed.announcements.some(a => a.id === civilAnnId), 'Civil teacher must see Civil announcement in feed');
+  });
+
+  await runAsyncTest('13.5: Biotechnology teacher publishes to Biotech • 4th Year • Sec A', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_bt',
+      title: 'BT401 Bioprocess Engineering viva',
+      content: 'Fermenter design viva schedule is now finalized.',
+      scopeType: 'section',
+      department: 'Biotechnology',
+      year: '4th Year',
+      section: 'Sec A',
+      priority: 'urgent',
+      category: 'academic'
+    });
+    assert.ok(ann && ann.id);
+    btAnnId = ann.id;
+
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_bt',
+      department: 'Biotechnology',
+      year: '4th Year',
+      section: 'Sec A'
+    });
+    assert.ok(feed.announcements.some(a => a.id === btAnnId), 'Biotech teacher must see Biotech announcement in feed');
+  });
+
+  await runAsyncTest('13.6: Management teacher publishes to Management • 1st Year • Sec A', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_mgmt',
+      title: 'MGMT101 Case Study Analysis',
+      content: 'Harvard Business Review case study submission deadline.',
+      scopeType: 'section',
+      department: 'Management',
+      year: '1st Year',
+      section: 'Sec A',
+      priority: 'normal',
+      category: 'academic'
+    });
+    assert.ok(ann && ann.id);
+    mgmtAnnId = ann.id;
+
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_mgmt',
+      department: 'Management',
+      year: '1st Year',
+      section: 'Sec A'
+    });
+    assert.ok(feed.announcements.some(a => a.id === mgmtAnnId), 'Management teacher must see Management announcement in feed');
+  });
+
+  await runAsyncTest('13.7: Teacher cannot publish to a department where they have no allocation', async () => {
+    await assert.rejects(
+      async () => {
+        await announcementService.createAnnouncement({
+          callerUid: 'uid_teacher_it',
+          title: 'Unauthorized Cross-Dept Post',
+          content: 'This should be rejected because IT teacher has no Civil allocation',
+          scopeType: 'section',
+          department: 'Civil Engineering',
+          year: '1st Year',
+          section: 'Sec B'
+        });
+      },
+      (err) => err.statusCode === 403 && err.code === 'UNAUTHORIZED_ALLOCATION'
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // SECTION 14: PDF & Image Attachment Lifecycle Suite
+  // ---------------------------------------------------------------------------
+  console.log('\n--- SECTION 14: PDF & Image Attachment Lifecycle Suite ---');
+
+  let pdfAnnId = null;
+  let imageAnnId = null;
+  let multiAttAnnId = null;
+
+  const samplePdfDataUri = 'data:application/pdf;base64,JVBERi0xLjQKJcTl8uXrCjEgMCBvYmoKPDwKL1R5cGUgL0NhdGFsb2cKL1BhZ2VzIDIgMCBSCj4+CmVuZG9iagoyIDAgb2JqCjw8Ci9UeXBlIC9QYWdlcwovS2lkcyBbMyAwIFJdCi9Db3VudCAxCj4+CmVuZG9iago=';
+  const samplePngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  await runAsyncTest('14.1: Teacher publishes announcement with PDF attachment', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_it',
+      title: 'IT201 Syllabus and Reference Materials',
+      content: 'Attached is the official course syllabus for the semester.',
+      scopeType: 'section',
+      department: 'Information Technology',
+      year: '2nd Year',
+      section: 'Sec A',
+      attachments: [
+        {
+          id: 'att-pdf-it-1',
+          name: 'IT201_Course_Syllabus.pdf',
+          size: 1048576,
+          type: 'application/pdf',
+          url: samplePdfDataUri
+        }
+      ]
+    });
+
+    assert.ok(ann && ann.id);
+    assert.ok(Array.isArray(ann.attachments), 'attachments must be an array');
+    assert.strictEqual(ann.attachments.length, 1);
+    assert.strictEqual(ann.attachments[0].id, 'att-pdf-it-1');
+    assert.strictEqual(ann.attachments[0].name, 'IT201_Course_Syllabus.pdf');
+    assert.strictEqual(ann.attachments[0].size, 1048576);
+    assert.strictEqual(ann.attachments[0].type, 'application/pdf');
+    assert.strictEqual(ann.attachments[0].url, samplePdfDataUri);
+
+    pdfAnnId = ann.id;
+  });
+
+  await runAsyncTest('14.2: Teacher publishes announcement with Image attachment', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_ece',
+      title: 'Circuit Schematic for Lab 2',
+      content: 'Refer to the attached breadboard wiring schematic.',
+      scopeType: 'section',
+      department: 'Electronics & Communication',
+      year: '3rd Year',
+      section: 'Sec C',
+      attachments: [
+        {
+          id: 'att-img-ece-1',
+          name: 'Oscilloscope_Wiring_Diagram.png',
+          size: 512000,
+          type: 'image/png',
+          url: samplePngDataUri
+        }
+      ]
+    });
+
+    assert.ok(ann && ann.id);
+    assert.ok(Array.isArray(ann.attachments));
+    assert.strictEqual(ann.attachments.length, 1);
+    assert.strictEqual(ann.attachments[0].type, 'image/png');
+    assert.strictEqual(ann.attachments[0].name, 'Oscilloscope_Wiring_Diagram.png');
+    assert.strictEqual(ann.attachments[0].url, samplePngDataUri);
+
+    imageAnnId = ann.id;
+  });
+
+  await runAsyncTest('14.3: Teacher publishes announcement with multiple attachments (PDF + PNG)', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_ee',
+      title: 'Power Electronics Assignment & Formulas',
+      content: 'Please review both the question sheet and reference formula chart.',
+      scopeType: 'section',
+      department: 'Electrical Engineering',
+      year: '2nd Year',
+      section: 'Sec A',
+      attachments: [
+        {
+          id: 'att-ee-pdf',
+          name: 'Assignment_Problems.pdf',
+          size: 204800,
+          type: 'application/pdf',
+          url: samplePdfDataUri
+        },
+        {
+          id: 'att-ee-img',
+          name: 'Formula_Chart.png',
+          size: 102400,
+          type: 'image/png',
+          url: samplePngDataUri
+        }
+      ]
+    });
+
+    assert.ok(ann && ann.id);
+    assert.strictEqual(ann.attachments.length, 2);
+    assert.strictEqual(ann.attachments[0].name, 'Assignment_Problems.pdf');
+    assert.strictEqual(ann.attachments[1].name, 'Formula_Chart.png');
+
+    multiAttAnnId = ann.id;
+  });
+
+  await runAsyncTest('14.4: Attachments persist in database and are retrieved by ID', async () => {
+    assert.ok(pdfAnnId);
+    const retrieved = await announcementService.getAnnouncementById({
+      announcementId: pdfAnnId,
+      callerUid: 'uid_teacher_it'
+    });
+
+    assert.ok(retrieved);
+    assert.ok(Array.isArray(retrieved.attachments));
+    assert.strictEqual(retrieved.attachments.length, 1);
+    assert.strictEqual(retrieved.attachments[0].name, 'IT201_Course_Syllabus.pdf');
+    assert.strictEqual(retrieved.attachments[0].type, 'application/pdf');
+    assert.strictEqual(retrieved.attachments[0].url, samplePdfDataUri);
+  });
+
+  await runAsyncTest('14.5: getAnnouncementsForUser preserves attachments array for feed rendering', async () => {
+    const feed = await announcementService.getAnnouncementsForUser({
+      callerUid: 'uid_teacher_ee',
+      department: 'Electrical Engineering',
+      year: '2nd Year',
+      section: 'Sec A'
+    });
+
+    const target = feed.announcements.find(a => a.id === multiAttAnnId);
+    assert.ok(target, 'Multi-attachment announcement must be in feed');
+    assert.ok(Array.isArray(target.attachments), 'Target in feed must have attachments array');
+    assert.strictEqual(target.attachments.length, 2);
+    assert.strictEqual(target.attachments[0].type, 'application/pdf');
+    assert.strictEqual(target.attachments[1].type, 'image/png');
+  });
+
+  await runAsyncTest('14.6: mapBackendAnnouncementToItem preserves attachments faithfully', () => {
+    const backendAnn = {
+      id: 'ann-att-map-test',
+      title: 'Lab Manual',
+      content: 'See attached file',
+      authorRole: 'faculty',
+      authorName: 'Prof. Test',
+      createdAt: new Date().toISOString(),
+      attachments: [
+        {
+          id: 'att-1',
+          name: 'Manual.pdf',
+          size: 50000,
+          type: 'application/pdf',
+          url: 'https://example.com/manual.pdf'
+        }
+      ]
+    };
+
+    const uiItem = mapBackendAnnouncementToItem(backendAnn);
+    assert.ok(uiItem);
+    assert.ok(Array.isArray(uiItem.attachments));
+    assert.strictEqual(uiItem.attachments.length, 1);
+    assert.strictEqual(uiItem.attachments[0].name, 'Manual.pdf');
+    assert.strictEqual(uiItem.attachments[0].url, 'https://example.com/manual.pdf');
+  });
+
+  await runAsyncTest('14.7: Backend rejects attachments exceeding maximum size (> 10MB)', async () => {
+    await assert.rejects(
+      async () => {
+        await announcementService.createAnnouncement({
+          callerUid: 'uid_teacher_it',
+          title: 'Oversized Attachment Post',
+          content: 'This should fail because file exceeds 10MB',
+          scopeType: 'section',
+          department: 'Information Technology',
+          year: '2nd Year',
+          section: 'Sec A',
+          attachments: [
+            {
+              id: 'att-huge',
+              name: 'huge_file.pdf',
+              size: 15 * 1024 * 1024, // 15MB
+              type: 'application/pdf',
+              url: 'data:application/pdf;base64,xxxx'
+            }
+          ]
+        });
+      },
+      (err) => err.statusCode === 400 && err.code === 'ATTACHMENT_TOO_LARGE'
+    );
+  });
+
+  await runAsyncTest('14.8: Backend rejects more than 10 attachments per announcement', async () => {
+    const tooMany = Array.from({ length: 11 }, (_, i) => ({
+      id: `att-${i}`,
+      name: `file_${i}.png`,
+      size: 1024,
+      type: 'image/png',
+      url: samplePngDataUri
+    }));
+
+    await assert.rejects(
+      async () => {
+        await announcementService.createAnnouncement({
+          callerUid: 'uid_teacher_it',
+          title: 'Too Many Files Post',
+          content: 'This should fail because there are 11 attachments',
+          scopeType: 'section',
+          department: 'Information Technology',
+          year: '2nd Year',
+          section: 'Sec A',
+          attachments: tooMany
+        });
+      },
+      (err) => err.statusCode === 400 && err.code === 'TOO_MANY_ATTACHMENTS'
+    );
+  });
+
+  await runAsyncTest('14.9: Backend handles announcements without attachments cleanly', async () => {
+    const ann = await announcementService.createAnnouncement({
+      callerUid: 'uid_teacher_it',
+      title: 'Text Only Announcement',
+      content: 'This announcement has no attachments.',
+      scopeType: 'section',
+      department: 'Information Technology',
+      year: '2nd Year',
+      section: 'Sec A'
+    });
+
+    assert.ok(ann && ann.id);
+    assert.ok(Array.isArray(ann.attachments));
+    assert.strictEqual(ann.attachments.length, 0);
+
+    const uiItem = mapBackendAnnouncementToItem(ann);
+    assert.ok(Array.isArray(uiItem.attachments));
+    assert.strictEqual(uiItem.attachments.length, 0);
   });
 
   console.log('\n======================================================');
